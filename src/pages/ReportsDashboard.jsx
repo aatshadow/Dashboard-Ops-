@@ -335,7 +335,7 @@ export default function ReportsDashboard() {
           </div>
 
           <div className="section-label-dash" style={{marginTop: 8}}>Ratios Setters</div>
-          <div className="stats-grid" style={{gridTemplateColumns: 'repeat(3, 1fr)'}}>
+          <div className="stats-grid stats-grid--3">
             <FlipStatCard id="s-ofertasRate" icon="📊" value={`${setterOfertasRate}%`} label="% Ofertas / Convos"
               sub={`${totalSetterOffers}/${totalConvos}`}
               compClass={dc(setterOfertasRate, prevSetterOfertasRate)} compText={ct(setterOfertasRate, prevSetterOfertasRate, '%')}
@@ -422,7 +422,7 @@ export default function ReportsDashboard() {
           </div>
 
           <div className="section-label-dash" style={{marginTop: 8}}>Ratios Closers</div>
-          <div className="stats-grid" style={{gridTemplateColumns: 'repeat(3, 1fr)'}}>
+          <div className="stats-grid stats-grid--3">
             <FlipStatCard id="c-showRate" icon="📊" value={`${showRate}%`} label="Show Rate"
               sub={`${totalCalls}/${totalScheduled} shows`}
               compClass={dc(showRate, prevShowRate)} compText={ct(showRate, prevShowRate, '%')}
@@ -485,7 +485,7 @@ export default function ReportsDashboard() {
       {showClosers && (
         <>
           <div className="section-label-dash" style={{marginTop: 24}}>Resumen por Closer</div>
-          <div className="table-wrap">
+          <div className="table-wrapper" style={{ marginBottom: 28 }}>
             <table className="data-table">
               <thead>
                 <tr>
@@ -566,7 +566,7 @@ export default function ReportsDashboard() {
       {showSetters && (
         <>
           <div className="section-label-dash" style={{marginTop: 24}}>Resumen por Setter</div>
-          <div className="table-wrap">
+          <div className="table-wrapper" style={{ marginBottom: 28 }}>
             <table className="data-table">
               <thead>
                 <tr>

@@ -369,7 +369,7 @@ export default function ProjectionsPage() {
           <div className="section-label-dash">
             {!isAdmin && currentUser?.role === 'closer' ? 'Tu Proyección — Cash Target' : 'Closers — Cash Target'}
           </div>
-          <div className="stats-grid" style={{ gridTemplateColumns: `repeat(${Math.min(visibleCloserProjs.length, 4)}, 1fr)` }}>
+          <div className={`stats-grid stats-grid--${Math.min(visibleCloserProjs.length, 4)}`}>
             {visibleCloserProjs.map(p => {
               const actual = cashByCloser[p.name] || 0
               return (
@@ -396,7 +396,7 @@ export default function ProjectionsPage() {
           <div className="section-label-dash">
             {!isAdmin && currentUser?.role === 'setter' ? 'Tu Proyección — Agendas Target' : 'Setters — Agendas Target'}
           </div>
-          <div className="stats-grid" style={{ gridTemplateColumns: `repeat(${Math.min(visibleSetterProjs.length, 4)}, 1fr)` }}>
+          <div className={`stats-grid stats-grid--${Math.min(visibleSetterProjs.length, 4)}`}>
             {visibleSetterProjs.map(p => {
               const actual = appointmentsBySetter[p.name] || 0
               return (

@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 
 const navItems = [
   {
@@ -49,7 +49,13 @@ const navItems = [
 
 export default function Layout({ children, user, onLogout, role }) {
   const [collapsed, setCollapsed] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const location = useLocation()
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [location.pathname])
 
   // Filter nav items based on user role
   const visibleNavItems = useMemo(() => {
@@ -94,69 +100,93 @@ export default function Layout({ children, user, onLogout, role }) {
     return 'Dashboard'
   })()
 
+  const sidebarContent = (
+    <>
+      <div className="sidebar-header">
+        <img src="/assets/logo.jpeg" alt="FBA" className="sidebar-logo" />
+        {!collapsed && <span className="sidebar-brand">FBA Academy</span>}
+      </div>
+
+      <nav className="sidebar-nav">
+        {visibleNavItems.map(group => {
+          const isActive = group.children.some(c => location.pathname === c.to)
+          const isOpen = openGroups[group.label]
+
+          return (
+            <div key={group.label} className="nav-group">
+              <button
+                className={`nav-group-btn ${isActive ? 'nav-group-btn--active' : ''}`}
+                onClick={() => toggleGroup(group.label)}
+                title={group.label}
+              >
+                <span className="nav-icon">{group.icon}</span>
+                {!collapsed && (
+                  <>
+                    <span className="nav-label">{group.label}</span>
+                    <span className={`nav-chevron ${isOpen ? 'nav-chevron--open' : ''}`}>›</span>
+                  </>
+                )}
+              </button>
+
+              {isOpen && !collapsed && (
+                <div className="nav-group-children">
+                  {group.children.map(item => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      className={({ isActive }) => `nav-child ${isActive ? 'nav-child--active' : ''}`}
+                    >
+                      <span className="nav-child-dot" />
+                      <span>{item.label}</span>
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </nav>
+
+      <div className="sidebar-footer">
+        <button onClick={() => setCollapsed(!collapsed)} className="sidebar-toggle sidebar-toggle--desktop" title="Toggle sidebar">
+          {collapsed ? '→' : '←'}
+        </button>
+        <button onClick={onLogout} className="sidebar-logout" title="Cerrar sesión">
+          {collapsed ? '⏻' : 'Cerrar sesión'}
+        </button>
+      </div>
+    </>
+  )
+
   return (
     <div className={`layout ${collapsed ? 'layout--collapsed' : ''}`}>
-      <aside className="sidebar">
-        <div className="sidebar-header">
-          <img src="/assets/logo.jpeg" alt="FBA" className="sidebar-logo" />
-          {!collapsed && <span className="sidebar-brand">FBA Academy</span>}
-        </div>
+      {/* Desktop sidebar */}
+      <aside className="sidebar sidebar--desktop">
+        {sidebarContent}
+      </aside>
 
-        <nav className="sidebar-nav">
-          {visibleNavItems.map(group => {
-            const isActive = group.children.some(c => location.pathname === c.to)
-            const isOpen = openGroups[group.label]
-
-            return (
-              <div key={group.label} className="nav-group">
-                <button
-                  className={`nav-group-btn ${isActive ? 'nav-group-btn--active' : ''}`}
-                  onClick={() => toggleGroup(group.label)}
-                  title={group.label}
-                >
-                  <span className="nav-icon">{group.icon}</span>
-                  {!collapsed && (
-                    <>
-                      <span className="nav-label">{group.label}</span>
-                      <span className={`nav-chevron ${isOpen ? 'nav-chevron--open' : ''}`}>›</span>
-                    </>
-                  )}
-                </button>
-
-                {isOpen && !collapsed && (
-                  <div className="nav-group-children">
-                    {group.children.map(item => (
-                      <NavLink
-                        key={item.to}
-                        to={item.to}
-                        className={({ isActive }) => `nav-child ${isActive ? 'nav-child--active' : ''}`}
-                      >
-                        <span className="nav-child-dot" />
-                        <span>{item.label}</span>
-                      </NavLink>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </nav>
-
-        <div className="sidebar-footer">
-          <button onClick={() => setCollapsed(!collapsed)} className="sidebar-toggle" title="Toggle sidebar">
-            {collapsed ? '→' : '←'}
-          </button>
-          <button onClick={onLogout} className="sidebar-logout" title="Cerrar sesión">
-            {collapsed ? '⏻' : 'Cerrar sesión'}
-          </button>
-        </div>
+      {/* Mobile sidebar overlay */}
+      {mobileMenuOpen && (
+        <div className="mobile-overlay" onClick={() => setMobileMenuOpen(false)} />
+      )}
+      <aside className={`sidebar sidebar--mobile ${mobileMenuOpen ? 'sidebar--mobile-open' : ''}`}>
+        {sidebarContent}
       </aside>
 
       <main className="main">
         <header className="topbar">
-          <h1 className="topbar-title">{pageTitle}</h1>
+          <div className="topbar-left">
+            <button
+              className="mobile-hamburger"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Abrir menú"
+            >
+              {mobileMenuOpen ? '✕' : '☰'}
+            </button>
+            <h1 className="topbar-title">{pageTitle}</h1>
+          </div>
           <div className="topbar-user">
-            <div className="topbar-avatar">E</div>
+            <div className="topbar-avatar">{(user || 'U')[0].toUpperCase()}</div>
             <span className="topbar-email">{user}</span>
           </div>
         </header>

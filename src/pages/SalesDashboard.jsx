@@ -216,7 +216,7 @@ export default function SalesDashboard() {
       />
 
       {/* ═══ BIG NUMBERS ═══ */}
-      <div className="big-numbers" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+      <div className="big-numbers big-numbers--3">
         <div className="big-number-card">
           <div className="big-number-label">Revenue</div>
           <div className="big-number-value">{fmt(totalRevenue)}</div>
@@ -284,7 +284,7 @@ export default function SalesDashboard() {
       </div>
 
       {/* ═══ STATUS & CUOTAS ROW ═══ */}
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+      <div className="stats-grid stats-grid--4">
         <div className="stat-card">
           <div className="stat-card-icon">✅</div>
           <div className="stat-card-value" style={{ color: 'var(--success)' }}>{completadas}</div>
@@ -463,7 +463,7 @@ export default function SalesDashboard() {
       </div>
 
       {/* ═══ CHARTS ROW 3: Closer + Método + Tipo de pago ═══ */}
-      <div className="charts-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+      <div className="charts-grid charts-grid--3">
         <div className="chart-card">
           <h3 className="chart-title">Rendimiento por Closer</h3>
           <ResponsiveContainer width="100%" height={300}>
