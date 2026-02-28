@@ -1,5 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom'
 import { useState, useMemo, useEffect } from 'react'
+import { getPrimaryRole } from '../utils/roles'
 
 const navItems = [
   {
@@ -57,9 +58,10 @@ export default function Layout({ children, user, onLogout, role }) {
     setMobileMenuOpen(false)
   }, [location.pathname])
 
-  // Filter nav items based on user role
+  // Filter nav items based on user role (use primary role from multi-role string)
+  const primaryRole = getPrimaryRole(role)
   const visibleNavItems = useMemo(() => {
-    if (role === 'director') return navItems
+    if (primaryRole === 'director') return navItems
 
     return navItems.filter(group => {
       if (group.label === 'Ventas' || group.label === 'Reportes') return true
@@ -67,7 +69,7 @@ export default function Layout({ children, user, onLogout, role }) {
       return false
     }).map(group => {
       if (group.label === 'Management') {
-        if (role === 'manager') {
+        if (primaryRole === 'manager') {
           return { ...group, children: group.children.filter(c => c.to === '/proyecciones' || c.to === '/comisiones' || c.to === '/settings') }
         }
         // closer/setter — Proyecciones + Comisiones + Settings
@@ -75,7 +77,7 @@ export default function Layout({ children, user, onLogout, role }) {
       }
       return group
     })
-  }, [role])
+  }, [primaryRole])
 
   // Track which groups are open
   const [openGroups, setOpenGroups] = useState(() => {

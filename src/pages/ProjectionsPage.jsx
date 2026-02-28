@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { getProjections, addProjection, updateProjection, deleteProjection, getTeam, getSalesWithNetCash, getReports } from '../utils/data'
 import { useAsync } from '../hooks/useAsync'
+import { hasRole, getPrimaryRole } from '../utils/roles'
 
 function getISOWeek(date) {
   const d = new Date(date.getTime())
@@ -90,8 +91,8 @@ export default function ProjectionsPage() {
   const [sales, salesLoading] = useAsync(getSalesWithNetCash, [])
   const [reports, reportsLoading] = useAsync(getReports, [])
   const [team, teamLoading] = useAsync(getTeam, [])
-  const activeClosers = team.filter(m => m.role === 'closer' && m.active)
-  const activeSetters = team.filter(m => m.role === 'setter' && m.active)
+  const activeClosers = team.filter(m => hasRole(m.role, 'closer') && m.active)
+  const activeSetters = team.filter(m => hasRole(m.role, 'setter') && m.active)
 
   // Current user for role-based filtering
   const currentUser = useMemo(() => {
@@ -99,7 +100,8 @@ export default function ProjectionsPage() {
     return team.find(m => m.email === email) || null
   }, [team])
 
-  const isAdmin = currentUser && (currentUser.role === 'director' || currentUser.role === 'manager')
+  const currentPrimaryRole = currentUser ? getPrimaryRole(currentUser.role) : null
+  const isAdmin = currentUser && (currentPrimaryRole === 'director' || currentPrimaryRole === 'manager')
 
   // Filter projections by current period
   const periodProjections = projections.filter(p => {
@@ -116,12 +118,15 @@ export default function ProjectionsPage() {
   let visibleCloserProjs = allCloserProjs
   let visibleSetterProjs = allSetterProjs
   if (!isAdmin && currentUser) {
-    if (currentUser.role === 'closer') {
+    if (hasRole(currentUser.role, 'closer')) {
       visibleCloserProjs = allCloserProjs.filter(p => p.name === currentUser.name || p.memberId === currentUser.id)
-      visibleSetterProjs = []
-    } else if (currentUser.role === 'setter') {
+    } else {
       visibleCloserProjs = []
+    }
+    if (hasRole(currentUser.role, 'setter')) {
       visibleSetterProjs = allSetterProjs.filter(p => p.name === currentUser.name || p.memberId === currentUser.id)
+    } else {
+      visibleSetterProjs = []
     }
   }
 
@@ -372,7 +377,7 @@ export default function ProjectionsPage() {
       {visibleCloserProjs.length > 0 && (
         <>
           <div className="section-label-dash">
-            {!isAdmin && currentUser?.role === 'closer' ? 'Tu Proyección — Cash Target' : 'Closers — Cash Target'}
+            {!isAdmin && currentUser && hasRole(currentUser.role, 'closer') ? 'Tu Proyección — Cash Target' : 'Closers — Cash Target'}
           </div>
           <div className={`stats-grid stats-grid--${Math.min(visibleCloserProjs.length, 4)}`}>
             {visibleCloserProjs.map(p => {
@@ -399,7 +404,7 @@ export default function ProjectionsPage() {
       {visibleSetterProjs.length > 0 && (
         <>
           <div className="section-label-dash">
-            {!isAdmin && currentUser?.role === 'setter' ? 'Tu Proyección — Agendas Target' : 'Setters — Agendas Target'}
+            {!isAdmin && currentUser && hasRole(currentUser.role, 'setter') ? 'Tu Proyección — Agendas Target' : 'Setters — Agendas Target'}
           </div>
           <div className={`stats-grid stats-grid--${Math.min(visibleSetterProjs.length, 4)}`}>
             {visibleSetterProjs.map(p => {

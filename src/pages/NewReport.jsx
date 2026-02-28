@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { addReport, getTeam } from '../utils/data'
 import { useAsync } from '../hooks/useAsync'
+import { hasRole } from '../utils/roles'
 
 export default function NewReport() {
   const navigate = useNavigate()
@@ -25,7 +26,7 @@ export default function NewReport() {
 
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
 
-  const membersForRole = team.filter(m => m.role === role && m.active)
+  const membersForRole = team.filter(m => hasRole(m.role, role) && m.active)
 
   const handleRoleChange = (newRole) => {
     setRole(newRole)

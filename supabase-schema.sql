@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS team (
   name text NOT NULL DEFAULT '',
   email text NOT NULL UNIQUE,
   password text NOT NULL DEFAULT '',
-  role text NOT NULL DEFAULT 'closer' CHECK (role IN ('closer', 'setter', 'manager', 'director')),
+  role text NOT NULL DEFAULT 'closer',  -- Supports multi-role: comma-separated e.g. 'manager,closer'
   active boolean DEFAULT true,
   commission_rate numeric DEFAULT 0,
   created_at timestamptz DEFAULT now()
@@ -184,6 +184,13 @@ SELECT
   ROUND(s.cash_collected * (1 - COALESCE(pf.fee_rate, 0)), 2) AS net_cash
 FROM sales s
 LEFT JOIN payment_fees pf ON pf.method = s.payment_method;
+
+
+-- =============================================================
+--  MIGRATION: Multi-role support
+--  Run this if you already have the team table with the old CHECK constraint
+-- =============================================================
+-- ALTER TABLE team DROP CONSTRAINT IF EXISTS team_role_check;
 
 
 -- =============================================================

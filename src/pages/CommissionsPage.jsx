@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { getSalesWithNetCash, getTeam } from '../utils/data'
 import { useAsync } from '../hooks/useAsync'
+import { hasRole, getRoles, getPrimaryRole } from '../utils/roles'
 
 const ROLE_LABELS = { director: 'Director', manager: 'Manager', closer: 'Closer', setter: 'Setter' }
 
@@ -26,20 +27,22 @@ export default function CommissionsPage({ user, role: userRole }) {
 
   // Compute commissions on net cash
   const allCommissions = team.filter(m => m.active).map(m => {
-    const cash = m.role === 'closer' ? (cashByCloser[m.name] || 0) : totalNetCash
+    const cash = hasRole(m.role, 'closer') ? (cashByCloser[m.name] || 0) : totalNetCash
     const commission = Math.round(cash * m.commissionRate)
-    return { ...m, cash, commission }
+    const primaryRole = getPrimaryRole(m.role)
+    return { ...m, primaryRole, cash, commission }
   })
 
-  // If user is closer/setter, only show their own commission
-  const isRestricted = userRole === 'closer' || userRole === 'setter'
+  // If user is only closer/setter (no manager/director role), only show their own commission
+  const primaryUserRole = getPrimaryRole(userRole)
+  const isRestricted = primaryUserRole === 'closer' || primaryUserRole === 'setter'
   const commissions = isRestricted
     ? allCommissions.filter(c => c.email === user)
     : allCommissions
 
   const totalCommissions = allCommissions.reduce((s, c) => s + c.commission, 0)
-  const closerCommissions = allCommissions.filter(c => c.role === 'closer').reduce((s, c) => s + c.commission, 0)
-  const setterCommissions = allCommissions.filter(c => c.role === 'setter').reduce((s, c) => s + c.commission, 0)
+  const closerCommissions = allCommissions.filter(c => hasRole(c.role, 'closer')).reduce((s, c) => s + c.commission, 0)
+  const setterCommissions = allCommissions.filter(c => hasRole(c.role, 'setter') && !hasRole(c.role, 'closer')).reduce((s, c) => s + c.commission, 0)
   const otherCommissions = totalCommissions - closerCommissions - setterCommissions
 
   const myCommission = isRestricted && commissions.length > 0 ? commissions[0] : null
@@ -115,7 +118,7 @@ export default function CommissionsPage({ user, role: userRole }) {
             {commissions.map(c => (
               <tr key={c.id} className={c.commission > 0 ? 'commission-row--has' : ''}>
                 <td className="cell-bold">{c.name}</td>
-                <td><span className={`badge badge--${c.role}`}>{ROLE_LABELS[c.role]}</span></td>
+                <td>{getRoles(c.role).map(r => <span key={r} className={`badge badge--${r}`} style={{marginRight:4}}>{ROLE_LABELS[r]}</span>)}</td>
                 <td className="cell-money">{fmt(c.cash)}</td>
                 <td>{(c.commissionRate * 100).toFixed(0)}%</td>
                 <td className="cell-money" style={{ color: c.commission > 0 ? 'var(--success)' : 'var(--text-muted)' }}>{fmt(c.commission)}</td>

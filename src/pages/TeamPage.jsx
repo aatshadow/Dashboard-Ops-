@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { getTeam, addMember, updateMember, deleteMember } from '../utils/data'
 import { useAsync } from '../hooks/useAsync'
+import { hasRole, getRoles } from '../utils/roles'
 
 const ROLES = ['director', 'manager', 'closer', 'setter']
 const ROLE_LABELS = { director: 'Director', manager: 'Manager', closer: 'Closer', setter: 'Setter' }
 
-const emptyForm = { name: '', email: '', password: '', role: 'closer', active: true, commissionRate: 0.10 }
+const emptyForm = { name: '', email: '', password: '', roles: ['closer'], active: true, commissionRate: 0.10 }
 
 export default function TeamPage() {
   const [team, teamLoading, refreshTeam, setTeam] = useAsync(getTeam, [])
@@ -14,18 +15,30 @@ export default function TeamPage() {
   const [form, setForm] = useState({ ...emptyForm })
 
   const grouped = ROLES.reduce((acc, role) => {
-    acc[role] = team.filter(m => m.role === role)
+    acc[role] = team.filter(m => hasRole(m.role, role))
     return acc
   }, {})
 
+  // Track shown IDs to avoid duplicate cards
+  const shownIds = new Set()
+
+  const toggleRole = (role) => {
+    setForm(prev => {
+      const has = prev.roles.includes(role)
+      const next = has ? prev.roles.filter(r => r !== role) : [...prev.roles, role]
+      return { ...prev, roles: next.length > 0 ? next : prev.roles }
+    })
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const { roles, ...rest } = form
+    const payload = { ...rest, role: roles.join(',') }
     if (editingId) {
-      const updates = { ...form }
-      if (!updates.password) delete updates.password
-      await updateMember(editingId, updates)
+      if (!payload.password) delete payload.password
+      await updateMember(editingId, payload)
     } else {
-      await addMember(form)
+      await addMember(payload)
     }
     refreshTeam()
     setForm({ ...emptyForm })
@@ -34,7 +47,7 @@ export default function TeamPage() {
   }
 
   const startEdit = (m) => {
-    setForm({ name: m.name, email: m.email, password: '', role: m.role, active: m.active, commissionRate: m.commissionRate })
+    setForm({ name: m.name, email: m.email, password: '', roles: getRoles(m.role), active: m.active, commissionRate: m.commissionRate })
     setEditingId(m.id)
     setShowForm(true)
   }
@@ -78,10 +91,15 @@ export default function TeamPage() {
                 <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} placeholder={editingId ? 'Dejar vacío para no cambiar' : 'Contraseña'} required={!editingId} />
               </div>
               <div className="form-group">
-                <label>Rol</label>
-                <select value={form.role} onChange={e => setForm({...form, role: e.target.value})}>
-                  {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                </select>
+                <label>Roles</label>
+                <div className="role-checkboxes">
+                  {ROLES.map(r => (
+                    <label key={r} className="role-checkbox-label">
+                      <input type="checkbox" checked={form.roles.includes(r)} onChange={() => toggleRole(r)} />
+                      <span className={`role-checkbox-tag badge badge--${r}`}>{ROLE_LABELS[r]}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
               <div className="form-group">
                 <label>Tasa de Comisión (decimal)</label>
@@ -108,26 +126,34 @@ export default function TeamPage() {
           <div key={role}>
             <div className="section-label-dash">{ROLE_LABELS[role]}s</div>
             <div className="team-grid">
-              {grouped[role].map(m => (
-                <div key={m.id} className="team-card">
-                  <div className="team-card-header">
-                    <div className="team-avatar">{m.name.charAt(0)}</div>
-                    <div className="team-card-info">
-                      <div className="team-card-name">{m.name}</div>
-                      <div className="team-card-email">{m.email}</div>
+              {grouped[role].map(m => {
+                const alreadyShown = shownIds.has(m.id)
+                shownIds.add(m.id)
+                return (
+                  <div key={m.id} className={`team-card${alreadyShown ? ' team-card--secondary' : ''}`}>
+                    <div className="team-card-header">
+                      <div className="team-avatar">{m.name.charAt(0)}</div>
+                      <div className="team-card-info">
+                        <div className="team-card-name">{m.name}</div>
+                        <div className="team-card-email">{m.email}</div>
+                      </div>
                     </div>
+                    <div className="team-card-details">
+                      {getRoles(m.role).map(r => (
+                        <span key={r} className={`badge badge--${r}`}>{ROLE_LABELS[r]}</span>
+                      ))}
+                      <span className={`badge ${m.active ? 'badge--completada' : 'badge--reembolso'}`}>{m.active ? 'Activo' : 'Inactivo'}</span>
+                      <span className="team-card-rate">{(m.commissionRate * 100).toFixed(0)}% comisión</span>
+                    </div>
+                    {!alreadyShown && (
+                      <div className="team-card-actions">
+                        <button className="btn-sm btn-sm--edit" onClick={() => startEdit(m)}>✎</button>
+                        <button className="btn-sm btn-sm--delete" onClick={() => handleDelete(m.id)}>🗑</button>
+                      </div>
+                    )}
                   </div>
-                  <div className="team-card-details">
-                    <span className={`badge badge--${m.role}`}>{ROLE_LABELS[m.role]}</span>
-                    <span className={`badge ${m.active ? 'badge--completada' : 'badge--reembolso'}`}>{m.active ? 'Activo' : 'Inactivo'}</span>
-                    <span className="team-card-rate">{(m.commissionRate * 100).toFixed(0)}% comisión</span>
-                  </div>
-                  <div className="team-card-actions">
-                    <button className="btn-sm btn-sm--edit" onClick={() => startEdit(m)}>✎</button>
-                    <button className="btn-sm btn-sm--delete" onClick={() => handleDelete(m.id)}>🗑</button>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )

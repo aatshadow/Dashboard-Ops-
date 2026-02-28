@@ -16,13 +16,14 @@ import CommissionsPage from './pages/CommissionsPage'
 import PaymentMethodsPage from './pages/PaymentMethodsPage'
 import SettingsPage from './pages/SettingsPage'
 import { getTeam } from './utils/data'
+import { getPrimaryRole } from './utils/roles'
 
 export default function App() {
   const [user, setUser] = useState(() => {
     return localStorage.getItem('fba_user') || null
   })
 
-  const [userRole, setUserRole] = useState(null)
+  const [userRole, setUserRole] = useState(null)  // stores raw role string (may be comma-separated)
   const [appLoading, setAppLoading] = useState(true)
 
   useEffect(() => {
@@ -49,9 +50,10 @@ export default function App() {
     return <Login onLogin={handleLogin} />
   }
 
-  const isDirector = userRole === 'director'
-  const isManager = userRole === 'manager'
-  const canSeeProjections = isDirector || isManager || userRole === 'closer' || userRole === 'setter'
+  const primaryRole = getPrimaryRole(userRole)
+  const isDirector = primaryRole === 'director'
+  const isManager = primaryRole === 'manager'
+  const canSeeProjections = true // all roles can see projections
 
   return (
     <Layout user={user} onLogout={handleLogout} role={userRole}>
