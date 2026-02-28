@@ -57,6 +57,8 @@ export default function ReportsTable() {
     return 0
   })
 
+  const fmtDate = (d) => { const [y, m, day] = String(d).split('-'); return `${day}/${m}/${y}` }
+
   if (reportsLoading) return <div className="table-page"><div style={{textAlign:'center',padding:60,color:'#999'}}>Cargando reportes...</div></div>
 
   return (
@@ -137,7 +139,7 @@ export default function ReportsTable() {
                   </>
                 ) : (
                   <>
-                    <td>{r.date}</td>
+                    <td>{fmtDate(r.date)}</td>
                     <td><span className={`badge badge--${r.role}`}>{r.role === 'setter' ? 'Setter' : 'Closer'}</span></td>
                     <td className="cell-bold">{r.name}</td>
                     {/* Setter columns */}

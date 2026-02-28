@@ -97,6 +97,7 @@ export default function SalesTable() {
   })
 
   const fmt = (n) => `€${Number(n).toLocaleString('es-ES')}`
+  const fmtDate = (d) => { const [y, m, day] = String(d).split('-'); return `${day}/${m}/${y}` }
   const MAIN_COL_COUNT = 17
 
   if (salesLoading) return <div className="table-page"><div style={{textAlign:'center',padding:60,color:'#999'}}>Cargando ventas...</div></div>
@@ -210,7 +211,7 @@ export default function SalesTable() {
                         {expandedId === sale.id ? '▾' : '▸'}
                       </button>
                     </td>
-                    <td>{sale.date}</td>
+                    <td>{fmtDate(sale.date)}</td>
                     <td>
                       <div className="cell-bold">{sale.clientName}</div>
                       <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{sale.clientEmail}</div>
