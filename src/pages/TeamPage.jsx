@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { getTeam, addMember, updateMember, deleteMember } from '../utils/data'
+import { useAsync } from '../hooks/useAsync'
 
 const ROLES = ['director', 'manager', 'closer', 'setter']
 const ROLE_LABELS = { director: 'Director', manager: 'Manager', closer: 'Closer', setter: 'Setter' }
@@ -7,7 +8,7 @@ const ROLE_LABELS = { director: 'Director', manager: 'Manager', closer: 'Closer'
 const emptyForm = { name: '', email: '', password: '', role: 'closer', active: true, commissionRate: 0.10 }
 
 export default function TeamPage() {
-  const [team, setTeam] = useState(() => getTeam())
+  const [team, teamLoading, refreshTeam, setTeam] = useAsync(getTeam, [])
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState({ ...emptyForm })
@@ -17,17 +18,16 @@ export default function TeamPage() {
     return acc
   }, {})
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     if (editingId) {
       const updates = { ...form }
       if (!updates.password) delete updates.password
-      const updated = updateMember(editingId, updates)
-      setTeam(updated)
+      await updateMember(editingId, updates)
     } else {
-      const updated = addMember(form)
-      setTeam(updated)
+      await addMember(form)
     }
+    refreshTeam()
     setForm({ ...emptyForm })
     setEditingId(null)
     setShowForm(false)
@@ -39,10 +39,10 @@ export default function TeamPage() {
     setShowForm(true)
   }
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (confirm('¿Eliminar este miembro?')) {
-      const updated = deleteMember(id)
-      setTeam(updated)
+      await deleteMember(id)
+      refreshTeam()
     }
   }
 
@@ -51,6 +51,8 @@ export default function TeamPage() {
     setEditingId(null)
     setForm({ ...emptyForm })
   }
+
+  if (teamLoading) return <div className="dashboard"><div style={{textAlign:'center',padding:60,color:'#999'}}>Cargando equipo...</div></div>
 
   return (
     <div className="dashboard">

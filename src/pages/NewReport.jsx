@@ -23,7 +23,7 @@ export default function NewReport() {
 
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     if (!form.name) return
 
@@ -42,7 +42,7 @@ export default function NewReport() {
       report.closes = +form.closes || 0
     }
 
-    addReport(report)
+    await addReport(report)
     setSaved(true)
     setTimeout(() => navigate('/reportes'), 1200)
   }

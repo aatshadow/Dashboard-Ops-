@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { getSalesWithNetCash, getTeam } from '../utils/data'
+import { useAsync } from '../hooks/useAsync'
 
 const ROLE_LABELS = { director: 'Director', manager: 'Manager', closer: 'Closer', setter: 'Setter' }
 
@@ -9,8 +10,10 @@ export default function CommissionsPage() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   })
 
-  const team = useMemo(() => getTeam(), [])
-  const allSales = useMemo(() => getSalesWithNetCash(), [])
+  const [team, teamLoading] = useAsync(getTeam, [])
+  const [allSales, salesLoading] = useAsync(getSalesWithNetCash, [])
+
+  if (teamLoading || salesLoading) return <div className="dashboard"><div style={{textAlign:'center',padding:60,color:'#999'}}>Cargando comisiones...</div></div>
 
   const monthSales = allSales.filter(s => s.date.startsWith(month))
   const totalNetCash = monthSales.reduce((s, v) => s + v.netCash, 0)

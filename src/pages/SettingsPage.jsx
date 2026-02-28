@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { getTeam, updateMember, getN8nConfig, saveN8nConfig, importSaleFromClose } from '../utils/data'
+import { useAsync } from '../hooks/useAsync'
 
 const ROLE_LABELS = { director: 'Director', manager: 'Manager', closer: 'Closer', setter: 'Setter' }
 
@@ -32,8 +33,8 @@ const FIELD_MAPPING = [
 ]
 
 export default function SettingsPage({ user }) {
-  const team = useMemo(() => getTeam(), [])
-  const member = team.find(m => m.email === user)
+  const [team, teamLoading] = useAsync(getTeam, [])
+  const [n8nConfig, n8nLoading, , setN8nConfig] = useAsync(getN8nConfig, { id: null, webhookUrl: '', apiKey: '', enabled: false, lastSync: null })
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -42,12 +43,17 @@ export default function SettingsPage({ user }) {
   const [messageType, setMessageType] = useState('')
 
   // N8n integration state
-  const [n8nConfig, setN8nConfig] = useState(() => getN8nConfig())
-  const [webhookUrl, setWebhookUrl] = useState(n8nConfig.webhookUrl)
+  const [webhookUrl, setWebhookUrl] = useState('')
   const [copied, setCopied] = useState(false)
   const [importJson, setImportJson] = useState('')
   const [importMessage, setImportMessage] = useState('')
   const [importStatus, setImportStatus] = useState('')
+
+  useEffect(() => { if (n8nConfig) setWebhookUrl(n8nConfig.webhookUrl || '') }, [n8nConfig])
+
+  if (teamLoading || n8nLoading) return <div className="dashboard"><div style={{textAlign:'center',padding:60,color:'#999'}}>Cargando configuración...</div></div>
+
+  const member = team.find(m => m.email === user)
 
   if (!member) {
     return (
@@ -63,45 +69,27 @@ export default function SettingsPage({ user }) {
 
   const isDirector = member.role === 'director'
 
-  const handlePasswordChange = (e) => {
+  const handlePasswordChange = async (e) => {
     e.preventDefault()
     setMessage('')
-
-    if (currentPassword !== member.password) {
-      setMessage('La contraseña actual es incorrecta')
-      setMessageType('error')
-      return
-    }
-
-    if (newPassword.length < 4) {
-      setMessage('La nueva contraseña debe tener al menos 4 caracteres')
-      setMessageType('error')
-      return
-    }
-
-    if (newPassword !== confirmPassword) {
-      setMessage('Las contraseñas no coinciden')
-      setMessageType('error')
-      return
-    }
-
-    updateMember(member.id, { password: newPassword })
+    if (currentPassword !== member.password) { setMessage('La contraseña actual es incorrecta'); setMessageType('error'); return }
+    if (newPassword.length < 4) { setMessage('La nueva contraseña debe tener al menos 4 caracteres'); setMessageType('error'); return }
+    if (newPassword !== confirmPassword) { setMessage('Las contraseñas no coinciden'); setMessageType('error'); return }
+    await updateMember(member.id, { password: newPassword })
     setMessage('Contraseña actualizada correctamente')
     setMessageType('success')
-    setCurrentPassword('')
-    setNewPassword('')
-    setConfirmPassword('')
+    setCurrentPassword(''); setNewPassword(''); setConfirmPassword('')
   }
 
-  const toggleEnabled = () => {
+  const toggleEnabled = async () => {
     const updated = { ...n8nConfig, enabled: !n8nConfig.enabled }
-    saveN8nConfig(updated)
+    await saveN8nConfig(updated)
     setN8nConfig(updated)
   }
 
-  const saveWebhookUrl = () => {
+  const saveWebhookUrl = async () => {
     const updated = { ...n8nConfig, webhookUrl }
-    saveN8nConfig(updated)
+    await saveN8nConfig(updated)
     setN8nConfig(updated)
   }
 
@@ -111,15 +99,15 @@ export default function SettingsPage({ user }) {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const handleImport = () => {
+  const handleImport = async () => {
     try {
       const data = JSON.parse(importJson)
-      importSaleFromClose(data)
+      await importSaleFromClose(data)
       setImportMessage('Venta importada correctamente')
       setImportStatus('success')
       setImportJson('')
     } catch (err) {
-      setImportMessage('Error: JSON inválido. Revisa el formato.')
+      setImportMessage('Error: ' + (err.message || 'JSON inválido'))
       setImportStatus('error')
     }
     setTimeout(() => setImportMessage(''), 5000)

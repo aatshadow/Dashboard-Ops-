@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Login from './pages/Login'
 import Layout from './components/Layout'
@@ -22,11 +22,16 @@ export default function App() {
     return localStorage.getItem('fba_user') || null
   })
 
-  const userRole = useMemo(() => {
-    if (!user) return null
-    const team = getTeam()
-    const member = team.find(m => m.email === user)
-    return member?.role || 'closer'
+  const [userRole, setUserRole] = useState(null)
+  const [appLoading, setAppLoading] = useState(true)
+
+  useEffect(() => {
+    if (!user) { setUserRole(null); setAppLoading(false); return }
+    getTeam().then(team => {
+      const member = team.find(m => m.email === user)
+      setUserRole(member?.role || 'closer')
+      setAppLoading(false)
+    })
   }, [user])
 
   function handleLogin(email) {
@@ -39,6 +44,7 @@ export default function App() {
     setUser(null)
   }
 
+  if (appLoading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',color:'#999'}}>Cargando...</div>
   if (!user) {
     return <Login onLogin={handleLogin} />
   }

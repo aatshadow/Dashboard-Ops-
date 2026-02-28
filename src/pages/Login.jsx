@@ -7,7 +7,7 @@ export default function Login({ onLogin }) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     setError('')
     if (!email || !password) {
@@ -15,15 +15,13 @@ export default function Login({ onLogin }) {
       return
     }
     setLoading(true)
-    setTimeout(() => {
-      const user = authenticateUser(email, password)
-      if (user) {
-        onLogin(user.email)
-      } else {
-        setError('Credenciales incorrectas')
-        setLoading(false)
-      }
-    }, 800)
+    const user = await authenticateUser(email, password)
+    if (user) {
+      onLogin(user.email)
+    } else {
+      setError('Credenciales incorrectas')
+      setLoading(false)
+    }
   }
 
   return (

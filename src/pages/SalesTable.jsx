@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react'
-import { getSales, getSalesWithNetCash, saveSales, deleteSale, getPaymentFees, getTeam } from '../utils/data'
+import { useState } from 'react'
+import { getSalesWithNetCash, addSales, updateSale, deleteSale, getPaymentFees, getTeam } from '../utils/data'
+import { useAsync } from '../hooks/useAsync'
 import ImportModal from '../components/ImportModal'
 
 const PAYMENT_TYPES = ['Pago único', '2 cuotas', '3 cuotas', '4 cuotas', '5 cuotas', '6 cuotas']
@@ -15,9 +16,9 @@ function getInstallmentOptions(paymentType) {
 const SOURCE_LABELS = { manual: 'Manual', close_crm: 'CRM', import: 'Import' }
 
 export default function SalesTable() {
-  const [sales, setSales] = useState(() => getSalesWithNetCash())
-  const paymentFees = useMemo(() => getPaymentFees(), [])
-  const team = useMemo(() => getTeam(), [])
+  const [sales, salesLoading, refreshSales, setSales] = useAsync(getSalesWithNetCash, [])
+  const [paymentFees] = useAsync(getPaymentFees, [])
+  const [team] = useAsync(getTeam, [])
   const closers = team.filter(m => m.role === 'closer' && m.active)
   const settersList = team.filter(m => m.role === 'setter' && m.active)
   const [editingId, setEditingId] = useState(null)
@@ -26,13 +27,8 @@ export default function SalesTable() {
   const [search, setSearch] = useState('')
   const [showImport, setShowImport] = useState(false)
 
-  const refreshSales = () => setSales(getSalesWithNetCash())
-
-  const handleImport = (rows) => {
-    const current = getSales()
-    const generateId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
-    const newSales = rows.map(r => ({ ...r, id: generateId() }))
-    saveSales([...current, ...newSales])
+  const handleImport = async (rows) => {
+    await addSales(rows)
     refreshSales()
   }
 
@@ -46,24 +42,16 @@ export default function SalesTable() {
     setEditData({})
   }
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     const { netCash, ...rawData } = editData
-    const allSales = sales.map(s => {
-      if (s.id === editingId) {
-        const { netCash: _, ...rest } = s
-        return { ...rest, ...rawData }
-      }
-      const { netCash: _, ...rest } = s
-      return rest
-    })
-    saveSales(allSales)
+    await updateSale(editingId, rawData)
     refreshSales()
     setEditingId(null)
   }
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (confirm('¿Eliminar esta venta?')) {
-      deleteSale(id)
+      await deleteSale(id)
       refreshSales()
     }
   }
@@ -91,6 +79,8 @@ export default function SalesTable() {
 
   const fmt = (n) => `€${Number(n).toLocaleString('es-ES')}`
   const MAIN_COL_COUNT = 17
+
+  if (salesLoading) return <div className="table-page"><div style={{textAlign:'center',padding:60,color:'#999'}}>Cargando ventas...</div></div>
 
   return (
     <div className="table-page">

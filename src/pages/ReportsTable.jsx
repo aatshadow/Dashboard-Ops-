@@ -1,37 +1,34 @@
 import { useState } from 'react'
-import { getReports, saveReports, deleteReport } from '../utils/data'
+import { getReports, addReports, updateReport, deleteReport } from '../utils/data'
+import { useAsync } from '../hooks/useAsync'
 import ImportModal from '../components/ImportModal'
 
 export default function ReportsTable() {
-  const [reports, setReports] = useState(() => getReports())
+  const [reports, reportsLoading, refreshReports, setReports] = useAsync(getReports, [])
   const [editingId, setEditingId] = useState(null)
   const [editData, setEditData] = useState({})
   const [filter, setFilter] = useState('all') // all, setter, closer
   const [search, setSearch] = useState('')
   const [showImport, setShowImport] = useState(false)
 
-  const handleImport = (rows) => {
-    const current = getReports()
-    const generateId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
-    const newReports = rows.map(r => ({ ...r, id: generateId() }))
-    saveReports([...current, ...newReports])
-    setReports(getReports())
+  const handleImport = async (rows) => {
+    await addReports(rows)
+    refreshReports()
   }
 
   const startEdit = (r) => { setEditingId(r.id); setEditData({ ...r }) }
   const cancelEdit = () => { setEditingId(null); setEditData({}) }
 
-  const saveEdit = () => {
-    const updated = reports.map(r => r.id === editingId ? { ...r, ...editData } : r)
-    saveReports(updated)
-    setReports(updated)
+  const saveEdit = async () => {
+    await updateReport(editingId, editData)
+    refreshReports()
     setEditingId(null)
   }
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (confirm('¿Eliminar este reporte?')) {
-      const updated = deleteReport(id)
-      setReports(updated)
+      await deleteReport(id)
+      refreshReports()
     }
   }
 
@@ -40,6 +37,8 @@ export default function ReportsTable() {
     if (search && !r.name.toLowerCase().includes(search.toLowerCase()) && !r.date.includes(search)) return false
     return true
   })
+
+  if (reportsLoading) return <div className="table-page"><div style={{textAlign:'center',padding:60,color:'#999'}}>Cargando reportes...</div></div>
 
   return (
     <div className="table-page">

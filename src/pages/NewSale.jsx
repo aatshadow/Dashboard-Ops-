@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { addSale, getPaymentFees, getTeam } from '../utils/data'
+import { useAsync } from '../hooks/useAsync'
 
 const PAYMENT_TYPES = ['Pago único', '2 cuotas', '3 cuotas', '4 cuotas', '5 cuotas', '6 cuotas']
 
@@ -14,8 +15,8 @@ function getInstallmentOptions(paymentType) {
 
 export default function NewSale() {
   const navigate = useNavigate()
-  const paymentFees = useMemo(() => getPaymentFees(), [])
-  const team = useMemo(() => getTeam(), [])
+  const [paymentFees, feesLoading] = useAsync(getPaymentFees, [])
+  const [team, teamLoading] = useAsync(getTeam, [])
   const closers = team.filter(m => m.role === 'closer' && m.active)
   const setters = team.filter(m => m.role === 'setter' && m.active)
 
@@ -25,11 +26,11 @@ export default function NewSale() {
     product: 'FBA Academy Pro',
     paymentType: 'Pago único',
     installmentNumber: 'Pago único',
-    paymentMethod: paymentFees.length > 0 ? paymentFees[0].method : 'Transferencia',
+    paymentMethod: 'Transferencia',
     revenue: '',
     cashCollected: '',
-    closer: closers.length > 0 ? closers[0].name : '',
-    setter: setters.length > 0 ? setters[0].name : '',
+    closer: '',
+    setter: '',
     status: 'Completada',
     notes: '',
     instagram: '',
@@ -70,10 +71,10 @@ export default function NewSale() {
   const grossCash = +(form.cashCollected || form.revenue) || 0
   const netCash = Math.round(grossCash * (1 - feeRate) * 100) / 100
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     if (!form.clientName || !form.revenue || !form.closer) return
-    addSale({
+    await addSale({
       ...form,
       revenue: +form.revenue,
       cashCollected: +(form.cashCollected || form.revenue),
@@ -82,6 +83,8 @@ export default function NewSale() {
     setSaved(true)
     setTimeout(() => navigate('/ventas'), 1200)
   }
+
+  if (feesLoading || teamLoading) return <div className="form-page"><div style={{textAlign:'center',padding:60,color:'#999'}}>Cargando...</div></div>
 
   if (saved) {
     return (

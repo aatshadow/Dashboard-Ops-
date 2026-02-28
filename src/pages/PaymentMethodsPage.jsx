@@ -1,21 +1,23 @@
 import { useState } from 'react'
 import { getPaymentFees, addPaymentFee, updatePaymentFee, deletePaymentFee } from '../utils/data'
+import { useAsync } from '../hooks/useAsync'
 
 export default function PaymentMethodsPage() {
-  const [fees, setFees] = useState(() => getPaymentFees())
+  const [fees, feesLoading, refreshFees, setFees] = useAsync(getPaymentFees, [])
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState({ method: '', feeRate: '' })
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.method) return
     const data = { method: form.method, feeRate: +form.feeRate / 100 }
     if (editingId) {
-      setFees(updatePaymentFee(editingId, data))
+      await updatePaymentFee(editingId, data)
     } else {
-      setFees(addPaymentFee(data))
+      await addPaymentFee(data)
     }
+    refreshFees()
     setForm({ method: '', feeRate: '' })
     setEditingId(null)
     setShowForm(false)
@@ -27,9 +29,10 @@ export default function PaymentMethodsPage() {
     setShowForm(true)
   }
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (confirm('¿Eliminar este método de pago?')) {
-      setFees(deletePaymentFee(id))
+      await deletePaymentFee(id)
+      refreshFees()
     }
   }
 
@@ -40,6 +43,8 @@ export default function PaymentMethodsPage() {
   }
 
   const fmt = (n) => `€${n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+  if (feesLoading) return <div className="dashboard"><div style={{textAlign:'center',padding:60,color:'#999'}}>Cargando métodos...</div></div>
 
   return (
     <div className="dashboard">

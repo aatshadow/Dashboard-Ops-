@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { getProjections, addProjection, updateProjection, deleteProjection, getTeam, getSalesWithNetCash, getReports } from '../utils/data'
+import { useAsync } from '../hooks/useAsync'
 
 function getISOWeek(date) {
   const d = new Date(date.getTime())
@@ -71,7 +72,7 @@ function getPeriodLabel(period, periodType) {
 }
 
 export default function ProjectionsPage() {
-  const [projections, setProjections] = useState(() => getProjections())
+  const [projections, projLoading, refreshProjections, setProjections] = useAsync(getProjections, [])
   const [periodType, setPeriodType] = useState('monthly')
   const [period, setPeriod] = useState(() => {
     const now = new Date()
@@ -86,9 +87,9 @@ export default function ProjectionsPage() {
   const currentPeriod = periodType === 'monthly' ? period : weekPeriod
   const periodLabel = getPeriodLabel(currentPeriod, periodType)
 
-  const sales = useMemo(() => getSalesWithNetCash(), [])
-  const reports = useMemo(() => getReports(), [])
-  const team = useMemo(() => getTeam(), [])
+  const [sales, salesLoading] = useAsync(getSalesWithNetCash, [])
+  const [reports, reportsLoading] = useAsync(getReports, [])
+  const [team, teamLoading] = useAsync(getTeam, [])
   const activeClosers = team.filter(m => m.role === 'closer' && m.active)
   const activeSetters = team.filter(m => m.role === 'setter' && m.active)
 
@@ -164,9 +165,9 @@ export default function ProjectionsPage() {
     setEditValue(String(currentValue))
   }
 
-  const saveInlineEdit = (projId, field) => {
-    const updated = updateProjection(projId, { [field]: +editValue })
-    setProjections(updated)
+  const saveInlineEdit = async (projId, field) => {
+    await updateProjection(projId, { [field]: +editValue })
+    refreshProjections()
     setEditingId(null)
   }
 
@@ -195,7 +196,7 @@ export default function ProjectionsPage() {
     return <span>{label || fmt(value)}</span>
   }
 
-  const handleAddProjection = (e) => {
+  const handleAddProjection = async (e) => {
     e.preventDefault()
     const member = addForm.type !== 'company' ? team.find(m => m.id === addForm.memberId) : null
     const data = {
@@ -208,18 +209,22 @@ export default function ProjectionsPage() {
       revenueTarget: +addForm.revenueTarget || 0,
       appointmentTarget: +addForm.appointmentTarget || 0,
     }
-    setProjections(addProjection(data))
+    await addProjection(data)
+    refreshProjections()
     setAddForm({ type: 'company', memberId: '', cashTarget: '', revenueTarget: '', appointmentTarget: '' })
     setShowAddForm(false)
   }
 
-  const handleDeleteProjection = (id) => {
+  const handleDeleteProjection = async (id) => {
     if (confirm('¿Eliminar esta proyección?')) {
-      setProjections(deleteProjection(id))
+      await deleteProjection(id)
+      refreshProjections()
     }
   }
 
   const memberOptions = addForm.type === 'closer' ? activeClosers : addForm.type === 'setter' ? activeSetters : []
+
+  if (projLoading || salesLoading || reportsLoading || teamLoading) return <div className="dashboard"><div style={{textAlign:'center',padding:60,color:'#999'}}>Cargando proyecciones...</div></div>
 
   return (
     <div className="dashboard">

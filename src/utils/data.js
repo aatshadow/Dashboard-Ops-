@@ -1,296 +1,288 @@
-// Seed data & localStorage helpers
-
-const SALES_KEY = 'fba_sales'
-const REPORTS_KEY = 'fba_reports'
-const TEAM_KEY = 'fba_team'
-const PROJECTIONS_KEY = 'fba_projections'
-const PAYMENT_FEES_KEY = 'fba_payment_fees'
-const N8N_CONFIG_KEY = 'fba_n8n_config'
-
-function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
-}
-
-// ---- SEED DATA ----
-const seedSales = [
-  { id: generateId(), date: '2026-02-20', clientName: 'Carlos Méndez', clientEmail: 'carlos@gmail.com', clientPhone: '+34 612 345 678', instagram: '@carlosm_fba', product: 'FBA Academy Pro', productoInteres: 'FBA Academy Pro', paymentType: 'Pago único', installmentNumber: 'Pago único', paymentMethod: 'Transferencia', revenue: 2997, cashCollected: 2997, closer: 'Emi', setter: 'Víctor', triager: '', gestorAsignado: '', utmSource: 'instagram', utmMedium: 'paid', utmCampaign: 'webinar_feb', utmContent: 'story_ad', pais: 'España', capitalDisponible: '5000-10000€', situacionActual: 'Empleado buscando alternativa', expAmazon: 'Sin experiencia', decisorConfirmado: 'Sí', fechaLlamada: '2026-02-19', status: 'Completada', notes: '', source: 'manual' },
-  { id: generateId(), date: '2026-02-21', clientName: 'María López', clientEmail: 'maria.lopez@hotmail.com', clientPhone: '+34 623 456 789', instagram: '@maria.lopez', product: 'Mentoring 1:1', productoInteres: 'Mentoring 1:1', paymentType: '2 cuotas', installmentNumber: '1/2', paymentMethod: 'Stripe', revenue: 5000, cashCollected: 2500, closer: 'Emi', setter: 'Marta', triager: '', gestorAsignado: '', utmSource: 'google', utmMedium: 'cpc', utmCampaign: 'search_brand', utmContent: '', pais: 'México', capitalDisponible: '10000-20000€', situacionActual: 'Emprendedora activa', expAmazon: '6 meses', decisorConfirmado: 'Sí', fechaLlamada: '2026-02-20', status: 'Pendiente', notes: 'Primera cuota de 2', source: 'manual' },
-  { id: generateId(), date: '2026-02-22', clientName: 'Andrés Ruiz', clientEmail: 'andres.r@gmail.com', clientPhone: '+52 55 1234 5678', instagram: '@andresruiz', product: 'FBA Academy Pro', productoInteres: 'FBA Academy Pro', paymentType: 'Pago único', installmentNumber: 'Pago único', paymentMethod: 'Tarjeta', revenue: 2997, cashCollected: 2997, closer: 'Alejandro', setter: 'Víctor', triager: '', gestorAsignado: '', utmSource: 'facebook', utmMedium: 'paid', utmCampaign: 'reel_viral', utmContent: 'testimonio', pais: 'Colombia', capitalDisponible: '3000-5000€', situacionActual: 'Estudiante universitario', expAmazon: 'Sin experiencia', decisorConfirmado: 'Sí', fechaLlamada: '2026-02-21', status: 'Completada', notes: '', source: 'manual' },
-  { id: generateId(), date: '2026-02-23', clientName: 'Laura Sánchez', clientEmail: 'laura.s@yahoo.com', clientPhone: '+34 634 567 890', instagram: '@laura.sanchez', product: 'China Bootcamp', productoInteres: 'China Bootcamp', paymentType: '3 cuotas', installmentNumber: '1/3', paymentMethod: 'PayPal', revenue: 10000, cashCollected: 4000, closer: 'Emi', setter: 'Víctor', triager: '', gestorAsignado: '', utmSource: 'instagram', utmMedium: 'organic', utmCampaign: '', utmContent: '', pais: 'España', capitalDisponible: '20000+€', situacionActual: 'Vendedora Amazon activa', expAmazon: '1 año', decisorConfirmado: 'Sí', fechaLlamada: '2026-02-22', status: 'Pendiente', notes: 'Primera cuota de 3', source: 'manual' },
-  { id: generateId(), date: '2026-02-24', clientName: 'Diego Fernández', clientEmail: 'diego.f@outlook.com', clientPhone: '+34 645 678 901', instagram: '@diegof', product: 'FBA Academy Pro', productoInteres: 'FBA Academy Pro', paymentType: 'Pago único', installmentNumber: 'Pago único', paymentMethod: 'Stripe', revenue: 2997, cashCollected: 2997, closer: 'Alejandro', setter: 'Marta', triager: '', gestorAsignado: '', utmSource: 'youtube', utmMedium: 'organic', utmCampaign: '', utmContent: '', pais: 'Argentina', capitalDisponible: '5000-10000€', situacionActual: 'Freelancer', expAmazon: 'Sin experiencia', decisorConfirmado: 'Sí', fechaLlamada: '2026-02-23', status: 'Completada', notes: '', source: 'manual' },
-  { id: generateId(), date: '2026-02-25', clientName: 'Paula García', clientEmail: 'paula.g@gmail.com', clientPhone: '+34 656 789 012', instagram: '@paulag', product: 'Mentoring 1:1', productoInteres: 'Mentoring 1:1', paymentType: 'Pago único', installmentNumber: 'Pago único', paymentMethod: 'Transferencia', revenue: 5000, cashCollected: 5000, closer: 'Emi', setter: 'Marta', triager: '', gestorAsignado: '', utmSource: 'referral', utmMedium: 'organic', utmCampaign: '', utmContent: '', pais: 'España', capitalDisponible: '10000-20000€', situacionActual: 'Emprendedora activa', expAmazon: '3 meses', decisorConfirmado: 'Sí', fechaLlamada: '2026-02-24', status: 'Completada', notes: 'Referida por cliente anterior', source: 'manual' },
-  { id: generateId(), date: '2026-02-25', clientName: 'Javier Martín', clientEmail: 'javi.m@gmail.com', clientPhone: '+34 667 890 123', instagram: '@javim', product: 'FBA Academy Pro', productoInteres: 'FBA Academy Pro', paymentType: '2 cuotas', installmentNumber: '1/2', paymentMethod: 'Tarjeta', revenue: 2997, cashCollected: 1500, closer: 'Alejandro', setter: 'Víctor', triager: '', gestorAsignado: '', utmSource: 'instagram', utmMedium: 'paid', utmCampaign: 'webinar_feb', utmContent: 'carousel', pais: 'España', capitalDisponible: '3000-5000€', situacionActual: 'Empleado buscando alternativa', expAmazon: 'Sin experiencia', decisorConfirmado: 'Sí', fechaLlamada: '2026-02-24', status: 'Pendiente', notes: '', source: 'manual' },
-  { id: generateId(), date: '2026-02-26', clientName: 'Sofía Romero', clientEmail: 'sofia.r@gmail.com', clientPhone: '+34 678 901 234', instagram: '@sofiarom', product: 'China Bootcamp', productoInteres: 'China Bootcamp', paymentType: 'Pago único', installmentNumber: 'Pago único', paymentMethod: 'Transferencia', revenue: 10000, cashCollected: 10000, closer: 'Emi', setter: 'Víctor', triager: '', gestorAsignado: '', utmSource: 'tiktok', utmMedium: 'organic', utmCampaign: '', utmContent: '', pais: 'Chile', capitalDisponible: '20000+€', situacionActual: 'Vendedora Amazon activa', expAmazon: '2 años', decisorConfirmado: 'Sí', fechaLlamada: '2026-02-25', status: 'Completada', notes: '', source: 'manual' },
-  { id: generateId(), date: '2026-02-26', clientName: 'María López', clientEmail: 'maria.lopez@hotmail.com', clientPhone: '+34 623 456 789', instagram: '@maria.lopez', product: 'Mentoring 1:1', productoInteres: 'Mentoring 1:1', paymentType: '2 cuotas', installmentNumber: '2/2', paymentMethod: 'Stripe', revenue: 0, cashCollected: 2500, closer: 'Emi', setter: 'Marta', triager: '', gestorAsignado: '', utmSource: 'google', utmMedium: 'cpc', utmCampaign: 'search_brand', utmContent: '', pais: 'México', capitalDisponible: '10000-20000€', situacionActual: 'Emprendedora activa', expAmazon: '6 meses', decisorConfirmado: 'Sí', fechaLlamada: '2026-02-20', status: 'Completada', notes: 'Segunda y última cuota', source: 'manual' },
-]
-
-const seedReports = [
-  // Setters
-  { id: generateId(), date: '2026-02-24', role: 'setter', name: 'Víctor', conversationsOpened: 45, followUps: 22, offersLaunched: 8, appointmentsBooked: 5 },
-  { id: generateId(), date: '2026-02-24', role: 'setter', name: 'Marta', conversationsOpened: 38, followUps: 18, offersLaunched: 6, appointmentsBooked: 4 },
-  { id: generateId(), date: '2026-02-25', role: 'setter', name: 'Víctor', conversationsOpened: 52, followUps: 25, offersLaunched: 10, appointmentsBooked: 7 },
-  { id: generateId(), date: '2026-02-25', role: 'setter', name: 'Marta', conversationsOpened: 41, followUps: 20, offersLaunched: 7, appointmentsBooked: 3 },
-  { id: generateId(), date: '2026-02-26', role: 'setter', name: 'Víctor', conversationsOpened: 48, followUps: 30, offersLaunched: 12, appointmentsBooked: 6 },
-  { id: generateId(), date: '2026-02-26', role: 'setter', name: 'Marta', conversationsOpened: 35, followUps: 15, offersLaunched: 5, appointmentsBooked: 4 },
-  // Closers
-  { id: generateId(), date: '2026-02-24', role: 'closer', name: 'Emi', scheduledCalls: 6, callsMade: 5, offersLaunched: 4, deposits: 2, closes: 2 },
-  { id: generateId(), date: '2026-02-24', role: 'closer', name: 'Alejandro', scheduledCalls: 5, callsMade: 4, offersLaunched: 3, deposits: 1, closes: 1 },
-  { id: generateId(), date: '2026-02-25', role: 'closer', name: 'Emi', scheduledCalls: 8, callsMade: 7, offersLaunched: 5, deposits: 3, closes: 2 },
-  { id: generateId(), date: '2026-02-25', role: 'closer', name: 'Alejandro', scheduledCalls: 6, callsMade: 5, offersLaunched: 4, deposits: 2, closes: 1 },
-  { id: generateId(), date: '2026-02-26', role: 'closer', name: 'Emi', scheduledCalls: 7, callsMade: 6, offersLaunched: 5, deposits: 2, closes: 2 },
-  { id: generateId(), date: '2026-02-26', role: 'closer', name: 'Alejandro', scheduledCalls: 5, callsMade: 5, offersLaunched: 3, deposits: 1, closes: 1 },
-]
-
-const seedTeam = [
-  { id: generateId(), name: 'Emi', email: 'emi@fbaacademy.com', password: 'emi123', role: 'closer', active: true, commissionRate: 0.10 },
-  { id: generateId(), name: 'Alejandro', email: 'alejandro@fbaacademy.com', password: 'ale123', role: 'closer', active: true, commissionRate: 0.10 },
-  { id: generateId(), name: 'Víctor', email: 'victor@fbaacademy.com', password: 'vic123', role: 'setter', active: true, commissionRate: 0.05 },
-  { id: generateId(), name: 'Marta', email: 'marta@fbaacademy.com', password: 'mar123', role: 'setter', active: true, commissionRate: 0.05 },
-  { id: generateId(), name: 'Emi de la Sierra', email: 'emidelasierra@fbaacademypro.com', password: 'fba2026', role: 'director', active: true, commissionRate: 0.03 },
-]
-
-const seedProjections = []
-
-const seedPaymentFees = [
-  { id: generateId(), method: 'Transferencia', feeRate: 0 },
-  { id: generateId(), method: 'Stripe', feeRate: 0.029 },
-  { id: generateId(), method: 'PayPal', feeRate: 0.035 },
-  { id: generateId(), method: 'Tarjeta', feeRate: 0.015 },
-]
+import { supabase, toDb, toApp } from './supabase'
 
 // ---- SALES ----
-export function getSales() {
-  const stored = localStorage.getItem(SALES_KEY)
-  if (!stored) {
-    localStorage.setItem(SALES_KEY, JSON.stringify(seedSales))
-    return seedSales
-  }
-  // Backward compat: ensure new fields have defaults
-  return JSON.parse(stored).map(s => ({
-    installmentNumber: 'Pago único',
-    notes: '',
-    setter: '',
-    source: 'manual',
-    instagram: '',
-    triager: '',
-    gestorAsignado: '',
-    utmSource: '',
-    utmMedium: '',
-    utmCampaign: '',
-    utmContent: '',
-    productoInteres: '',
-    capitalDisponible: '',
-    situacionActual: '',
-    pais: '',
-    expAmazon: '',
-    decisorConfirmado: '',
-    fechaLlamada: '',
-    ...s,
-  }))
+export async function getSales() {
+  const { data, error } = await supabase
+    .from('sales')
+    .select('*')
+    .order('date', { ascending: false })
+  if (error) throw error
+  return data.map(row => toApp(row, 'sales'))
 }
 
-export function saveSales(sales) {
-  localStorage.setItem(SALES_KEY, JSON.stringify(sales))
+export async function addSale(sale) {
+  const dbSale = toDb(sale, 'sales')
+  delete dbSale.id
+  const { data, error } = await supabase
+    .from('sales')
+    .insert(dbSale)
+    .select()
+    .single()
+  if (error) throw error
+  return toApp(data, 'sales')
 }
 
-export function addSale(sale) {
-  const sales = getSales()
-  sales.push({ ...sale, id: generateId() })
-  saveSales(sales)
-  return sales
+export async function addSales(sales) {
+  const dbSales = sales.map(s => {
+    const d = toDb(s, 'sales')
+    delete d.id
+    return d
+  })
+  const { data, error } = await supabase
+    .from('sales')
+    .insert(dbSales)
+    .select()
+  if (error) throw error
+  return data.map(row => toApp(row, 'sales'))
 }
 
-export function updateSale(id, updates) {
-  const sales = getSales()
-  const idx = sales.findIndex(s => s.id === id)
-  if (idx !== -1) sales[idx] = { ...sales[idx], ...updates }
-  saveSales(sales)
-  return sales
+export async function updateSale(id, updates) {
+  const dbUpdates = toDb(updates, 'sales')
+  delete dbUpdates.id
+  const { error } = await supabase
+    .from('sales')
+    .update(dbUpdates)
+    .eq('id', id)
+  if (error) throw error
 }
 
-export function deleteSale(id) {
-  const sales = getSales().filter(s => s.id !== id)
-  saveSales(sales)
-  return sales
+export async function deleteSale(id) {
+  const { error } = await supabase
+    .from('sales')
+    .delete()
+    .eq('id', id)
+  if (error) throw error
 }
 
-export function getSalesWithNetCash() {
-  const sales = getSales()
-  const fees = getPaymentFees()
-  return sales.map(s => {
-    const fee = fees.find(f => f.method === s.paymentMethod)
-    const feeRate = fee ? fee.feeRate : 0
-    return { ...s, netCash: Math.round(s.cashCollected * (1 - feeRate) * 100) / 100 }
+export async function getSalesWithNetCash() {
+  const { data, error } = await supabase
+    .from('sales_with_net_cash')
+    .select('*')
+    .order('date', { ascending: false })
+  if (error) throw error
+  return data.map(row => {
+    const sale = toApp(row, 'sales')
+    sale.netCash = Number(row.net_cash) || 0
+    return sale
   })
 }
 
 // ---- REPORTS ----
-export function getReports() {
-  const stored = localStorage.getItem(REPORTS_KEY)
-  if (!stored) {
-    localStorage.setItem(REPORTS_KEY, JSON.stringify(seedReports))
-    return seedReports
-  }
-  return JSON.parse(stored)
+export async function getReports() {
+  const { data, error } = await supabase
+    .from('reports')
+    .select('*')
+    .order('date', { ascending: false })
+  if (error) throw error
+  return data.map(row => toApp(row, 'reports'))
 }
 
-export function saveReports(reports) {
-  localStorage.setItem(REPORTS_KEY, JSON.stringify(reports))
+export async function addReport(report) {
+  const dbReport = toDb(report, 'reports')
+  delete dbReport.id
+  const { data, error } = await supabase
+    .from('reports')
+    .insert(dbReport)
+    .select()
+    .single()
+  if (error) throw error
+  return toApp(data, 'reports')
 }
 
-export function addReport(report) {
-  const reports = getReports()
-  reports.push({ ...report, id: generateId() })
-  saveReports(reports)
-  return reports
+export async function addReports(reports) {
+  const dbReports = reports.map(r => {
+    const d = toDb(r, 'reports')
+    delete d.id
+    return d
+  })
+  const { data, error } = await supabase
+    .from('reports')
+    .insert(dbReports)
+    .select()
+  if (error) throw error
+  return data.map(row => toApp(row, 'reports'))
 }
 
-export function updateReport(id, updates) {
-  const reports = getReports()
-  const idx = reports.findIndex(r => r.id === id)
-  if (idx !== -1) reports[idx] = { ...reports[idx], ...updates }
-  saveReports(reports)
-  return reports
+export async function updateReport(id, updates) {
+  const dbUpdates = toDb(updates, 'reports')
+  delete dbUpdates.id
+  const { error } = await supabase
+    .from('reports')
+    .update(dbUpdates)
+    .eq('id', id)
+  if (error) throw error
 }
 
-export function deleteReport(id) {
-  const reports = getReports().filter(r => r.id !== id)
-  saveReports(reports)
-  return reports
+export async function deleteReport(id) {
+  const { error } = await supabase
+    .from('reports')
+    .delete()
+    .eq('id', id)
+  if (error) throw error
 }
 
 // ---- TEAM ----
-export function getTeam() {
-  const stored = localStorage.getItem(TEAM_KEY)
-  if (!stored) {
-    localStorage.setItem(TEAM_KEY, JSON.stringify(seedTeam))
-    return seedTeam
-  }
-  return JSON.parse(stored)
+export async function getTeam() {
+  const { data, error } = await supabase
+    .from('team')
+    .select('*')
+    .order('name')
+  if (error) throw error
+  return data.map(row => toApp(row, 'team'))
 }
 
-export function saveTeam(team) {
-  localStorage.setItem(TEAM_KEY, JSON.stringify(team))
+export async function addMember(member) {
+  const dbMember = toDb(member, 'team')
+  delete dbMember.id
+  const { data, error } = await supabase
+    .from('team')
+    .insert(dbMember)
+    .select()
+    .single()
+  if (error) throw error
+  return toApp(data, 'team')
 }
 
-export function addMember(member) {
-  const team = getTeam()
-  team.push({ ...member, id: generateId() })
-  saveTeam(team)
-  return team
+export async function updateMember(id, updates) {
+  const dbUpdates = toDb(updates, 'team')
+  delete dbUpdates.id
+  const { error } = await supabase
+    .from('team')
+    .update(dbUpdates)
+    .eq('id', id)
+  if (error) throw error
 }
 
-export function updateMember(id, updates) {
-  const team = getTeam()
-  const idx = team.findIndex(m => m.id === id)
-  if (idx !== -1) team[idx] = { ...team[idx], ...updates }
-  saveTeam(team)
-  return team
+export async function deleteMember(id) {
+  const { error } = await supabase
+    .from('team')
+    .delete()
+    .eq('id', id)
+  if (error) throw error
 }
 
-export function deleteMember(id) {
-  const team = getTeam().filter(m => m.id !== id)
-  saveTeam(team)
-  return team
-}
-
-export function authenticateUser(email, password) {
-  const team = getTeam()
-  return team.find(m => m.email === email && m.password === password && m.active) || null
+export async function authenticateUser(email, password) {
+  const { data, error } = await supabase
+    .from('team')
+    .select('*')
+    .eq('email', email)
+    .eq('password', password)
+    .eq('active', true)
+    .maybeSingle()
+  if (error || !data) return null
+  return toApp(data, 'team')
 }
 
 // ---- PROJECTIONS ----
-export function getProjections() {
-  const stored = localStorage.getItem(PROJECTIONS_KEY)
-  if (!stored) {
-    localStorage.setItem(PROJECTIONS_KEY, JSON.stringify(seedProjections))
-    return seedProjections
-  }
-  return JSON.parse(stored)
+export async function getProjections() {
+  const { data, error } = await supabase
+    .from('projections')
+    .select('*')
+    .order('period', { ascending: false })
+  if (error) throw error
+  return data.map(row => toApp(row, 'projections'))
 }
 
-export function saveProjections(projections) {
-  localStorage.setItem(PROJECTIONS_KEY, JSON.stringify(projections))
+export async function addProjection(projection) {
+  const dbProjection = toDb(projection, 'projections')
+  delete dbProjection.id
+  const { data, error } = await supabase
+    .from('projections')
+    .insert(dbProjection)
+    .select()
+    .single()
+  if (error) throw error
+  return toApp(data, 'projections')
 }
 
-export function addProjection(projection) {
-  const projections = getProjections()
-  projections.push({ ...projection, id: generateId() })
-  saveProjections(projections)
-  return projections
+export async function updateProjection(id, updates) {
+  const dbUpdates = toDb(updates, 'projections')
+  delete dbUpdates.id
+  const { error } = await supabase
+    .from('projections')
+    .update(dbUpdates)
+    .eq('id', id)
+  if (error) throw error
 }
 
-export function updateProjection(id, updates) {
-  const projections = getProjections()
-  const idx = projections.findIndex(p => p.id === id)
-  if (idx !== -1) projections[idx] = { ...projections[idx], ...updates }
-  saveProjections(projections)
-  return projections
-}
-
-export function deleteProjection(id) {
-  const projections = getProjections().filter(p => p.id !== id)
-  saveProjections(projections)
-  return projections
+export async function deleteProjection(id) {
+  const { error } = await supabase
+    .from('projections')
+    .delete()
+    .eq('id', id)
+  if (error) throw error
 }
 
 // ---- PAYMENT FEES ----
-export function getPaymentFees() {
-  const stored = localStorage.getItem(PAYMENT_FEES_KEY)
-  if (!stored) {
-    localStorage.setItem(PAYMENT_FEES_KEY, JSON.stringify(seedPaymentFees))
-    return seedPaymentFees
-  }
-  return JSON.parse(stored)
+export async function getPaymentFees() {
+  const { data, error } = await supabase
+    .from('payment_fees')
+    .select('*')
+    .order('method')
+  if (error) throw error
+  return data.map(row => toApp(row, 'payment_fees'))
 }
 
-export function savePaymentFees(fees) {
-  localStorage.setItem(PAYMENT_FEES_KEY, JSON.stringify(fees))
+export async function addPaymentFee(fee) {
+  const dbFee = toDb(fee, 'payment_fees')
+  delete dbFee.id
+  const { data, error } = await supabase
+    .from('payment_fees')
+    .insert(dbFee)
+    .select()
+    .single()
+  if (error) throw error
+  return toApp(data, 'payment_fees')
 }
 
-export function addPaymentFee(fee) {
-  const fees = getPaymentFees()
-  fees.push({ ...fee, id: generateId() })
-  savePaymentFees(fees)
-  return fees
+export async function updatePaymentFee(id, updates) {
+  const dbUpdates = toDb(updates, 'payment_fees')
+  delete dbUpdates.id
+  const { error } = await supabase
+    .from('payment_fees')
+    .update(dbUpdates)
+    .eq('id', id)
+  if (error) throw error
 }
 
-export function updatePaymentFee(id, updates) {
-  const fees = getPaymentFees()
-  const idx = fees.findIndex(f => f.id === id)
-  if (idx !== -1) fees[idx] = { ...fees[idx], ...updates }
-  savePaymentFees(fees)
-  return fees
-}
-
-export function deletePaymentFee(id) {
-  const fees = getPaymentFees().filter(f => f.id !== id)
-  savePaymentFees(fees)
-  return fees
+export async function deletePaymentFee(id) {
+  const { error } = await supabase
+    .from('payment_fees')
+    .delete()
+    .eq('id', id)
+  if (error) throw error
 }
 
 // ---- N8N CONFIG ----
-export function getN8nConfig() {
-  const stored = localStorage.getItem(N8N_CONFIG_KEY)
-  if (!stored) {
-    const defaultConfig = {
-      webhookUrl: '',
-      apiKey: generateId() + '-' + generateId(),
-      enabled: false,
-      lastSync: null,
-    }
-    localStorage.setItem(N8N_CONFIG_KEY, JSON.stringify(defaultConfig))
-    return defaultConfig
+export async function getN8nConfig() {
+  const { data, error } = await supabase
+    .from('n8n_config')
+    .select('*')
+    .limit(1)
+    .maybeSingle()
+  if (error || !data) return { id: null, webhookUrl: '', apiKey: '', enabled: false, lastSync: null }
+  return toApp(data, 'n8n_config')
+}
+
+export async function saveN8nConfig(config) {
+  const dbConfig = toDb(config, 'n8n_config')
+  if (config.id) {
+    delete dbConfig.id
+    const { error } = await supabase
+      .from('n8n_config')
+      .update(dbConfig)
+      .eq('id', config.id)
+    if (error) throw error
+  } else {
+    const { error } = await supabase
+      .from('n8n_config')
+      .insert(dbConfig)
+    if (error) throw error
   }
-  return JSON.parse(stored)
 }
 
-export function saveN8nConfig(config) {
-  localStorage.setItem(N8N_CONFIG_KEY, JSON.stringify(config))
-}
-
-// Import a sale from Close CRM format (via N8n) or direct JSON
-export function importSaleFromClose(data) {
+// Import a sale from Close CRM format
+export async function importSaleFromClose(data) {
   const sale = {
     date: data.date || new Date().toISOString().split('T')[0],
     clientName: data.contact_name || data.clientName || '',

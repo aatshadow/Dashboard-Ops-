@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts'
 import Filters, { FilterSelect, getDateRange, getPreviousRange, dateInRange } from '../components/Filters'
 import { getReports, getSalesWithNetCash } from '../utils/data'
+import { useAsync } from '../hooks/useAsync'
 
 const COLORS = ['#FF6B00', '#FFB800', '#FF8C3A', '#FFD060', '#E55A00']
 
@@ -53,8 +54,8 @@ function FlipStatCard({ id, icon, value, label, sub, compClass, compText, flippe
 
 export default function ReportsDashboard() {
   const navigate = useNavigate()
-  const allReports = useMemo(() => getReports(), [])
-  const allSales = useMemo(() => getSalesWithNetCash(), [])
+  const [allReports, reportsLoading] = useAsync(getReports, [])
+  const [allSales, salesLoading] = useAsync(getSalesWithNetCash, [])
 
   const [datePreset, setDatePreset] = useState('thisMonth')
   const [setterFilter, setSetterFilter] = useState('')
@@ -224,6 +225,8 @@ export default function ReportsDashboard() {
       return next
     })
   }
+
+  if (reportsLoading || salesLoading) return <div className="dashboard"><div style={{textAlign:'center',padding:60,color:'#999'}}>Cargando datos...</div></div>
 
   return (
     <div className="dashboard">
