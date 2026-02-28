@@ -1,5 +1,27 @@
 import { supabase, toDb, toApp } from './supabase'
 
+// Normalize date strings to YYYY-MM-DD for PostgreSQL
+function normalizeDate(val) {
+  if (!val || val === '') return new Date().toISOString().split('T')[0]
+  const str = String(val).trim()
+  // Already ISO
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str
+  // DD/MM/YYYY or DD-MM-YYYY
+  const parts = str.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/)
+  if (parts) {
+    let [, a, b, year] = parts
+    let day, month
+    if (parseInt(a) > 12) { day = a; month = b }
+    else if (parseInt(b) > 12) { month = a; day = b }
+    else { day = a; month = b } // Default DD/MM/YYYY
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+  }
+  // Try native parsing
+  const parsed = new Date(str)
+  if (!isNaN(parsed.getTime())) return parsed.toISOString().split('T')[0]
+  return new Date().toISOString().split('T')[0]
+}
+
 // ---- SALES ----
 export async function getSales() {
   const { data, error } = await supabase
@@ -24,6 +46,7 @@ export async function addSale(sale) {
 
 export async function addSales(sales) {
   const dbSales = sales.map(s => {
+    s.date = normalizeDate(s.date)
     const d = toDb(s, 'sales')
     delete d.id
     return d
@@ -91,6 +114,8 @@ export async function addReport(report) {
 
 export async function addReports(reports) {
   const dbReports = reports.map(r => {
+    r.date = normalizeDate(r.date)
+    if (r.role) r.role = r.role.toLowerCase().trim()
     const d = toDb(r, 'reports')
     delete d.id
     return d

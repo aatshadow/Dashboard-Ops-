@@ -68,6 +68,16 @@ const TABLE_MAPS = {
   n8n_config: N8N_MAP,
 }
 
+// Valid DB columns per table (prevents unknown fields from causing insert errors)
+const VALID_COLUMNS = {
+  sales: new Set(['date', 'client_name', 'client_email', 'client_phone', 'instagram', 'product', 'producto_interes', 'payment_type', 'installment_number', 'payment_method', 'revenue', 'cash_collected', 'closer', 'setter', 'triager', 'gestor_asignado', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'pais', 'capital_disponible', 'situacion_actual', 'exp_amazon', 'decisor_confirmado', 'fecha_llamada', 'status', 'notes', 'source', 'close_activity_id']),
+  reports: new Set(['date', 'role', 'name', 'conversations_opened', 'follow_ups', 'offers_launched', 'appointments_booked', 'scheduled_calls', 'calls_made', 'deposits', 'closes']),
+  team: new Set(['name', 'email', 'password', 'role', 'active', 'commission_rate']),
+  projections: new Set(['period', 'period_type', 'type', 'member_id', 'name', 'cash_target', 'revenue_target', 'appointment_target']),
+  payment_fees: new Set(['method', 'fee_rate']),
+  n8n_config: new Set(['webhook_url', 'api_key', 'enabled', 'last_sync']),
+}
+
 function buildReverse(map) {
   return Object.fromEntries(Object.entries(map).map(([k, v]) => [v, k]))
 }
@@ -78,10 +88,12 @@ const REVERSE_MAPS = Object.fromEntries(
 
 export function toDb(obj, table) {
   const map = TABLE_MAPS[table] || {}
+  const valid = VALID_COLUMNS[table]
   const result = {}
   for (const [key, value] of Object.entries(obj)) {
     if (key === 'netCash' || key === 'net_cash' || key === 'created_at') continue
     const dbKey = map[key] || key
+    if (valid && !valid.has(dbKey)) continue // Skip unknown columns
     result[dbKey] = value
   }
   return result

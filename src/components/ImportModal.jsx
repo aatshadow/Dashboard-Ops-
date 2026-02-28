@@ -72,6 +72,8 @@ export default function ImportModal({ type, onImport, onClose }) {
   const [fileHeaders, setFileHeaders] = useState([])
   const [mapping, setMapping] = useState({})
   const [mapped, setMapped] = useState([])
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState(null)
   const fileRef = useRef()
 
   const handleFile = (e) => {
@@ -140,9 +142,16 @@ export default function ImportModal({ type, onImport, onClose }) {
     setStep('preview')
   }
 
-  const confirmImport = () => {
-    onImport(mapped)
-    onClose()
+  const confirmImport = async () => {
+    setImporting(true)
+    setImportError(null)
+    try {
+      await onImport(mapped)
+      onClose()
+    } catch (err) {
+      setImportError(err.message || 'Error al importar los datos')
+      setImporting(false)
+    }
   }
 
   return (
@@ -227,10 +236,15 @@ export default function ImportModal({ type, onImport, onClose }) {
               </table>
               {mapped.length > 10 && <p className="import-more">... y {mapped.length - 10} registros más</p>}
             </div>
+            {importError && (
+              <div style={{ color: 'var(--danger, #e74c3c)', background: 'rgba(231,76,60,0.1)', padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: '0.85rem' }}>
+                {importError}
+              </div>
+            )}
             <div className="import-actions">
-              <button className="btn-import-secondary" onClick={() => setStep('map')}>Atrás</button>
-              <button className="btn-import-primary" onClick={confirmImport}>
-                Importar {mapped.length} registros
+              <button className="btn-import-secondary" onClick={() => setStep('map')} disabled={importing}>Atrás</button>
+              <button className="btn-import-primary" onClick={confirmImport} disabled={importing}>
+                {importing ? 'Importando...' : `Importar ${mapped.length} registros`}
               </button>
             </div>
           </div>
