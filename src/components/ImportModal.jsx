@@ -77,12 +77,11 @@ export default function ImportModal({ type, onImport, onClose }) {
   const handleFile = (e) => {
     const file = e.target.files[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = (evt) => {
-      const data = new Uint8Array(evt.target.result)
-      const wb = XLSX.read(data, { type: 'array' })
+    const isCSV = file.name.toLowerCase().endsWith('.csv')
+
+    const processData = (wb) => {
       const ws = wb.Sheets[wb.SheetNames[0]]
-      const json = XLSX.utils.sheet_to_json(ws, { defval: '' })
+      const json = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false })
       if (json.length === 0) return
       const headers = Object.keys(json[0])
       setFileHeaders(headers)
@@ -90,7 +89,24 @@ export default function ImportModal({ type, onImport, onClose }) {
       setMapping(autoMap(headers, fields))
       setStep('map')
     }
-    reader.readAsArrayBuffer(file)
+
+    if (isCSV) {
+      // Read CSV as UTF-8 text to preserve accents
+      const reader = new FileReader()
+      reader.onload = (evt) => {
+        const wb = XLSX.read(evt.target.result, { type: 'string', raw: false })
+        processData(wb)
+      }
+      reader.readAsText(file, 'UTF-8')
+    } else {
+      const reader = new FileReader()
+      reader.onload = (evt) => {
+        const data = new Uint8Array(evt.target.result)
+        const wb = XLSX.read(data, { type: 'array', codepage: 65001, raw: false })
+        processData(wb)
+      }
+      reader.readAsArrayBuffer(file)
+    }
   }
 
   const applyMapping = () => {
@@ -101,6 +117,11 @@ export default function ImportModal({ type, onImport, onClose }) {
         const field = fields.find(f => f.key === fieldKey)
         let val = row[header]
         if (field && field.type === 'number') {
+          // Handle European number format: 1.473,05 → 1473.05
+          val = String(val || '').trim()
+          if (val.includes(',')) {
+            val = val.replace(/\./g, '').replace(',', '.')
+          }
           val = parseFloat(val) || 0
         } else {
           val = String(val || '').trim()
