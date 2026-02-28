@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
-import { getSalesWithNetCash, saveSales, deleteSale, getPaymentFees, getTeam } from '../utils/data'
+import { getSales, getSalesWithNetCash, saveSales, deleteSale, getPaymentFees, getTeam } from '../utils/data'
+import ImportModal from '../components/ImportModal'
 
 const PAYMENT_TYPES = ['Pago único', '2 cuotas', '3 cuotas', '4 cuotas', '5 cuotas', '6 cuotas']
 
@@ -23,8 +24,17 @@ export default function SalesTable() {
   const [editData, setEditData] = useState({})
   const [expandedId, setExpandedId] = useState(null)
   const [search, setSearch] = useState('')
+  const [showImport, setShowImport] = useState(false)
 
   const refreshSales = () => setSales(getSalesWithNetCash())
+
+  const handleImport = (rows) => {
+    const current = getSales()
+    const generateId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
+    const newSales = rows.map(r => ({ ...r, id: generateId() }))
+    saveSales([...current, ...newSales])
+    refreshSales()
+  }
 
   const startEdit = (sale) => {
     setEditingId(sale.id)
@@ -93,6 +103,7 @@ export default function SalesTable() {
           className="table-search"
         />
         <span className="table-count">{filtered.length} ventas</span>
+        <button className="btn-import" onClick={() => setShowImport(true)}>Importar CSV/Excel</button>
       </div>
 
       <div className="table-wrapper">
@@ -266,6 +277,7 @@ export default function SalesTable() {
           </tbody>
         </table>
       </div>
+      {showImport && <ImportModal type="sales" onImport={handleImport} onClose={() => setShowImport(false)} />}
     </div>
   )
 }

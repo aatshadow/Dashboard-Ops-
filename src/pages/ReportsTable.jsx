@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { getReports, saveReports, deleteReport } from '../utils/data'
+import ImportModal from '../components/ImportModal'
 
 export default function ReportsTable() {
   const [reports, setReports] = useState(() => getReports())
@@ -7,6 +8,15 @@ export default function ReportsTable() {
   const [editData, setEditData] = useState({})
   const [filter, setFilter] = useState('all') // all, setter, closer
   const [search, setSearch] = useState('')
+  const [showImport, setShowImport] = useState(false)
+
+  const handleImport = (rows) => {
+    const current = getReports()
+    const generateId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
+    const newReports = rows.map(r => ({ ...r, id: generateId() }))
+    saveReports([...current, ...newReports])
+    setReports(getReports())
+  }
 
   const startEdit = (r) => { setEditingId(r.id); setEditData({ ...r }) }
   const cancelEdit = () => { setEditingId(null); setEditData({}) }
@@ -41,6 +51,7 @@ export default function ReportsTable() {
           <button className={`filter-btn ${filter === 'closer' ? 'filter-btn--active' : ''}`} onClick={() => setFilter('closer')}>Closers</button>
         </div>
         <span className="table-count">{filtered.length} reportes</span>
+        <button className="btn-import" onClick={() => setShowImport(true)}>Importar CSV/Excel</button>
       </div>
 
       <div className="table-wrapper">
@@ -149,6 +160,7 @@ export default function ReportsTable() {
           </tbody>
         </table>
       </div>
+      {showImport && <ImportModal type="reports" onImport={handleImport} onClose={() => setShowImport(false)} />}
     </div>
   )
 }
