@@ -4,7 +4,7 @@ import { useAsync } from '../hooks/useAsync'
 
 const ROLE_LABELS = { director: 'Director', manager: 'Manager', closer: 'Closer', setter: 'Setter' }
 
-export default function CommissionsPage() {
+export default function CommissionsPage({ user, role: userRole }) {
   const [month, setMonth] = useState(() => {
     const now = new Date()
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -25,16 +25,24 @@ export default function CommissionsPage() {
   }, {})
 
   // Compute commissions on net cash
-  const commissions = team.filter(m => m.active).map(m => {
+  const allCommissions = team.filter(m => m.active).map(m => {
     const cash = m.role === 'closer' ? (cashByCloser[m.name] || 0) : totalNetCash
     const commission = Math.round(cash * m.commissionRate)
     return { ...m, cash, commission }
   })
 
-  const totalCommissions = commissions.reduce((s, c) => s + c.commission, 0)
-  const closerCommissions = commissions.filter(c => c.role === 'closer').reduce((s, c) => s + c.commission, 0)
-  const setterCommissions = commissions.filter(c => c.role === 'setter').reduce((s, c) => s + c.commission, 0)
+  // If user is closer/setter, only show their own commission
+  const isRestricted = userRole === 'closer' || userRole === 'setter'
+  const commissions = isRestricted
+    ? allCommissions.filter(c => c.email === user)
+    : allCommissions
+
+  const totalCommissions = allCommissions.reduce((s, c) => s + c.commission, 0)
+  const closerCommissions = allCommissions.filter(c => c.role === 'closer').reduce((s, c) => s + c.commission, 0)
+  const setterCommissions = allCommissions.filter(c => c.role === 'setter').reduce((s, c) => s + c.commission, 0)
   const otherCommissions = totalCommissions - closerCommissions - setterCommissions
+
+  const myCommission = isRestricted && commissions.length > 0 ? commissions[0] : null
 
   const fmt = (n) => `€${Math.round(n).toLocaleString('es-ES')}`
 
@@ -42,33 +50,53 @@ export default function CommissionsPage() {
     <div className="dashboard">
       <div className="filters-bar">
         <div className="filters-left">
-          <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="filter-select" style={{ minWidth: 160 }} />
+          <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="filter-select" style={{ minWidth: 160, colorScheme: 'dark' }} />
         </div>
       </div>
 
       {/* Summary cards */}
-      <div className="stats-grid stats-grid--4">
-        <div className="stat-card">
-          <div className="stat-card-icon">💸</div>
-          <div className="stat-card-value">{fmt(totalCommissions)}</div>
-          <div className="stat-card-label">Total Comisiones</div>
+      {isRestricted ? (
+        <div className="stats-grid stats-grid--3">
+          <div className="stat-card">
+            <div className="stat-card-icon">💸</div>
+            <div className="stat-card-value">{fmt(myCommission?.commission || 0)}</div>
+            <div className="stat-card-label">Mi Comisión</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-icon">💰</div>
+            <div className="stat-card-value">{fmt(myCommission?.cash || 0)}</div>
+            <div className="stat-card-label">Cash Neto Base</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-icon">📊</div>
+            <div className="stat-card-value">{myCommission ? (myCommission.commissionRate * 100).toFixed(0) : 0}%</div>
+            <div className="stat-card-label">Mi Tasa</div>
+          </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-card-icon">📞</div>
-          <div className="stat-card-value">{fmt(closerCommissions)}</div>
-          <div className="stat-card-label">Closers</div>
+      ) : (
+        <div className="stats-grid stats-grid--4">
+          <div className="stat-card">
+            <div className="stat-card-icon">💸</div>
+            <div className="stat-card-value">{fmt(totalCommissions)}</div>
+            <div className="stat-card-label">Total Comisiones</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-icon">📞</div>
+            <div className="stat-card-value">{fmt(closerCommissions)}</div>
+            <div className="stat-card-label">Closers</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-icon">💬</div>
+            <div className="stat-card-value">{fmt(setterCommissions)}</div>
+            <div className="stat-card-label">Setters</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-icon">👤</div>
+            <div className="stat-card-value">{fmt(otherCommissions)}</div>
+            <div className="stat-card-label">Otros</div>
+          </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-card-icon">💬</div>
-          <div className="stat-card-value">{fmt(setterCommissions)}</div>
-          <div className="stat-card-label">Setters</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card-icon">👤</div>
-          <div className="stat-card-value">{fmt(otherCommissions)}</div>
-          <div className="stat-card-label">Otros</div>
-        </div>
-      </div>
+      )}
 
       {/* Commission Table */}
       <div className="table-wrapper">

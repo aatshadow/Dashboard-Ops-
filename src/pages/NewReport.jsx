@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { addReport } from '../utils/data'
+import { addReport, getTeam } from '../utils/data'
+import { useAsync } from '../hooks/useAsync'
 
 export default function NewReport() {
   const navigate = useNavigate()
+  const [team, teamLoading] = useAsync(getTeam, [])
   const [role, setRole] = useState('setter')
   const [saved, setSaved] = useState(false)
   const [form, setForm] = useState({
@@ -22,6 +24,13 @@ export default function NewReport() {
   })
 
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
+
+  const membersForRole = team.filter(m => m.role === role && m.active)
+
+  const handleRoleChange = (newRole) => {
+    setRole(newRole)
+    setForm(prev => ({ ...prev, name: '' }))
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -70,15 +79,24 @@ export default function NewReport() {
             <input type="date" value={form.date} onChange={e => set('date', e.target.value)} />
           </div>
           <div className="form-group">
-            <label>Nombre *</label>
-            <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="Tu nombre" required />
-          </div>
-          <div className="form-group">
             <label>Rol</label>
             <div className="role-toggle">
-              <button type="button" className={`role-btn ${role === 'setter' ? 'role-btn--active' : ''}`} onClick={() => setRole('setter')}>Setter</button>
-              <button type="button" className={`role-btn ${role === 'closer' ? 'role-btn--active' : ''}`} onClick={() => setRole('closer')}>Closer</button>
+              <button type="button" className={`role-btn ${role === 'setter' ? 'role-btn--active' : ''}`} onClick={() => handleRoleChange('setter')}>Setter</button>
+              <button type="button" className={`role-btn ${role === 'closer' ? 'role-btn--active' : ''}`} onClick={() => handleRoleChange('closer')}>Closer</button>
             </div>
+          </div>
+          <div className="form-group">
+            <label>Nombre *</label>
+            {teamLoading ? (
+              <select disabled><option>Cargando...</option></select>
+            ) : (
+              <select value={form.name} onChange={e => set('name', e.target.value)} required>
+                <option value="">Seleccionar {role === 'setter' ? 'setter' : 'closer'}</option>
+                {membersForRole.map(m => (
+                  <option key={m.id} value={m.name}>{m.name}</option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
 

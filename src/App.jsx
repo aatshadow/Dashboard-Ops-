@@ -70,7 +70,7 @@ export default function App() {
         {/* Management — role-gated */}
         <Route path="/equipo" element={isDirector ? <TeamPage /> : <Navigate to="/ventas" replace />} />
         <Route path="/proyecciones" element={canSeeProjections ? <ProjectionsPage /> : <Navigate to="/ventas" replace />} />
-        <Route path="/comisiones" element={isDirector ? <CommissionsPage /> : <Navigate to="/ventas" replace />} />
+        <Route path="/comisiones" element={<CommissionsPage user={user} role={userRole} />} />
         <Route path="/metodos-pago" element={isDirector ? <PaymentMethodsPage /> : <Navigate to="/ventas" replace />} />
         {/* Settings — all roles */}
         <Route path="/settings" element={<SettingsPage user={user} />} />

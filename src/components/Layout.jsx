@@ -68,10 +68,10 @@ export default function Layout({ children, user, onLogout, role }) {
     }).map(group => {
       if (group.label === 'Management') {
         if (role === 'manager') {
-          return { ...group, children: group.children.filter(c => c.to === '/proyecciones' || c.to === '/settings') }
+          return { ...group, children: group.children.filter(c => c.to === '/proyecciones' || c.to === '/comisiones' || c.to === '/settings') }
         }
-        // closer/setter — Proyecciones + Settings
-        return { ...group, children: group.children.filter(c => c.to === '/proyecciones' || c.to === '/settings') }
+        // closer/setter — Proyecciones + Comisiones + Settings
+        return { ...group, children: group.children.filter(c => c.to === '/proyecciones' || c.to === '/comisiones' || c.to === '/settings') }
       }
       return group
     })
