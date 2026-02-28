@@ -422,7 +422,7 @@ body {
   flex-wrap: wrap;
 }
 
-.filters-left { display: flex; gap: 8px; align-items: center; }
+.filters-left { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .filters-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
 .date-presets { display: flex; gap: 4px; }
@@ -461,7 +461,29 @@ body {
 }
 
 .filter-select:focus { border-color: var(--orange); }
+.filter-select--active { border-color: var(--orange); box-shadow: 0 0 0 2px var(--glow); color: var(--text); }
 .filter-select option { background: var(--bg-card); color: var(--text); }
+
+.date-extra-filters { display: flex; gap: 8px; align-items: center; }
+
+.date-range-inputs { display: flex; gap: 4px; align-items: center; }
+.date-range-sep { color: var(--text-muted); font-size: 0.8rem; padding: 0 2px; }
+
+.filter-date-input {
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-family: inherit;
+  outline: none;
+  transition: border 0.2s;
+  color-scheme: dark;
+  max-width: 140px;
+}
+.filter-date-input:focus { border-color: var(--orange); }
+.filter-date-input--active { border-color: var(--orange); box-shadow: 0 0 0 2px var(--glow); color: var(--text); }
 
 /* ============ BIG NUMBERS ============ */
 .big-numbers {
@@ -1325,6 +1347,9 @@ body {
   /* Filters */
   .filters-bar { flex-direction: column; align-items: stretch; gap: 10px; }
   .filters-left, .filters-right { flex-wrap: wrap; }
+  .date-extra-filters { flex-wrap: wrap; }
+  .date-range-inputs { flex-wrap: wrap; }
+  .filter-date-input { max-width: 130px; font-size: 0.78rem; }
   .date-presets { flex-wrap: wrap; }
   .filter-chip { padding: 6px 12px; font-size: 0.78rem; }
   .filter-select { font-size: 0.8rem; min-width: 90px; }
@@ -1398,6 +1423,7 @@ body {
   .chart-card { padding: 14px; }
 
   .filter-chip { padding: 5px 10px; font-size: 0.72rem; }
+  .filter-date-input { max-width: 115px; font-size: 0.72rem; padding: 5px 6px; }
 
   .data-table th { padding: 8px 8px; font-size: 0.65rem; }
   .data-table td { padding: 8px 8px; font-size: 0.75rem; }
