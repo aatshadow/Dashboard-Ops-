@@ -6,6 +6,7 @@ const DATE_PRESETS = [
   { label: '7 días', key: 'last7' },
   { label: 'Esta semana', key: 'thisWeek' },
   { label: 'Este mes', key: 'thisMonth' },
+  { label: 'Este año', key: 'thisYear' },
   { label: 'Todo', key: 'all' },
 ]
 
@@ -71,6 +72,10 @@ export function getDateRange(preset) {
       const s = new Date(today.getFullYear(), today.getMonth(), 1)
       return { start: s, end: today }
     }
+    case 'thisYear': {
+      const s = new Date(today.getFullYear(), 0, 1)
+      return { start: s, end: today }
+    }
     case 'all':
     default:
       return { start: new Date(2020, 0, 1), end: today }
@@ -96,7 +101,9 @@ export function getPreviousRange(preset) {
 }
 
 export function dateInRange(dateStr, range) {
-  const d = new Date(dateStr + 'T00:00:00')
+  // Extract YYYY-MM-DD only (handles both "2026-02-28" and "2026-02-28T00:00:00+00:00")
+  const dateOnly = String(dateStr).slice(0, 10)
+  const d = new Date(dateOnly + 'T12:00:00') // noon to avoid timezone edge cases
   const s = new Date(range.start)
   const e = new Date(range.end)
   s.setHours(0, 0, 0, 0)

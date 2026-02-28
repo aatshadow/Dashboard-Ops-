@@ -10,6 +10,8 @@ export default function ReportsTable() {
   const [filter, setFilter] = useState('all') // all, setter, closer
   const [search, setSearch] = useState('')
   const [showImport, setShowImport] = useState(false)
+  const [sortKey, setSortKey] = useState('date')
+  const [sortDir, setSortDir] = useState('desc')
 
   const handleImport = async (rows) => {
     await addReports(rows)
@@ -32,10 +34,27 @@ export default function ReportsTable() {
     }
   }
 
+  const handleSort = (key) => {
+    if (sortKey === key) { setSortDir(sortDir === 'asc' ? 'desc' : 'asc') }
+    else { setSortKey(key); setSortDir(key === 'date' ? 'desc' : 'asc') }
+  }
+  const sortArrow = (key) => sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''
+
   const filtered = reports.filter(r => {
     if (filter !== 'all' && r.role !== filter) return false
     if (search && !r.name.toLowerCase().includes(search.toLowerCase()) && !r.date.includes(search)) return false
     return true
+  })
+
+  const sorted = [...filtered].sort((a, b) => {
+    let va = a[sortKey] ?? ''
+    let vb = b[sortKey] ?? ''
+    if (typeof va === 'number' && typeof vb === 'number') return sortDir === 'asc' ? va - vb : vb - va
+    va = String(va).toLowerCase()
+    vb = String(vb).toLowerCase()
+    if (va < vb) return sortDir === 'asc' ? -1 : 1
+    if (va > vb) return sortDir === 'asc' ? 1 : -1
+    return 0
   })
 
   if (reportsLoading) return <div className="table-page"><div style={{textAlign:'center',padding:60,color:'#999'}}>Cargando reportes...</div></div>
@@ -57,27 +76,27 @@ export default function ReportsTable() {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Fecha</th>
-              <th>Rol</th>
-              <th>Nombre</th>
+              <th className="th-sort" onClick={() => handleSort('date')}>Fecha{sortArrow('date')}</th>
+              <th className="th-sort" onClick={() => handleSort('role')}>Rol{sortArrow('role')}</th>
+              <th className="th-sort" onClick={() => handleSort('name')}>Nombre{sortArrow('name')}</th>
               {filter !== 'closer' && <>
-                <th>Conversaciones</th>
-                <th>Follow Ups</th>
-                <th>Ofertas</th>
-                <th>Agendas</th>
+                <th className="th-sort" onClick={() => handleSort('conversationsOpened')}>Conversaciones{sortArrow('conversationsOpened')}</th>
+                <th className="th-sort" onClick={() => handleSort('followUps')}>Follow Ups{sortArrow('followUps')}</th>
+                <th className="th-sort" onClick={() => handleSort('offersLaunched')}>Ofertas{sortArrow('offersLaunched')}</th>
+                <th className="th-sort" onClick={() => handleSort('appointmentsBooked')}>Agendas{sortArrow('appointmentsBooked')}</th>
               </>}
               {filter !== 'setter' && <>
-                <th>Agendadas</th>
-                <th>Realizadas</th>
-                <th>Ofertas</th>
-                <th>Depósitos</th>
-                <th>Cierres</th>
+                <th className="th-sort" onClick={() => handleSort('scheduledCalls')}>Agendadas{sortArrow('scheduledCalls')}</th>
+                <th className="th-sort" onClick={() => handleSort('callsMade')}>Realizadas{sortArrow('callsMade')}</th>
+                <th className="th-sort" onClick={() => handleSort('offersLaunched')}>Ofertas{sortArrow('offersLaunched')}</th>
+                <th className="th-sort" onClick={() => handleSort('deposits')}>Depósitos{sortArrow('deposits')}</th>
+                <th className="th-sort" onClick={() => handleSort('closes')}>Cierres{sortArrow('closes')}</th>
               </>}
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map(r => (
+            {sorted.map(r => (
               <tr key={r.id} className={editingId === r.id ? 'row-editing' : ''}>
                 {editingId === r.id ? (
                   <>

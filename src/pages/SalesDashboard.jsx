@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, Legend } from 'recharts'
 import Filters, { FilterSelect, getDateRange, getPreviousRange, dateInRange } from '../components/Filters'
-import { getSalesWithNetCash, getReports } from '../utils/data'
+import { getSalesWithNetCash } from '../utils/data'
 import { useAsync } from '../hooks/useAsync'
 
 const COLORS = ['#FF6B00', '#FFB800', '#FF8C3A', '#FFD060', '#E55A00', '#22C55E']
@@ -176,32 +176,16 @@ export default function SalesDashboard() {
 
   const medals = ['🥇', '🥈', '🥉']
 
-  // Setter leaderboard from reports
-  const [allReports, reportsLoading] = useAsync(getReports, [])
-  const setterLeaderboard = (() => {
-    const setterReports = allReports.filter(r => r.role === 'setter' && dateInRange(r.date, range))
-    const byPerson = Object.values(setterReports.reduce((acc, r) => {
-      if (!acc[r.name]) acc[r.name] = { name: r.name, conversaciones: 0, ofertas: 0, agendas: 0 }
-      acc[r.name].conversaciones += r.conversationsOpened
-      acc[r.name].ofertas += r.offersLaunched
-      acc[r.name].agendas += r.appointmentsBooked
-      return acc
-    }, {}))
-    if (byPerson.length === 0) return []
-    const maxConvos = Math.max(...byPerson.map(d => d.conversaciones), 1)
-    return byPerson.map(d => {
-      const br = d.conversaciones ? (d.agendas / d.conversaciones * 100) : 0
-      const volNorm = d.conversaciones / maxConvos * 100
-      const score = br * 0.6 + volNorm * 0.4
-      return { ...d, bookingRate: Math.round(br), score: Math.round(score) }
-    }).sort((a, b) => b.score - a.score)
-  })()
+  // Setter leaderboard by cash collected (from sales attribution)
+  const setterLeaderboard = useMemo(() => {
+    return setterAttrib.slice().sort((a, b) => b.cash - a.cash)
+  }, [setterAttrib])
 
   const fmt = (n) => `€${n.toLocaleString('es-ES')}`
   const diff = (curr, prev) => curr - prev
   const diffClass = (curr, prev) => curr >= prev ? 'comp--up' : 'comp--down'
 
-  if (salesLoading || reportsLoading) return <div className="dashboard"><div style={{textAlign:'center',padding:60,color:'#999'}}>Cargando datos...</div></div>
+  if (salesLoading) return <div className="dashboard"><div style={{textAlign:'center',padding:60,color:'#999'}}>Cargando datos...</div></div>
 
   return (
     <div className="dashboard">
@@ -350,7 +334,7 @@ export default function SalesDashboard() {
             <span className="leaderboard-trophy">🏆</span>
             <div>
               <h3 className="leaderboard-title">Leaderboard Setters</h3>
-              <p className="leaderboard-subtitle">Score = Booking Rate (60%) + Volumen (40%)</p>
+              <p className="leaderboard-subtitle">Ranking por Cash Neto (ventas atribuidas)</p>
             </div>
           </div>
           <div className="leaderboard-list">
@@ -360,17 +344,16 @@ export default function SalesDashboard() {
                 <div className="leaderboard-avatar">{s.name.charAt(0)}</div>
                 <div className="leaderboard-info">
                   <div className="leaderboard-name">{s.name}</div>
-                  <div className="leaderboard-stats">{s.conversaciones} convos &middot; {s.ofertas} ofertas &middot; {s.agendas} agendas</div>
+                  <div className="leaderboard-stats">{s.ventas} ventas &middot; {fmt(s.revenue)} revenue</div>
                 </div>
                 <div className="leaderboard-metrics">
-                  <div className="leaderboard-metric-main">{s.bookingRate}%</div>
-                  <div className="leaderboard-metric-label">booking rate</div>
+                  <div className="leaderboard-metric-main">{fmt(s.cash)}</div>
+                  <div className="leaderboard-metric-label">cash neto</div>
                 </div>
                 <div className="leaderboard-score">
                   <div className="leaderboard-score-bar">
-                    <div className="leaderboard-score-fill" style={{ width: `${s.score}%` }} />
+                    <div className="leaderboard-score-fill" style={{ width: `${setterLeaderboard[0]?.cash ? (s.cash / setterLeaderboard[0].cash * 100) : 0}%` }} />
                   </div>
-                  <span className="leaderboard-score-num">{s.score}</span>
                 </div>
               </div>
             ))}

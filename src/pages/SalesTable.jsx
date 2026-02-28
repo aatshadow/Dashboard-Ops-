@@ -26,6 +26,8 @@ export default function SalesTable() {
   const [expandedId, setExpandedId] = useState(null)
   const [search, setSearch] = useState('')
   const [showImport, setShowImport] = useState(false)
+  const [sortKey, setSortKey] = useState('date')
+  const [sortDir, setSortDir] = useState('desc')
 
   const handleImport = async (rows) => {
     await addSales(rows)
@@ -65,6 +67,12 @@ export default function SalesTable() {
     }
   }
 
+  const handleSort = (key) => {
+    if (sortKey === key) { setSortDir(sortDir === 'asc' ? 'desc' : 'asc') }
+    else { setSortKey(key); setSortDir(key === 'date' ? 'desc' : 'asc') }
+  }
+  const sortArrow = (key) => sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''
+
   const filtered = sales.filter(s => {
     const q = search.toLowerCase()
     return s.clientName.toLowerCase().includes(q) ||
@@ -75,6 +83,17 @@ export default function SalesTable() {
       (s.pais || '').toLowerCase().includes(q) ||
       (s.utmSource || '').toLowerCase().includes(q) ||
       (s.notes || '').toLowerCase().includes(q)
+  })
+
+  const sorted = [...filtered].sort((a, b) => {
+    let va = a[sortKey] ?? ''
+    let vb = b[sortKey] ?? ''
+    if (typeof va === 'number' && typeof vb === 'number') return sortDir === 'asc' ? va - vb : vb - va
+    va = String(va).toLowerCase()
+    vb = String(vb).toLowerCase()
+    if (va < vb) return sortDir === 'asc' ? -1 : 1
+    if (va > vb) return sortDir === 'asc' ? 1 : -1
+    return 0
   })
 
   const fmt = (n) => `€${Number(n).toLocaleString('es-ES')}`
@@ -101,26 +120,26 @@ export default function SalesTable() {
           <thead>
             <tr>
               <th></th>
-              <th>Fecha</th>
-              <th>Cliente</th>
-              <th>Producto</th>
-              <th>Tipo</th>
+              <th className="th-sort" onClick={() => handleSort('date')}>Fecha{sortArrow('date')}</th>
+              <th className="th-sort" onClick={() => handleSort('clientName')}>Cliente{sortArrow('clientName')}</th>
+              <th className="th-sort" onClick={() => handleSort('product')}>Producto{sortArrow('product')}</th>
+              <th className="th-sort" onClick={() => handleSort('paymentType')}>Tipo{sortArrow('paymentType')}</th>
               <th>Cuota</th>
-              <th>Método</th>
-              <th>Revenue</th>
-              <th>Cash</th>
-              <th>Cash Neto</th>
-              <th>Closer</th>
-              <th>Setter</th>
-              <th>País</th>
-              <th>UTM Source</th>
-              <th>Estado</th>
+              <th className="th-sort" onClick={() => handleSort('paymentMethod')}>Método{sortArrow('paymentMethod')}</th>
+              <th className="th-sort" onClick={() => handleSort('revenue')}>Revenue{sortArrow('revenue')}</th>
+              <th className="th-sort" onClick={() => handleSort('cashCollected')}>Cash{sortArrow('cashCollected')}</th>
+              <th className="th-sort" onClick={() => handleSort('netCash')}>Cash Neto{sortArrow('netCash')}</th>
+              <th className="th-sort" onClick={() => handleSort('closer')}>Closer{sortArrow('closer')}</th>
+              <th className="th-sort" onClick={() => handleSort('setter')}>Setter{sortArrow('setter')}</th>
+              <th className="th-sort" onClick={() => handleSort('pais')}>País{sortArrow('pais')}</th>
+              <th className="th-sort" onClick={() => handleSort('utmSource')}>UTM Source{sortArrow('utmSource')}</th>
+              <th className="th-sort" onClick={() => handleSort('status')}>Estado{sortArrow('status')}</th>
               <th>Fuente</th>
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map(sale => (
+            {sorted.map(sale => (
               editingId === sale.id ? (
                 <tr key={sale.id} className="row-editing">
                   <td></td>
