@@ -1,0 +1,139 @@
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+// Field maps: camelCase (app) ↔ snake_case (DB)
+const SALES_MAP = {
+  clientId: 'client_id',
+  clientName: 'client_name',
+  clientEmail: 'client_email',
+  clientPhone: 'client_phone',
+  paymentType: 'payment_type',
+  installmentNumber: 'installment_number',
+  paymentMethod: 'payment_method',
+  cashCollected: 'cash_collected',
+  productoInteres: 'producto_interes',
+  gestorAsignado: 'gestor_asignado',
+  utmSource: 'utm_source',
+  utmMedium: 'utm_medium',
+  utmCampaign: 'utm_campaign',
+  utmContent: 'utm_content',
+  capitalDisponible: 'capital_disponible',
+  situacionActual: 'situacion_actual',
+  expAmazon: 'exp_amazon',
+  decisorConfirmado: 'decisor_confirmado',
+  fechaLlamada: 'fecha_llamada',
+  closeActivityId: 'close_activity_id',
+}
+
+const REPORTS_MAP = {
+  clientId: 'client_id',
+  conversationsOpened: 'conversations_opened',
+  followUps: 'follow_ups',
+  offersLaunched: 'offers_launched',
+  appointmentsBooked: 'appointments_booked',
+  scheduledCalls: 'scheduled_calls',
+  callsMade: 'calls_made',
+}
+
+const TEAM_MAP = {
+  clientId: 'client_id',
+  commissionRate: 'commission_rate',
+}
+
+const PROJECTIONS_MAP = {
+  clientId: 'client_id',
+  periodType: 'period_type',
+  memberId: 'member_id',
+  cashTarget: 'cash_target',
+  revenueTarget: 'revenue_target',
+  appointmentTarget: 'appointment_target',
+}
+
+const FEES_MAP = {
+  clientId: 'client_id',
+  feeRate: 'fee_rate',
+}
+
+const N8N_MAP = {
+  clientId: 'client_id',
+  webhookUrl: 'webhook_url',
+  apiKey: 'api_key',
+  lastSync: 'last_sync',
+}
+
+const CLIENTS_MAP = {
+  logoUrl: 'logo_url',
+  primaryColor: 'primary_color',
+  secondaryColor: 'secondary_color',
+  bgColor: 'bg_color',
+  bgCardColor: 'bg_card_color',
+  bgSidebarColor: 'bg_sidebar_color',
+  borderColor: 'border_color',
+  textColor: 'text_color',
+  textSecondaryColor: 'text_secondary_color',
+}
+
+const SUPERADMINS_MAP = {}
+
+const SA_COMMISSIONS_MAP = {
+  clientId: 'client_id',
+  commissionRate: 'commission_rate',
+}
+
+const TABLE_MAPS = {
+  sales: SALES_MAP,
+  reports: REPORTS_MAP,
+  team: TEAM_MAP,
+  projections: PROJECTIONS_MAP,
+  payment_fees: FEES_MAP,
+  n8n_config: N8N_MAP,
+  clients: CLIENTS_MAP,
+  superadmins: SUPERADMINS_MAP,
+  superadmin_commissions: SA_COMMISSIONS_MAP,
+}
+
+// Valid DB columns per table (prevents unknown fields from causing insert errors)
+const VALID_COLUMNS = {
+  sales: new Set(['client_id', 'date', 'client_name', 'client_email', 'client_phone', 'instagram', 'product', 'producto_interes', 'payment_type', 'installment_number', 'payment_method', 'revenue', 'cash_collected', 'closer', 'setter', 'triager', 'gestor_asignado', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'pais', 'capital_disponible', 'situacion_actual', 'exp_amazon', 'decisor_confirmado', 'fecha_llamada', 'status', 'notes', 'source', 'close_activity_id']),
+  reports: new Set(['client_id', 'date', 'role', 'name', 'conversations_opened', 'follow_ups', 'offers_launched', 'appointments_booked', 'scheduled_calls', 'calls_made', 'deposits', 'closes']),
+  team: new Set(['client_id', 'name', 'email', 'password', 'role', 'active', 'commission_rate']),
+  projections: new Set(['client_id', 'period', 'period_type', 'type', 'member_id', 'name', 'cash_target', 'revenue_target', 'appointment_target']),
+  payment_fees: new Set(['client_id', 'method', 'fee_rate']),
+  n8n_config: new Set(['client_id', 'webhook_url', 'api_key', 'enabled', 'last_sync']),
+}
+
+function buildReverse(map) {
+  return Object.fromEntries(Object.entries(map).map(([k, v]) => [v, k]))
+}
+
+const REVERSE_MAPS = Object.fromEntries(
+  Object.entries(TABLE_MAPS).map(([table, map]) => [table, buildReverse(map)])
+)
+
+export function toDb(obj, table) {
+  const map = TABLE_MAPS[table] || {}
+  const valid = VALID_COLUMNS[table]
+  const result = {}
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === 'netCash' || key === 'net_cash' || key === 'created_at') continue
+    const dbKey = map[key] || key
+    if (valid && !valid.has(dbKey)) continue // Skip unknown columns
+    result[dbKey] = value
+  }
+  return result
+}
+
+export function toApp(row, table) {
+  const reverse = REVERSE_MAPS[table] || {}
+  const result = {}
+  for (const [key, value] of Object.entries(row)) {
+    if (key === 'created_at') continue
+    const appKey = reverse[key] || key
+    result[appKey] = value
+  }
+  return result
+}
