@@ -73,8 +73,8 @@ export function useClientData() {
     // CEO Finance
     getCeoFinanceEntries: useCallback(() => data.getCeoFinanceEntries(clientId), [clientId]),
     addCeoFinanceEntry: useCallback((entry) => data.addCeoFinanceEntry(entry, clientId), [clientId]),
-    updateCeoFinanceEntry: data.updateCeoFinanceEntry,
-    deleteCeoFinanceEntry: data.deleteCeoFinanceEntry,
+    updateCeoFinanceEntry: useCallback((id, updates) => data.updateCeoFinanceEntry(id, updates, clientId), [clientId]),
+    deleteCeoFinanceEntry: useCallback((id) => data.deleteCeoFinanceEntry(id, clientId), [clientId]),
     getCeoFinanceSummary: useCallback((yearMonth) => data.getCeoFinanceSummary(clientId, yearMonth), [clientId]),
   }
 }

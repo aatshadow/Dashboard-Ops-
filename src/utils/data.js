@@ -597,22 +597,20 @@ export async function addCeoFinanceEntry(entry, clientId) {
   return toApp(data, 'ceo_finance_entries')
 }
 
-export async function updateCeoFinanceEntry(id, updates) {
+export async function updateCeoFinanceEntry(id, updates, clientId) {
   const dbUpdates = toDb(updates, 'ceo_finance_entries')
   delete dbUpdates.id
   delete dbUpdates.client_id
-  const { error } = await supabase
-    .from('ceo_finance_entries')
-    .update(dbUpdates)
-    .eq('id', id)
+  const query = supabase.from('ceo_finance_entries').update(dbUpdates).eq('id', id)
+  if (clientId) query.eq('client_id', clientId)
+  const { error } = await query
   if (error) throw error
 }
 
-export async function deleteCeoFinanceEntry(id) {
-  const { error } = await supabase
-    .from('ceo_finance_entries')
-    .delete()
-    .eq('id', id)
+export async function deleteCeoFinanceEntry(id, clientId) {
+  const query = supabase.from('ceo_finance_entries').delete().eq('id', id)
+  if (clientId) query.eq('client_id', clientId)
+  const { error } = await query
   if (error) throw error
 }
 
