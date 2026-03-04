@@ -47,14 +47,14 @@ export default function CeoEquipo() {
     <div className="form-page">
       <h2 style={{ margin: '0 0 24px', color: '#fff' }}>👥 Equipo — Vista Ejecutiva</h2>
 
-      <div className="kpi-row" style={{ marginBottom: 24 }}>
-        <div className="kpi-card"><div className="kpi-value">{loading ? '...' : team.length}</div><div className="kpi-label">Total</div></div>
-        <div className="kpi-card"><div className="kpi-value">{loading ? '...' : active.length}</div><div className="kpi-label">Activos</div></div>
-        <div className="kpi-card"><div className="kpi-value">{loading ? '...' : inactive.length}</div><div className="kpi-label">Inactivos</div></div>
+      <div className="stats-grid stats-grid--5" style={{ marginBottom: 24 }}>
+        <div className="stat-card"><div className="stat-card-icon">👥</div><div className="stat-card-value">{loading ? '...' : team.length}</div><div className="stat-card-label">Total</div></div>
+        <div className="stat-card"><div className="stat-card-icon">✅</div><div className="stat-card-value">{loading ? '...' : active.length}</div><div className="stat-card-label">Activos</div></div>
+        <div className="stat-card"><div className="stat-card-icon">⏸️</div><div className="stat-card-value">{loading ? '...' : inactive.length}</div><div className="stat-card-label">Inactivos</div></div>
         {Object.entries(roleCounts).map(([role, count]) => (
-          <div className="kpi-card" key={role}>
-            <div className="kpi-value">{count}</div>
-            <div className="kpi-label">{role.charAt(0).toUpperCase() + role.slice(1)}s</div>
+          <div className="stat-card" key={role}>
+            <div className="stat-card-value">{count}</div>
+            <div className="stat-card-label">{role.charAt(0).toUpperCase() + role.slice(1)}s</div>
           </div>
         ))}
       </div>

@@ -76,11 +76,11 @@ export default function CeoMeetings() {
     <div className="form-page">
       <h2 style={{ margin: '0 0 24px', color: '#fff' }}>🎙️ Meetings</h2>
 
-      <div className="kpi-row" style={{ marginBottom: 24 }}>
-        <div className="kpi-card"><div className="kpi-value">{loading ? '...' : meetingsToday}</div><div className="kpi-label">Hoy</div></div>
-        <div className="kpi-card"><div className="kpi-value">{loading ? '...' : meetingsWeek}</div><div className="kpi-label">Esta Semana</div></div>
-        <div className="kpi-card"><div className="kpi-value">{loading ? '...' : totalHours.toFixed(1)}h</div><div className="kpi-label">Horas Total</div></div>
-        <div className="kpi-card"><div className="kpi-value">{loading ? '...' : uniqueParticipants}</div><div className="kpi-label">Participantes</div></div>
+      <div className="stats-grid stats-grid--4" style={{ marginBottom: 24 }}>
+        <div className="stat-card"><div className="stat-card-icon">📅</div><div className="stat-card-value">{loading ? '...' : meetingsToday}</div><div className="stat-card-label">Hoy</div></div>
+        <div className="stat-card"><div className="stat-card-icon">📆</div><div className="stat-card-value">{loading ? '...' : meetingsWeek}</div><div className="stat-card-label">Esta Semana</div></div>
+        <div className="stat-card"><div className="stat-card-icon">⏱️</div><div className="stat-card-value">{loading ? '...' : totalHours.toFixed(1)}h</div><div className="stat-card-label">Horas Total</div></div>
+        <div className="stat-card"><div className="stat-card-icon">👤</div><div className="stat-card-value">{loading ? '...' : uniqueParticipants}</div><div className="stat-card-label">Participantes</div></div>
       </div>
 
       <div className="ceo-phase-banner">
