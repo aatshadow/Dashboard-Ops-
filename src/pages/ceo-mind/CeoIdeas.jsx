@@ -38,11 +38,11 @@ export default function CeoIdeas() {
     <div className="form-page">
       <h2 style={{ margin: '0 0 24px', color: '#fff' }}>💡 Ideas & Backlog</h2>
 
-      <div className="kpi-row" style={{ marginBottom: 24 }}>
-        <div className="kpi-card"><div className="kpi-value">{loading ? '...' : counts.total}</div><div className="kpi-label">Total</div></div>
-        <div className="kpi-card"><div className="kpi-value">{loading ? '...' : counts.new}</div><div className="kpi-label">Nuevas</div></div>
-        <div className="kpi-card"><div className="kpi-value">{loading ? '...' : counts.reviewing}</div><div className="kpi-label">En Revisión</div></div>
-        <div className="kpi-card"><div className="kpi-value">{loading ? '...' : counts.approved}</div><div className="kpi-label">Aprobadas</div></div>
+      <div className="stats-grid stats-grid--4" style={{ marginBottom: 24 }}>
+        <div className="stat-card"><div className="stat-card-icon">💡</div><div className="stat-card-value">{loading ? '...' : counts.total}</div><div className="stat-card-label">Total</div></div>
+        <div className="stat-card"><div className="stat-card-icon">🆕</div><div className="stat-card-value">{loading ? '...' : counts.new}</div><div className="stat-card-label">Nuevas</div></div>
+        <div className="stat-card"><div className="stat-card-icon">🔍</div><div className="stat-card-value">{loading ? '...' : counts.reviewing}</div><div className="stat-card-label">En Revisión</div></div>
+        <div className="stat-card"><div className="stat-card-icon">✅</div><div className="stat-card-value">{loading ? '...' : counts.approved}</div><div className="stat-card-label">Aprobadas</div></div>
       </div>
 
       <form className="ceo-idea-input" onSubmit={handleQuickAdd}>
