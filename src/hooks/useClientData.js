@@ -69,5 +69,12 @@ export function useClientData() {
 
     getCeoIntegrations: useCallback(() => data.getCeoIntegrations(clientId), [clientId]),
     saveCeoIntegration: useCallback((integration) => data.saveCeoIntegration(integration, clientId), [clientId]),
+
+    // CEO Finance
+    getCeoFinanceEntries: useCallback(() => data.getCeoFinanceEntries(clientId), [clientId]),
+    addCeoFinanceEntry: useCallback((entry) => data.addCeoFinanceEntry(entry, clientId), [clientId]),
+    updateCeoFinanceEntry: data.updateCeoFinanceEntry,
+    deleteCeoFinanceEntry: data.deleteCeoFinanceEntry,
+    getCeoFinanceSummary: useCallback((yearMonth) => data.getCeoFinanceSummary(clientId, yearMonth), [clientId]),
   }
 }

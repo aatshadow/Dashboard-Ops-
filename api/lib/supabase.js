@@ -169,6 +169,11 @@ const CEO_INTEGRATIONS_FIELD_MAP = {
   createdAt: 'created_at',
 }
 
+const CEO_FINANCE_ENTRIES_FIELD_MAP = {
+  clientId: 'client_id',
+  createdAt: 'created_at',
+}
+
 // Legacy alias for backward compat
 const FIELD_MAP = SALES_FIELD_MAP
 
@@ -191,6 +196,7 @@ export const TABLE_FIELD_MAPS = {
   ceo_weekly_digests: CEO_WEEKLY_DIGESTS_FIELD_MAP,
   ceo_team_notes: CEO_TEAM_NOTES_FIELD_MAP,
   ceo_integrations: CEO_INTEGRATIONS_FIELD_MAP,
+  ceo_finance_entries: CEO_FINANCE_ENTRIES_FIELD_MAP,
 }
 
 function buildReverseMap(map) {
@@ -217,6 +223,7 @@ const TABLE_REVERSE_MAPS = {
   ceo_weekly_digests: buildReverseMap(CEO_WEEKLY_DIGESTS_FIELD_MAP),
   ceo_team_notes: buildReverseMap(CEO_TEAM_NOTES_FIELD_MAP),
   ceo_integrations: buildReverseMap(CEO_INTEGRATIONS_FIELD_MAP),
+  ceo_finance_entries: buildReverseMap(CEO_FINANCE_ENTRIES_FIELD_MAP),
 }
 
 export function toDbFormat(obj, table = 'sales') {

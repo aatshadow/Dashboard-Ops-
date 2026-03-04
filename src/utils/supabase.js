@@ -132,6 +132,10 @@ const CEO_INTEGRATIONS_MAP = {
   lastSync: 'last_sync',
 }
 
+const CEO_FINANCE_ENTRIES_MAP = {
+  clientId: 'client_id',
+}
+
 const SUPERADMINS_MAP = {}
 
 const SA_COMMISSIONS_MAP = {
@@ -157,6 +161,7 @@ const TABLE_MAPS = {
   ceo_weekly_digests: CEO_WEEKLY_DIGESTS_MAP,
   ceo_team_notes: CEO_TEAM_NOTES_MAP,
   ceo_integrations: CEO_INTEGRATIONS_MAP,
+  ceo_finance_entries: CEO_FINANCE_ENTRIES_MAP,
 }
 
 // Valid DB columns per table (prevents unknown fields from causing insert errors)
@@ -175,6 +180,7 @@ const VALID_COLUMNS = {
   ceo_weekly_digests: new Set(['client_id', 'week_start', 'week_end', 'numbers_summary', 'executive_summary', 'decisions_taken', 'next_steps', 'alerts', 'generated_at']),
   ceo_team_notes: new Set(['client_id', 'member_id', 'note', 'updated_at']),
   ceo_integrations: new Set(['client_id', 'service', 'api_key', 'config', 'enabled', 'last_sync']),
+  ceo_finance_entries: new Set(['client_id', 'date', 'category', 'description', 'amount', 'recurring', 'notes']),
 }
 
 function buildReverse(map) {

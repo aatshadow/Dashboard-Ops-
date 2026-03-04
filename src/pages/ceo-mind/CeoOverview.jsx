@@ -10,6 +10,7 @@ const QUICK_LINKS = [
   { path: 'ceo/ideas', icon: '💡', title: 'Ideas', desc: 'Backlog de ideas' },
   { path: 'ceo/pulso', icon: '📊', title: 'Pulso Semanal', desc: 'Resumen de la semana' },
   { path: 'ceo/roadmap', icon: '🗺️', title: 'Roadmap', desc: 'Timeline de proyectos' },
+  { path: 'ceo/finanzas', icon: '💰', title: 'Finanzas', desc: 'Cash flow y gastos operativos' },
 ]
 
 export default function CeoOverview() {
@@ -36,23 +37,27 @@ export default function CeoOverview() {
     <div className="form-page">
       <h2 style={{ margin: '0 0 24px', color: '#fff' }}>🧠 CEO Mind — Overview</h2>
 
-      <div className="kpi-row" style={{ marginBottom: 24 }}>
-        <div className="kpi-card">
-          <div className="kpi-value">{loading ? '...' : totalTeam}</div>
-          <div className="kpi-label">Equipo Total</div>
-          <div style={{ fontSize: '0.72rem', color: '#888' }}>{activeTeam} activos</div>
+      <div className="stats-grid stats-grid--4" style={{ marginBottom: 24 }}>
+        <div className="stat-card">
+          <div className="stat-card-icon">👥</div>
+          <div className="stat-card-value">{loading ? '...' : totalTeam}</div>
+          <div className="stat-card-label">Equipo Total</div>
+          <div className="stat-card-sub">{activeTeam} activos</div>
         </div>
-        <div className="kpi-card">
-          <div className="kpi-value">{loading ? '...' : meetingsToday}</div>
-          <div className="kpi-label">Meetings Hoy</div>
+        <div className="stat-card">
+          <div className="stat-card-icon">🎙️</div>
+          <div className="stat-card-value">{loading ? '...' : meetingsToday}</div>
+          <div className="stat-card-label">Meetings Hoy</div>
         </div>
-        <div className="kpi-card">
-          <div className="kpi-value">{loading ? '...' : activeProjects}</div>
-          <div className="kpi-label">Proyectos Activos</div>
+        <div className="stat-card">
+          <div className="stat-card-icon">📁</div>
+          <div className="stat-card-value">{loading ? '...' : activeProjects}</div>
+          <div className="stat-card-label">Proyectos Activos</div>
         </div>
-        <div className="kpi-card">
-          <div className="kpi-value">{loading ? '...' : pendingIdeas}</div>
-          <div className="kpi-label">Ideas Pendientes</div>
+        <div className="stat-card">
+          <div className="stat-card-icon">💡</div>
+          <div className="stat-card-value">{loading ? '...' : pendingIdeas}</div>
+          <div className="stat-card-label">Ideas Pendientes</div>
         </div>
       </div>
 
