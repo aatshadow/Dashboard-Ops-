@@ -10,6 +10,7 @@ const QUICK_LINKS = [
   { path: 'ceo/ideas', icon: '💡', title: 'Ideas', desc: 'Backlog de ideas' },
   { path: 'ceo/pulso', icon: '📊', title: 'Pulso Semanal', desc: 'Resumen de la semana' },
   { path: 'ceo/roadmap', icon: '🗺️', title: 'Roadmap', desc: 'Timeline de proyectos' },
+  { path: 'ceo/finanzas', icon: '💰', title: 'Finanzas', desc: 'Cash flow y gastos operativos' },
 ]
 
 export default function CeoOverview() {

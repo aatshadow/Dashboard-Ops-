@@ -26,6 +26,7 @@ import CeoProyectos from './pages/ceo-mind/CeoProyectos'
 import CeoIdeas from './pages/ceo-mind/CeoIdeas'
 import CeoPulsoSemanal from './pages/ceo-mind/CeoPulsoSemanal'
 import CeoRoadmap from './pages/ceo-mind/CeoRoadmap'
+import CeoFinanzas from './pages/ceo-mind/CeoFinanzas'
 
 export default function ClientApp() {
   const { clientSlug } = useParams()
@@ -183,6 +184,7 @@ export default function ClientApp() {
             <Route path="ceo/ideas" element={isCeo ? <CeoIdeas /> : <Navigate to="ventas" replace />} />
             <Route path="ceo/pulso" element={isCeo ? <CeoPulsoSemanal /> : <Navigate to="ventas" replace />} />
             <Route path="ceo/roadmap" element={isCeo ? <CeoRoadmap /> : <Navigate to="ventas" replace />} />
+            <Route path="ceo/finanzas" element={isCeo ? <CeoFinanzas /> : <Navigate to="ventas" replace />} />
             <Route path="settings" element={<SettingsPage user={user} />} />
             <Route path="*" element={<Navigate to="ventas" replace />} />
           </Routes>

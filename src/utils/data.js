@@ -592,6 +592,107 @@ export async function saveCeoIntegration(integration, clientId) {
   }
 }
 
+// ---- CEO FINANCE ENTRIES ----
+export async function getCeoFinanceEntries(clientId) {
+  const { data, error } = await supabase
+    .from('ceo_finance_entries')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('date', { ascending: false })
+  if (error) throw error
+  return data.map(row => toApp(row, 'ceo_finance_entries'))
+}
+
+export async function addCeoFinanceEntry(entry, clientId) {
+  const dbEntry = toDb(entry, 'ceo_finance_entries')
+  delete dbEntry.id
+  dbEntry.client_id = clientId
+  const { data, error } = await supabase
+    .from('ceo_finance_entries')
+    .insert(dbEntry)
+    .select()
+    .single()
+  if (error) throw error
+  return toApp(data, 'ceo_finance_entries')
+}
+
+export async function updateCeoFinanceEntry(id, updates) {
+  const dbUpdates = toDb(updates, 'ceo_finance_entries')
+  delete dbUpdates.id
+  delete dbUpdates.client_id
+  const { error } = await supabase
+    .from('ceo_finance_entries')
+    .update(dbUpdates)
+    .eq('id', id)
+  if (error) throw error
+}
+
+export async function deleteCeoFinanceEntry(id) {
+  const { error } = await supabase
+    .from('ceo_finance_entries')
+    .delete()
+    .eq('id', id)
+  if (error) throw error
+}
+
+export async function getCeoFinanceSummary(clientId, yearMonth) {
+  const monthStart = `${yearMonth}-01`
+  const [year, month] = yearMonth.split('-').map(Number)
+  const nextMonth = new Date(year, month, 1)
+  const monthEnd = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`
+
+  const [salesRes, teamRes, entriesRes] = await Promise.all([
+    supabase.from('sales_with_net_cash').select('*').eq('client_id', clientId).gte('date', monthStart).lt('date', monthEnd),
+    supabase.from('team').select('*').eq('client_id', clientId),
+    supabase.from('ceo_finance_entries').select('*').eq('client_id', clientId).gte('date', monthStart).lt('date', monthEnd),
+  ])
+
+  if (salesRes.error) throw salesRes.error
+  if (teamRes.error) throw teamRes.error
+  if (entriesRes.error) throw entriesRes.error
+
+  const sales = salesRes.data || []
+  const teamData = teamRes.data || []
+  const entries = entriesRes.data || []
+
+  const revenue = sales.reduce((s, v) => s + Number(v.revenue || 0), 0)
+  const cashCollected = sales.reduce((s, v) => s + Number(v.cash_collected || 0), 0)
+  const netCash = sales.reduce((s, v) => s + Number(v.net_cash || 0), 0)
+  const fees = cashCollected - netCash
+
+  // Commission calculation (matches CommissionsPage logic)
+  const cashByCloser = sales.reduce((acc, s) => {
+    acc[s.closer] = (acc[s.closer] || 0) + Number(s.net_cash || 0)
+    return acc
+  }, {})
+
+  let commissions = 0
+  teamData.filter(m => m.active !== false).forEach(m => {
+    const roles = (m.role || '').split(',').map(r => r.trim())
+    const isCloser = roles.includes('closer')
+    const memberCash = isCloser ? (cashByCloser[m.name] || 0) : netCash
+    commissions += Math.round(memberCash * Number(m.commission_rate || 0))
+  })
+
+  const opex = entries.reduce((s, e) => s + Number(e.amount || 0), 0)
+  const opexByCategory = entries.reduce((acc, e) => {
+    acc[e.category] = (acc[e.category] || 0) + Number(e.amount || 0)
+    return acc
+  }, {})
+
+  return {
+    revenue,
+    cashCollected,
+    netCash,
+    fees,
+    commissions,
+    opex,
+    opexByCategory,
+    netProfit: netCash - commissions - opex,
+    salesCount: sales.length,
+  }
+}
+
 // Import a sale from Close CRM format
 export async function importSaleFromClose(data, clientId) {
   const sale = {

@@ -27,6 +27,7 @@ export default function CeoMeetings() {
   const { getCeoMeetings, addCeoMeeting, deleteCeoMeeting } = useClientData()
   const [meetings, loading, refresh] = useAsync(getCeoMeetings, [])
   const [view, setView] = useState('list')
+  const [timeFilter, setTimeFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState(null)
   const [showForm, setShowForm] = useState(false)
@@ -47,7 +48,18 @@ export default function CeoMeetings() {
   const totalHours = meetings.reduce((s, m) => s + (m.durationMinutes || 0), 0) / 60
   const uniqueParticipants = new Set(meetings.flatMap(m => (m.participants || '').split(',').map(p => p.trim()).filter(Boolean))).size
 
-  const filtered = meetings.filter(m =>
+  const monthStartStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`
+  const nextM = new Date(today.getFullYear(), today.getMonth() + 1, 1)
+  const monthEndStr = `${nextM.getFullYear()}-${String(nextM.getMonth() + 1).padStart(2, '0')}-01`
+
+  const timeFiltered = meetings.filter(m => {
+    if (timeFilter === 'today') return m.date === todayStr
+    if (timeFilter === 'week') return m.date >= weekStartStr && m.date <= weekEndStr
+    if (timeFilter === 'month') return m.date >= monthStartStr && m.date < monthEndStr
+    return true
+  })
+
+  const filtered = timeFiltered.filter(m =>
     !search || m.title.toLowerCase().includes(search.toLowerCase()) ||
     (m.participants || '').toLowerCase().includes(search.toLowerCase())
   )
@@ -88,7 +100,15 @@ export default function CeoMeetings() {
         <div className="ceo-phase-banner__text"><strong>Integración Fireflies</strong> — Los meetings se importarán automáticamente. Próximamente Fase 2.</div>
       </div>
 
-      <div className="ceo-section-header" style={{ marginTop: 20 }}>
+      <div style={{ marginTop: 16, marginBottom: 4 }}>
+        <div className="ceo-view-toggle">
+          {[['all','Todos'],['today','Hoy'],['week','Esta Semana'],['month','Este Mes']].map(([key, label]) => (
+            <button key={key} className={`ceo-view-btn ${timeFilter === key ? 'ceo-view-btn--active' : ''}`} onClick={() => setTimeFilter(key)}>{label}</button>
+          ))}
+        </div>
+      </div>
+
+      <div className="ceo-section-header" style={{ marginTop: 12 }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <div className="ceo-view-toggle">
             <button className={`ceo-view-btn ${view === 'list' ? 'ceo-view-btn--active' : ''}`} onClick={() => setView('list')}>Lista</button>
@@ -153,7 +173,7 @@ export default function CeoMeetings() {
             {DAYS.map(d => <div key={d} className="ceo-calendar-header">{d}</div>)}
             {calDays.map((day, i) => {
               const dayStr = fmt(day.date)
-              const dayMeetings = meetings.filter(m => m.date === dayStr)
+              const dayMeetings = timeFiltered.filter(m => m.date === dayStr)
               return (
                 <div key={i} className={`ceo-calendar-day ${day.isOther ? 'ceo-calendar-day--other' : ''} ${dayStr === todayStr ? 'ceo-calendar-day--today' : ''}`}>
                   <div className="ceo-calendar-day__number">{day.date.getDate()}</div>

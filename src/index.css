@@ -3092,3 +3092,16 @@ body {
   .ceo-view-toggle { width: 100%; }
   .ceo-view-btn { flex: 1; text-align: center; }
 }
+
+/* ---- CEO Finance ---- */
+.ceo-finance-breakdown td { padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.ceo-finance-breakdown tr:last-child td { border-bottom: none; }
+.ceo-finance-total td { font-weight: 700; color: #fff; border-top: 2px solid rgba(255,255,255,0.12); padding-top: 14px; }
+.ceo-finance-subtotal td { font-weight: 600; color: #ccc; border-top: 1px solid rgba(255,255,255,0.08); }
+.ceo-finance-negative { color: var(--danger); }
+.ceo-finance-positive { color: var(--success); }
+.badge--operativo { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+.badge--equipo { background: rgba(168, 85, 247, 0.1); color: #a855f7; }
+.badge--marketing { background: rgba(255, 184, 0, 0.1); color: var(--warning); }
+.badge--herramientas { background: rgba(34, 197, 94, 0.1); color: var(--success); }
+.badge--otro { background: rgba(148, 163, 184, 0.1); color: #94a3b8; }

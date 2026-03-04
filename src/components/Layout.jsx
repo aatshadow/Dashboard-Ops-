@@ -16,6 +16,7 @@ function buildNavItems(prefix) {
         { to: `${prefix}/ceo/ideas`, label: 'Ideas', icon: '💡' },
         { to: `${prefix}/ceo/pulso`, label: 'Pulso Semanal', icon: '📊' },
         { to: `${prefix}/ceo/roadmap`, label: 'Roadmap', icon: '🗺️' },
+        { to: `${prefix}/ceo/finanzas`, label: 'Finanzas', icon: '💰' },
       ]
     },
     {
