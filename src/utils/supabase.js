@@ -77,6 +77,57 @@ const CLIENTS_MAP = {
   textSecondaryColor: 'text_secondary_color',
 }
 
+// ---- CEO Mind field maps ----
+const CEO_MEETINGS_MAP = {
+  clientId: 'client_id',
+  durationMinutes: 'duration_minutes',
+  actionItems: 'action_items',
+  keyTopics: 'key_topics',
+  transcriptUrl: 'transcript_url',
+}
+
+const CEO_PROJECTS_MAP = {
+  clientId: 'client_id',
+  startDate: 'start_date',
+  endDate: 'end_date',
+}
+
+const CEO_IDEAS_MAP = {
+  clientId: 'client_id',
+  meetingId: 'meeting_id',
+  projectId: 'project_id',
+}
+
+const CEO_DAILY_DIGESTS_MAP = {
+  clientId: 'client_id',
+  keyMetrics: 'key_metrics',
+  decisionsNeeded: 'decisions_needed',
+  generatedAt: 'generated_at',
+}
+
+const CEO_WEEKLY_DIGESTS_MAP = {
+  clientId: 'client_id',
+  weekStart: 'week_start',
+  weekEnd: 'week_end',
+  numbersSummary: 'numbers_summary',
+  executiveSummary: 'executive_summary',
+  decisionsTaken: 'decisions_taken',
+  nextSteps: 'next_steps',
+  generatedAt: 'generated_at',
+}
+
+const CEO_TEAM_NOTES_MAP = {
+  clientId: 'client_id',
+  memberId: 'member_id',
+  updatedAt: 'updated_at',
+}
+
+const CEO_INTEGRATIONS_MAP = {
+  clientId: 'client_id',
+  apiKey: 'api_key',
+  lastSync: 'last_sync',
+}
+
 const SUPERADMINS_MAP = {}
 
 const SA_COMMISSIONS_MAP = {
@@ -94,6 +145,13 @@ const TABLE_MAPS = {
   clients: CLIENTS_MAP,
   superadmins: SUPERADMINS_MAP,
   superadmin_commissions: SA_COMMISSIONS_MAP,
+  ceo_meetings: CEO_MEETINGS_MAP,
+  ceo_projects: CEO_PROJECTS_MAP,
+  ceo_ideas: CEO_IDEAS_MAP,
+  ceo_daily_digests: CEO_DAILY_DIGESTS_MAP,
+  ceo_weekly_digests: CEO_WEEKLY_DIGESTS_MAP,
+  ceo_team_notes: CEO_TEAM_NOTES_MAP,
+  ceo_integrations: CEO_INTEGRATIONS_MAP,
 }
 
 // Valid DB columns per table (prevents unknown fields from causing insert errors)
@@ -104,6 +162,13 @@ const VALID_COLUMNS = {
   projections: new Set(['client_id', 'period', 'period_type', 'type', 'member_id', 'name', 'cash_target', 'revenue_target', 'appointment_target']),
   payment_fees: new Set(['client_id', 'method', 'fee_rate']),
   n8n_config: new Set(['client_id', 'webhook_url', 'api_key', 'enabled', 'last_sync']),
+  ceo_meetings: new Set(['client_id', 'title', 'date', 'duration_minutes', 'participants', 'summary', 'action_items', 'key_topics', 'sentiment', 'transcript_url', 'status', 'source']),
+  ceo_projects: new Set(['client_id', 'name', 'description', 'owner', 'priority', 'status', 'start_date', 'end_date', 'progress', 'tags']),
+  ceo_ideas: new Set(['client_id', 'title', 'description', 'source', 'priority', 'status', 'meeting_id', 'project_id']),
+  ceo_daily_digests: new Set(['client_id', 'date', 'summary', 'key_metrics', 'decisions_needed', 'highlights', 'alerts', 'generated_at']),
+  ceo_weekly_digests: new Set(['client_id', 'week_start', 'week_end', 'numbers_summary', 'executive_summary', 'decisions_taken', 'next_steps', 'alerts', 'generated_at']),
+  ceo_team_notes: new Set(['client_id', 'member_id', 'note', 'updated_at']),
+  ceo_integrations: new Set(['client_id', 'service', 'api_key', 'config', 'enabled', 'last_sync']),
 }
 
 function buildReverse(map) {

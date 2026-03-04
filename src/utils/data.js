@@ -328,6 +328,227 @@ export async function saveN8nConfig(config, clientId) {
   }
 }
 
+// ---- CEO MEETINGS ----
+export async function getCeoMeetings(clientId) {
+  const { data, error } = await supabase
+    .from('ceo_meetings')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('date', { ascending: false })
+  if (error) throw error
+  return data.map(row => toApp(row, 'ceo_meetings'))
+}
+
+export async function addCeoMeeting(meeting, clientId) {
+  const dbMeeting = toDb(meeting, 'ceo_meetings')
+  delete dbMeeting.id
+  dbMeeting.client_id = clientId
+  const { data, error } = await supabase
+    .from('ceo_meetings')
+    .insert(dbMeeting)
+    .select()
+    .single()
+  if (error) throw error
+  return toApp(data, 'ceo_meetings')
+}
+
+export async function updateCeoMeeting(id, updates) {
+  const dbUpdates = toDb(updates, 'ceo_meetings')
+  delete dbUpdates.id
+  delete dbUpdates.client_id
+  const { error } = await supabase
+    .from('ceo_meetings')
+    .update(dbUpdates)
+    .eq('id', id)
+  if (error) throw error
+}
+
+export async function deleteCeoMeeting(id) {
+  const { error } = await supabase
+    .from('ceo_meetings')
+    .delete()
+    .eq('id', id)
+  if (error) throw error
+}
+
+// ---- CEO PROJECTS ----
+export async function getCeoProjects(clientId) {
+  const { data, error } = await supabase
+    .from('ceo_projects')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data.map(row => toApp(row, 'ceo_projects'))
+}
+
+export async function addCeoProject(project, clientId) {
+  const dbProject = toDb(project, 'ceo_projects')
+  delete dbProject.id
+  dbProject.client_id = clientId
+  const { data, error } = await supabase
+    .from('ceo_projects')
+    .insert(dbProject)
+    .select()
+    .single()
+  if (error) throw error
+  return toApp(data, 'ceo_projects')
+}
+
+export async function updateCeoProject(id, updates) {
+  const dbUpdates = toDb(updates, 'ceo_projects')
+  delete dbUpdates.id
+  delete dbUpdates.client_id
+  const { error } = await supabase
+    .from('ceo_projects')
+    .update(dbUpdates)
+    .eq('id', id)
+  if (error) throw error
+}
+
+export async function deleteCeoProject(id) {
+  const { error } = await supabase
+    .from('ceo_projects')
+    .delete()
+    .eq('id', id)
+  if (error) throw error
+}
+
+// ---- CEO IDEAS ----
+export async function getCeoIdeas(clientId) {
+  const { data, error } = await supabase
+    .from('ceo_ideas')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data.map(row => toApp(row, 'ceo_ideas'))
+}
+
+export async function addCeoIdea(idea, clientId) {
+  const dbIdea = toDb(idea, 'ceo_ideas')
+  delete dbIdea.id
+  dbIdea.client_id = clientId
+  const { data, error } = await supabase
+    .from('ceo_ideas')
+    .insert(dbIdea)
+    .select()
+    .single()
+  if (error) throw error
+  return toApp(data, 'ceo_ideas')
+}
+
+export async function updateCeoIdea(id, updates) {
+  const dbUpdates = toDb(updates, 'ceo_ideas')
+  delete dbUpdates.id
+  delete dbUpdates.client_id
+  const { error } = await supabase
+    .from('ceo_ideas')
+    .update(dbUpdates)
+    .eq('id', id)
+  if (error) throw error
+}
+
+export async function deleteCeoIdea(id) {
+  const { error } = await supabase
+    .from('ceo_ideas')
+    .delete()
+    .eq('id', id)
+  if (error) throw error
+}
+
+// ---- CEO DAILY DIGESTS ----
+export async function getCeoDailyDigests(clientId) {
+  const { data, error } = await supabase
+    .from('ceo_daily_digests')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('date', { ascending: false })
+  if (error) throw error
+  return data.map(row => toApp(row, 'ceo_daily_digests'))
+}
+
+// ---- CEO WEEKLY DIGESTS ----
+export async function getCeoWeeklyDigests(clientId) {
+  const { data, error } = await supabase
+    .from('ceo_weekly_digests')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('week_start', { ascending: false })
+  if (error) throw error
+  return data.map(row => toApp(row, 'ceo_weekly_digests'))
+}
+
+// ---- CEO TEAM NOTES ----
+export async function getCeoTeamNotes(clientId) {
+  const { data, error } = await supabase
+    .from('ceo_team_notes')
+    .select('*')
+    .eq('client_id', clientId)
+  if (error) throw error
+  return data.map(row => toApp(row, 'ceo_team_notes'))
+}
+
+export async function saveCeoTeamNote(memberId, note, clientId) {
+  const { data: existing } = await supabase
+    .from('ceo_team_notes')
+    .select('id')
+    .eq('client_id', clientId)
+    .eq('member_id', memberId)
+    .maybeSingle()
+
+  if (existing) {
+    const { error } = await supabase
+      .from('ceo_team_notes')
+      .update({ note, updated_at: new Date().toISOString() })
+      .eq('id', existing.id)
+    if (error) throw error
+  } else {
+    const { error } = await supabase
+      .from('ceo_team_notes')
+      .insert({ client_id: clientId, member_id: memberId, note })
+    if (error) throw error
+  }
+}
+
+// ---- CEO INTEGRATIONS ----
+export async function getCeoIntegrations(clientId) {
+  const { data, error } = await supabase
+    .from('ceo_integrations')
+    .select('*')
+    .eq('client_id', clientId)
+  if (error) throw error
+  return data.map(row => toApp(row, 'ceo_integrations'))
+}
+
+export async function saveCeoIntegration(integration, clientId) {
+  const dbInt = toDb(integration, 'ceo_integrations')
+  const { data: existing } = await supabase
+    .from('ceo_integrations')
+    .select('id')
+    .eq('client_id', clientId)
+    .eq('service', dbInt.service)
+    .maybeSingle()
+
+  if (existing) {
+    delete dbInt.id
+    delete dbInt.client_id
+    delete dbInt.service
+    const { error } = await supabase
+      .from('ceo_integrations')
+      .update(dbInt)
+      .eq('id', existing.id)
+    if (error) throw error
+  } else {
+    delete dbInt.id
+    dbInt.client_id = clientId
+    const { error } = await supabase
+      .from('ceo_integrations')
+      .insert(dbInt)
+    if (error) throw error
+  }
+}
+
 // Import a sale from Close CRM format
 export async function importSaleFromClose(data, clientId) {
   const sale = {

@@ -105,6 +105,64 @@ const SA_COMMISSIONS_FIELD_MAP = {
   createdAt: 'created_at',
 }
 
+// ---- CEO Mind field maps ----
+const CEO_MEETINGS_FIELD_MAP = {
+  clientId: 'client_id',
+  durationMinutes: 'duration_minutes',
+  actionItems: 'action_items',
+  keyTopics: 'key_topics',
+  transcriptUrl: 'transcript_url',
+  createdAt: 'created_at',
+}
+
+const CEO_PROJECTS_FIELD_MAP = {
+  clientId: 'client_id',
+  startDate: 'start_date',
+  endDate: 'end_date',
+  createdAt: 'created_at',
+}
+
+const CEO_IDEAS_FIELD_MAP = {
+  clientId: 'client_id',
+  meetingId: 'meeting_id',
+  projectId: 'project_id',
+  createdAt: 'created_at',
+}
+
+const CEO_DAILY_DIGESTS_FIELD_MAP = {
+  clientId: 'client_id',
+  keyMetrics: 'key_metrics',
+  decisionsNeeded: 'decisions_needed',
+  generatedAt: 'generated_at',
+  createdAt: 'created_at',
+}
+
+const CEO_WEEKLY_DIGESTS_FIELD_MAP = {
+  clientId: 'client_id',
+  weekStart: 'week_start',
+  weekEnd: 'week_end',
+  numbersSummary: 'numbers_summary',
+  executiveSummary: 'executive_summary',
+  decisionsTaken: 'decisions_taken',
+  nextSteps: 'next_steps',
+  generatedAt: 'generated_at',
+  createdAt: 'created_at',
+}
+
+const CEO_TEAM_NOTES_FIELD_MAP = {
+  clientId: 'client_id',
+  memberId: 'member_id',
+  updatedAt: 'updated_at',
+  createdAt: 'created_at',
+}
+
+const CEO_INTEGRATIONS_FIELD_MAP = {
+  clientId: 'client_id',
+  apiKey: 'api_key',
+  lastSync: 'last_sync',
+  createdAt: 'created_at',
+}
+
 // Legacy alias for backward compat
 const FIELD_MAP = SALES_FIELD_MAP
 
@@ -119,6 +177,13 @@ export const TABLE_FIELD_MAPS = {
   clients: CLIENTS_FIELD_MAP,
   superadmins: SUPERADMINS_FIELD_MAP,
   superadmin_commissions: SA_COMMISSIONS_FIELD_MAP,
+  ceo_meetings: CEO_MEETINGS_FIELD_MAP,
+  ceo_projects: CEO_PROJECTS_FIELD_MAP,
+  ceo_ideas: CEO_IDEAS_FIELD_MAP,
+  ceo_daily_digests: CEO_DAILY_DIGESTS_FIELD_MAP,
+  ceo_weekly_digests: CEO_WEEKLY_DIGESTS_FIELD_MAP,
+  ceo_team_notes: CEO_TEAM_NOTES_FIELD_MAP,
+  ceo_integrations: CEO_INTEGRATIONS_FIELD_MAP,
 }
 
 function buildReverseMap(map) {
@@ -137,6 +202,13 @@ const TABLE_REVERSE_MAPS = {
   clients: buildReverseMap(CLIENTS_FIELD_MAP),
   superadmins: buildReverseMap(SUPERADMINS_FIELD_MAP),
   superadmin_commissions: buildReverseMap(SA_COMMISSIONS_FIELD_MAP),
+  ceo_meetings: buildReverseMap(CEO_MEETINGS_FIELD_MAP),
+  ceo_projects: buildReverseMap(CEO_PROJECTS_FIELD_MAP),
+  ceo_ideas: buildReverseMap(CEO_IDEAS_FIELD_MAP),
+  ceo_daily_digests: buildReverseMap(CEO_DAILY_DIGESTS_FIELD_MAP),
+  ceo_weekly_digests: buildReverseMap(CEO_WEEKLY_DIGESTS_FIELD_MAP),
+  ceo_team_notes: buildReverseMap(CEO_TEAM_NOTES_FIELD_MAP),
+  ceo_integrations: buildReverseMap(CEO_INTEGRATIONS_FIELD_MAP),
 }
 
 export function toDbFormat(obj, table = 'sales') {

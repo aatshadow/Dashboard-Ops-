@@ -1,10 +1,23 @@
 import { NavLink, useLocation } from 'react-router-dom'
 import { useState, useMemo, useEffect } from 'react'
-import { getPrimaryRole } from '../utils/roles'
+import { getPrimaryRole, hasRole } from '../utils/roles'
 import AgentChat from './AgentChat'
 
 function buildNavItems(prefix) {
   return [
+    {
+      label: 'CEO Mind',
+      icon: '🧠',
+      children: [
+        { to: `${prefix}/ceo`, label: 'Overview', icon: '🧠' },
+        { to: `${prefix}/ceo/equipo`, label: 'Equipo', icon: '👥' },
+        { to: `${prefix}/ceo/meetings`, label: 'Meetings', icon: '🎙️' },
+        { to: `${prefix}/ceo/proyectos`, label: 'Proyectos', icon: '📁' },
+        { to: `${prefix}/ceo/ideas`, label: 'Ideas', icon: '💡' },
+        { to: `${prefix}/ceo/pulso`, label: 'Pulso Semanal', icon: '📊' },
+        { to: `${prefix}/ceo/roadmap`, label: 'Roadmap', icon: '🗺️' },
+      ]
+    },
     {
       label: 'Ventas',
       icon: '💰',
@@ -69,10 +82,15 @@ export default function Layout({ children, user, onLogout, role, clientConfig, c
 
   // Filter nav items based on user role
   const primaryRole = getPrimaryRole(role)
+  const isCeo = hasRole(role, 'ceo')
   const visibleNavItems = useMemo(() => {
-    if (primaryRole === 'director') return navItems
+    // CEO sees everything
+    if (isCeo) return navItems
+    // Director sees everything except CEO Mind
+    if (primaryRole === 'director') return navItems.filter(g => g.label !== 'CEO Mind')
 
     return navItems.filter(group => {
+      if (group.label === 'CEO Mind') return false
       if (group.label === 'Ventas' || group.label === 'Reportes') return true
       if (group.label === 'Management') return true
       return false
@@ -84,7 +102,7 @@ export default function Layout({ children, user, onLogout, role, clientConfig, c
       }
       return group
     })
-  }, [primaryRole, navItems, prefix])
+  }, [primaryRole, isCeo, navItems, prefix])
 
   // Track which groups are open
   const [openGroups, setOpenGroups] = useState(() => {

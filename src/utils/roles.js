@@ -1,7 +1,7 @@
 // Multi-role helpers
 // Roles are stored as comma-separated strings: "closer", "manager,closer", etc.
 
-const ROLE_HIERARCHY = ['director', 'manager', 'closer', 'setter']
+const ROLE_HIERARCHY = ['ceo', 'director', 'manager', 'closer', 'setter']
 
 export function hasRole(roleStr, role) {
   return (roleStr || '').split(',').map(r => r.trim()).includes(role)

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { ClientContext } from './contexts/ClientContext'
 import { getClientBySlug, getTeam, authenticateUser } from './utils/data'
-import { getPrimaryRole } from './utils/roles'
+import { getPrimaryRole, hasRole } from './utils/roles'
 import ClientLogin from './pages/ClientLogin'
 import Layout from './components/Layout'
 import SalesDashboard from './pages/SalesDashboard'
@@ -18,6 +18,13 @@ import ProjectionsPage from './pages/ProjectionsPage'
 import CommissionsPage from './pages/CommissionsPage'
 import PaymentMethodsPage from './pages/PaymentMethodsPage'
 import SettingsPage from './pages/SettingsPage'
+import CeoOverview from './pages/ceo-mind/CeoOverview'
+import CeoEquipo from './pages/ceo-mind/CeoEquipo'
+import CeoMeetings from './pages/ceo-mind/CeoMeetings'
+import CeoProyectos from './pages/ceo-mind/CeoProyectos'
+import CeoIdeas from './pages/ceo-mind/CeoIdeas'
+import CeoPulsoSemanal from './pages/ceo-mind/CeoPulsoSemanal'
+import CeoRoadmap from './pages/ceo-mind/CeoRoadmap'
 
 export default function ClientApp() {
   const { clientSlug } = useParams()
@@ -58,8 +65,8 @@ export default function ClientApp() {
     }
 
     if (isSuperAdmin) {
-      // SuperAdmin gets director access
-      setUserRole('director')
+      // SuperAdmin gets CEO + director access for testing
+      setUserRole('ceo,director')
       setAppLoading(false)
       return
     }
@@ -144,7 +151,9 @@ export default function ClientApp() {
   }
 
   const primaryRole = getPrimaryRole(userRole)
+  const isCeo = hasRole(userRole, 'ceo')
   const isDirector = primaryRole === 'director'
+  const isDirectorOrCeo = isDirector || isCeo
 
   return (
     <ClientContext.Provider value={ctxValue}>
@@ -158,12 +167,20 @@ export default function ClientApp() {
             <Route path="reportes/tabla" element={<ReportsTable />} />
             <Route path="ventas/nueva" element={<NewSale />} />
             <Route path="reportes/nuevo" element={<NewReport />} />
-            <Route path="marketing" element={isDirector ? <MarketingDashboard /> : <Navigate to="ventas" replace />} />
-            <Route path="contenido" element={isDirector ? <ContentDashboard /> : <Navigate to="ventas" replace />} />
-            <Route path="equipo" element={isDirector ? <TeamPage /> : <Navigate to="ventas" replace />} />
+            <Route path="marketing" element={isDirectorOrCeo ? <MarketingDashboard /> : <Navigate to="ventas" replace />} />
+            <Route path="contenido" element={isDirectorOrCeo ? <ContentDashboard /> : <Navigate to="ventas" replace />} />
+            <Route path="equipo" element={isDirectorOrCeo ? <TeamPage /> : <Navigate to="ventas" replace />} />
             <Route path="proyecciones" element={<ProjectionsPage />} />
             <Route path="comisiones" element={<CommissionsPage user={user} role={userRole} />} />
-            <Route path="metodos-pago" element={isDirector ? <PaymentMethodsPage /> : <Navigate to="ventas" replace />} />
+            <Route path="metodos-pago" element={isDirectorOrCeo ? <PaymentMethodsPage /> : <Navigate to="ventas" replace />} />
+            {/* CEO Mind — CEO only */}
+            <Route path="ceo" element={isCeo ? <CeoOverview /> : <Navigate to="ventas" replace />} />
+            <Route path="ceo/equipo" element={isCeo ? <CeoEquipo /> : <Navigate to="ventas" replace />} />
+            <Route path="ceo/meetings" element={isCeo ? <CeoMeetings /> : <Navigate to="ventas" replace />} />
+            <Route path="ceo/proyectos" element={isCeo ? <CeoProyectos /> : <Navigate to="ventas" replace />} />
+            <Route path="ceo/ideas" element={isCeo ? <CeoIdeas /> : <Navigate to="ventas" replace />} />
+            <Route path="ceo/pulso" element={isCeo ? <CeoPulsoSemanal /> : <Navigate to="ventas" replace />} />
+            <Route path="ceo/roadmap" element={isCeo ? <CeoRoadmap /> : <Navigate to="ventas" replace />} />
             <Route path="settings" element={<SettingsPage user={user} />} />
             <Route path="*" element={<Navigate to="ventas" replace />} />
           </Routes>

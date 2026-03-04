@@ -2769,3 +2769,326 @@ body {
   color: #fff;
   border-color: #333;
 }
+
+/* ============================================================
+   CEO MIND — Styles
+   ============================================================ */
+
+/* ---- CEO Quick Cards (Overview) ---- */
+.ceo-quick-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+.ceo-quick-card {
+  background: var(--bg-card);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ceo-quick-card:hover { border-color: var(--orange); transform: translateY(-2px); }
+.ceo-quick-card__icon { font-size: 1.8rem; }
+.ceo-quick-card__title { font-weight: 600; font-size: 0.95rem; color: #fff; }
+.ceo-quick-card__desc { font-size: 0.78rem; color: #888; }
+
+/* ---- CEO Note Section (Team Notes) ---- */
+.ceo-note-section { margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 10px; }
+.ceo-note-section label { font-size: 0.72rem; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block; }
+.ceo-note-textarea {
+  width: 100%;
+  min-height: 60px;
+  background: rgba(0,0,0,0.2);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  color: #ccc;
+  padding: 8px 10px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  resize: vertical;
+  transition: border-color 0.2s;
+}
+.ceo-note-textarea:focus { outline: none; border-color: var(--orange); }
+.ceo-note-actions { display: flex; justify-content: flex-end; margin-top: 6px; }
+.ceo-note-save {
+  background: var(--orange);
+  color: #000;
+  border: none;
+  padding: 4px 14px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ceo-note-save:hover { opacity: 0.85; }
+
+/* ---- CEO Roadmap ---- */
+.ceo-roadmap { overflow-x: auto; }
+.ceo-roadmap-header {
+  display: flex;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  min-width: 800px;
+}
+.ceo-roadmap-header span {
+  flex: 1;
+  text-align: center;
+  padding: 8px 0;
+  font-size: 0.75rem;
+  color: #888;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.ceo-roadmap-body { min-width: 800px; }
+.ceo-roadmap-row {
+  display: flex;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  position: relative;
+  min-height: 36px;
+}
+.ceo-roadmap-label {
+  position: absolute;
+  left: 0;
+  font-size: 0.78rem;
+  color: #ccc;
+  white-space: nowrap;
+  z-index: 2;
+  background: var(--bg-card);
+  padding-right: 8px;
+}
+.ceo-roadmap-bar {
+  height: 24px;
+  border-radius: 6px;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.7rem;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  white-space: nowrap;
+  min-width: 30px;
+}
+.ceo-roadmap-bar--idea { background: #6366f1; }
+.ceo-roadmap-bar--planned { background: #3b82f6; }
+.ceo-roadmap-bar--in_progress { background: var(--orange); }
+.ceo-roadmap-bar--paused { background: #666; }
+.ceo-roadmap-bar--completed { background: var(--success); }
+
+/* ---- CEO Calendar (Meetings) ---- */
+.ceo-calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.ceo-calendar-header {
+  text-align: center;
+  font-size: 0.72rem;
+  color: #888;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 8px 0;
+}
+.ceo-calendar-day {
+  min-height: 80px;
+  background: rgba(0,0,0,0.15);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 8px;
+  padding: 4px;
+  position: relative;
+}
+.ceo-calendar-day--today { border-color: var(--orange); }
+.ceo-calendar-day--other { opacity: 0.3; }
+.ceo-calendar-day__number { font-size: 0.72rem; color: #888; padding: 2px 4px; }
+.ceo-calendar-event {
+  background: rgba(255, 107, 0, 0.15);
+  border-left: 2px solid var(--orange);
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 0.65rem;
+  color: #ccc;
+  margin-top: 2px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ceo-calendar-event:hover { background: rgba(255, 107, 0, 0.25); }
+
+/* ---- CEO View Toggle ---- */
+.ceo-view-toggle {
+  display: inline-flex;
+  background: rgba(0,0,0,0.3);
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.ceo-view-btn {
+  padding: 6px 16px;
+  border: none;
+  background: transparent;
+  color: #888;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.ceo-view-btn--active { background: var(--orange); color: #000; font-weight: 600; }
+
+/* ---- CEO Search ---- */
+.ceo-search-input {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 8px 14px;
+  color: #ccc;
+  font-size: 0.85rem;
+  width: 250px;
+  font-family: inherit;
+}
+.ceo-search-input::placeholder { color: #555; }
+.ceo-search-input:focus { outline: none; border-color: var(--orange); }
+
+/* ---- CEO Phase Banner ---- */
+.ceo-phase-banner {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(255, 107, 0, 0.1));
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 10px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+}
+.ceo-phase-banner__icon { font-size: 1.4rem; }
+.ceo-phase-banner__text { font-size: 0.85rem; color: #aaa; }
+.ceo-phase-banner__text strong { color: #fff; }
+
+/* ---- CEO Digest Content ---- */
+.ceo-digest-content {
+  background: rgba(0,0,0,0.15);
+  border-radius: 10px;
+  padding: 20px;
+  margin-top: 12px;
+}
+.ceo-digest-content h4 { color: var(--orange); font-size: 0.85rem; margin: 16px 0 8px; }
+.ceo-digest-content h4:first-child { margin-top: 0; }
+.ceo-digest-content p, .ceo-digest-content li { color: #bbb; font-size: 0.82rem; line-height: 1.6; }
+.ceo-digest-content ul { padding-left: 20px; }
+
+/* ---- CEO Badges ---- */
+.badge--ceo { background: rgba(255, 107, 0, 0.15); color: var(--orange); font-weight: 700; }
+.badge--positive { background: rgba(34, 197, 94, 0.1); color: var(--success); }
+.badge--negative { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+.badge--neutral { background: rgba(148, 163, 184, 0.1); color: #94a3b8; }
+.badge--mixed { background: rgba(168, 85, 247, 0.1); color: #a855f7; }
+
+.badge--priority-low { background: rgba(148, 163, 184, 0.1); color: #94a3b8; }
+.badge--priority-medium { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+.badge--priority-high { background: rgba(255, 184, 0, 0.1); color: var(--warning); }
+.badge--priority-critical { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+
+.badge--status-idea { background: rgba(99, 102, 241, 0.1); color: #6366f1; }
+.badge--status-planned { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+.badge--status-in_progress { background: rgba(255, 107, 0, 0.1); color: var(--orange); }
+.badge--status-paused { background: rgba(148, 163, 184, 0.1); color: #94a3b8; }
+.badge--status-completed { background: rgba(34, 197, 94, 0.1); color: var(--success); }
+.badge--status-new { background: rgba(99, 102, 241, 0.1); color: #6366f1; }
+.badge--status-reviewing { background: rgba(255, 184, 0, 0.1); color: var(--warning); }
+.badge--status-approved { background: rgba(34, 197, 94, 0.1); color: var(--success); }
+.badge--status-discarded { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+
+.badge--source-manual { background: rgba(148, 163, 184, 0.1); color: #94a3b8; }
+.badge--source-meeting { background: rgba(99, 102, 241, 0.1); color: #6366f1; }
+.badge--source-ai_suggestion { background: rgba(168, 85, 247, 0.1); color: #a855f7; }
+.badge--source-fireflies { background: rgba(255, 107, 0, 0.1); color: var(--orange); }
+.badge--source-google_calendar { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+
+/* ---- CEO Progress Bar ---- */
+.ceo-progress { height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; }
+.ceo-progress__fill { height: 100%; border-radius: 3px; background: var(--orange); transition: width 0.3s; }
+
+/* ---- CEO Inline Select ---- */
+.ceo-inline-select {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  color: #ccc;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.ceo-inline-select:focus { outline: none; border-color: var(--orange); }
+
+/* ---- CEO Section Header ---- */
+.ceo-section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+.ceo-section-header h3 { font-size: 1.05rem; color: #fff; margin: 0; }
+
+/* ---- CEO Idea Quick Input ---- */
+.ceo-idea-input { display: flex; gap: 8px; margin-bottom: 20px; }
+.ceo-idea-input input {
+  flex: 1;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #ccc;
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+.ceo-idea-input input:focus { outline: none; border-color: var(--orange); }
+
+/* ---- CEO Meeting Detail Panel ---- */
+.ceo-meeting-detail {
+  background: rgba(0,0,0,0.2);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  padding: 20px;
+  margin-top: 16px;
+}
+.ceo-meeting-detail h4 { color: var(--orange); margin: 0 0 12px; font-size: 1rem; }
+.ceo-meeting-detail section { margin-bottom: 14px; }
+.ceo-meeting-detail section h5 { color: #888; font-size: 0.75rem; text-transform: uppercase; margin: 0 0 6px; }
+.ceo-meeting-detail section p { color: #bbb; font-size: 0.82rem; margin: 0; line-height: 1.6; }
+
+/* ---- CEO Week Selector ---- */
+.ceo-week-selector { display: flex; align-items: center; gap: 12px; }
+.ceo-week-selector button {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  color: #ccc;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+.ceo-week-selector button:hover { border-color: var(--orange); }
+.ceo-week-selector span { color: #fff; font-size: 0.9rem; font-weight: 600; }
+
+/* ---- CEO Team Grid ---- */
+.ceo-team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.ceo-team-card {
+  background: var(--bg-card);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  padding: 16px;
+}
+.ceo-team-card__header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+.ceo-team-card__name { font-weight: 600; font-size: 0.95rem; color: #fff; }
+.ceo-team-card__email { font-size: 0.78rem; color: #666; margin-top: 2px; }
+.ceo-team-card__info { font-size: 0.8rem; color: #999; margin-top: 6px; }
+
+/* ---- CEO Responsive ---- */
+@media (max-width: 768px) {
+  .ceo-quick-cards { grid-template-columns: repeat(2, 1fr); }
+  .ceo-team-grid { grid-template-columns: 1fr; }
+  .ceo-calendar-day { min-height: 60px; }
+  .ceo-search-input { width: 100%; }
+  .ceo-section-header { flex-direction: column; align-items: flex-start; }
+  .ceo-idea-input { flex-direction: column; }
+}
+@media (max-width: 480px) {
+  .ceo-quick-cards { grid-template-columns: 1fr; }
+  .ceo-view-toggle { width: 100%; }
+  .ceo-view-btn { flex: 1; text-align: center; }
+}
