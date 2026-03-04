@@ -162,31 +162,31 @@ export default function ClientApp() {
       <div style={cssVars}>
         <Layout user={user} onLogout={handleLogout} role={userRole} clientConfig={clientConfig} clientSlug={clientSlug} isSuperAdmin={isSuperAdmin}>
           <Routes>
-            <Route path="/" element={<Navigate to="ventas" replace />} />
+            <Route path="/" element={<Navigate to={`/${clientSlug}/ventas`} replace />} />
             <Route path="ventas" element={<SalesDashboard />} />
             <Route path="reportes" element={<ReportsDashboard />} />
             <Route path="ventas/tabla" element={<SalesTable />} />
             <Route path="reportes/tabla" element={<ReportsTable />} />
             <Route path="ventas/nueva" element={<NewSale />} />
             <Route path="reportes/nuevo" element={<NewReport />} />
-            <Route path="marketing" element={isDirectorOrCeo ? <MarketingDashboard /> : <Navigate to="ventas" replace />} />
-            <Route path="contenido" element={isDirectorOrCeo ? <ContentDashboard /> : <Navigate to="ventas" replace />} />
-            <Route path="equipo" element={isDirectorOrCeo ? <TeamPage /> : <Navigate to="ventas" replace />} />
+            <Route path="marketing" element={isDirectorOrCeo ? <MarketingDashboard /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
+            <Route path="contenido" element={isDirectorOrCeo ? <ContentDashboard /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
+            <Route path="equipo" element={isDirectorOrCeo ? <TeamPage /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
             <Route path="proyecciones" element={<ProjectionsPage />} />
             <Route path="comisiones" element={<CommissionsPage user={user} role={userRole} />} />
-            <Route path="metodos-pago" element={isDirectorOrCeo ? <PaymentMethodsPage /> : <Navigate to="ventas" replace />} />
-            <Route path="productos" element={isDirectorOrCeo ? <ProductsPage /> : <Navigate to="ventas" replace />} />
+            <Route path="metodos-pago" element={isDirectorOrCeo ? <PaymentMethodsPage /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
+            <Route path="productos" element={isDirectorOrCeo ? <ProductsPage /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
             {/* CEO Mind — CEO only */}
-            <Route path="ceo" element={isCeo ? <CeoOverview /> : <Navigate to="ventas" replace />} />
-            <Route path="ceo/equipo" element={isCeo ? <CeoEquipo /> : <Navigate to="ventas" replace />} />
-            <Route path="ceo/meetings" element={isCeo ? <CeoMeetings /> : <Navigate to="ventas" replace />} />
-            <Route path="ceo/proyectos" element={isCeo ? <CeoProyectos /> : <Navigate to="ventas" replace />} />
-            <Route path="ceo/ideas" element={isCeo ? <CeoIdeas /> : <Navigate to="ventas" replace />} />
-            <Route path="ceo/pulso" element={isCeo ? <CeoPulsoSemanal /> : <Navigate to="ventas" replace />} />
-            <Route path="ceo/roadmap" element={isCeo ? <CeoRoadmap /> : <Navigate to="ventas" replace />} />
-            <Route path="ceo/finanzas" element={isCeo ? <CeoFinanzas /> : <Navigate to="ventas" replace />} />
+            <Route path="ceo" element={isCeo ? <CeoOverview /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
+            <Route path="ceo/equipo" element={isCeo ? <CeoEquipo /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
+            <Route path="ceo/meetings" element={isCeo ? <CeoMeetings /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
+            <Route path="ceo/proyectos" element={isCeo ? <CeoProyectos /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
+            <Route path="ceo/ideas" element={isCeo ? <CeoIdeas /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
+            <Route path="ceo/pulso" element={isCeo ? <CeoPulsoSemanal /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
+            <Route path="ceo/roadmap" element={isCeo ? <CeoRoadmap /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
+            <Route path="ceo/finanzas" element={isCeo ? <CeoFinanzas /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
             <Route path="settings" element={<SettingsPage user={user} />} />
-            <Route path="*" element={<Navigate to="ventas" replace />} />
+            <Route path="*" element={<Navigate to={`/${clientSlug}/ventas`} replace />} />
           </Routes>
         </Layout>
       </div>
