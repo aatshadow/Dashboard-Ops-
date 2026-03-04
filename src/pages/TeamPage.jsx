@@ -3,8 +3,8 @@ import { useClientData } from '../hooks/useClientData'
 import { useAsync } from '../hooks/useAsync'
 import { hasRole, getRoles } from '../utils/roles'
 
-const ROLES = ['director', 'manager', 'closer', 'setter']
-const ROLE_LABELS = { director: 'Director', manager: 'Manager', closer: 'Closer', setter: 'Setter' }
+const ROLES = ['ceo', 'director', 'manager', 'closer', 'setter']
+const ROLE_LABELS = { ceo: 'CEO', director: 'Director', manager: 'Manager', closer: 'Closer', setter: 'Setter' }
 
 const emptyForm = { name: '', email: '', password: '', roles: ['closer'], active: true, commissionRate: 0.10 }
 
@@ -33,18 +33,22 @@ export default function TeamPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    const { roles, ...rest } = form
-    const payload = { ...rest, role: roles.join(',') }
-    if (editingId) {
-      if (!payload.password) delete payload.password
-      await updateMember(editingId, payload)
-    } else {
-      await addMember(payload)
+    try {
+      const { roles, ...rest } = form
+      const payload = { ...rest, role: roles.join(',') }
+      if (editingId) {
+        if (!payload.password) delete payload.password
+        await updateMember(editingId, payload)
+      } else {
+        await addMember(payload)
+      }
+      refreshTeam()
+      setForm({ ...emptyForm })
+      setEditingId(null)
+      setShowForm(false)
+    } catch (err) {
+      alert('Error: ' + (err.message || 'No se pudo guardar'))
     }
-    refreshTeam()
-    setForm({ ...emptyForm })
-    setEditingId(null)
-    setShowForm(false)
   }
 
   const startEdit = (m) => {
