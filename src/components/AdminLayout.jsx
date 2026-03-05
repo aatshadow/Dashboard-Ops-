@@ -39,7 +39,7 @@ export default function AdminLayout({ children, user, onLogout }) {
           </NavLink>
         ))}
         <a
-          href="https://consumers-rich-dates-bought.trycloudflare.com/"
+          href="https://apartments-wool-brings-pine.trycloudflare.com/"
           target="_blank"
           rel="noopener noreferrer"
           className="admin-nav-item"
