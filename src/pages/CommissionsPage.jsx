@@ -22,13 +22,28 @@ export default function CommissionsPage({ user, role: userRole }) {
 
   // Net cash by closer
   const cashByCloser = monthSales.reduce((acc, s) => {
-    acc[s.closer] = (acc[s.closer] || 0) + s.netCash
+    if (s.closer) acc[s.closer] = (acc[s.closer] || 0) + s.netCash
+    return acc
+  }, {})
+
+  // Net cash by setter
+  const cashBySetter = monthSales.reduce((acc, s) => {
+    if (s.setter) acc[s.setter] = (acc[s.setter] || 0) + s.netCash
     return acc
   }, {})
 
   // Compute commissions on net cash
+  // Closers/Setters: only their assigned sales net cash
+  // Managers/Directors: total net cash
   const allCommissions = team.filter(m => m.active).map(m => {
-    const cash = hasRole(m.role, 'closer') ? (cashByCloser[m.name] || 0) : totalNetCash
+    let cash
+    if (hasRole(m.role, 'closer')) {
+      cash = cashByCloser[m.name] || 0
+    } else if (hasRole(m.role, 'setter')) {
+      cash = cashBySetter[m.name] || 0
+    } else {
+      cash = totalNetCash
+    }
     const commission = Math.round(cash * m.commissionRate)
     const primaryRole = getPrimaryRole(m.role)
     return { ...m, primaryRole, cash, commission }

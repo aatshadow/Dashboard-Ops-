@@ -641,15 +641,25 @@ export async function getCeoFinanceSummary(clientId, yearMonth) {
 
   // Commission calculation (matches CommissionsPage logic)
   const cashByCloser = sales.reduce((acc, s) => {
-    acc[s.closer] = (acc[s.closer] || 0) + Number(s.net_cash || 0)
+    if (s.closer) acc[s.closer] = (acc[s.closer] || 0) + Number(s.net_cash || 0)
+    return acc
+  }, {})
+  const cashBySetter = sales.reduce((acc, s) => {
+    if (s.setter) acc[s.setter] = (acc[s.setter] || 0) + Number(s.net_cash || 0)
     return acc
   }, {})
 
   let commissions = 0
   teamData.filter(m => m.active !== false).forEach(m => {
     const roles = (m.role || '').split(',').map(r => r.trim())
-    const isCloser = roles.includes('closer')
-    const memberCash = isCloser ? (cashByCloser[m.name] || 0) : netCash
+    let memberCash
+    if (roles.includes('closer')) {
+      memberCash = cashByCloser[m.name] || 0
+    } else if (roles.includes('setter')) {
+      memberCash = cashBySetter[m.name] || 0
+    } else {
+      memberCash = netCash
+    }
     commissions += Math.round(memberCash * Number(m.commission_rate || 0))
   })
 
