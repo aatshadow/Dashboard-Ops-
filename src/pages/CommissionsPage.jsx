@@ -33,6 +33,16 @@ export default function CommissionsPage({ user, role: userRole }) {
   // Half selector: 1-15 or 16-end (since they pay every 15 days)
   const [half, setHalf] = useState('full') // 'full', 'first', 'second'
 
+  // Build payment lookup (must be before any early returns — React hooks rule)
+  const paymentMap = useMemo(() => {
+    const map = {}
+    ;(payments || []).forEach(p => {
+      const key = `${p.memberId}-${p.role}-${p.periodStart}`
+      map[key] = p
+    })
+    return map
+  }, [payments])
+
   const loading = teamLoading || salesLoading || paymentsLoading
   if (loading) return <div className="dashboard"><div style={{textAlign:'center',padding:60,color:'#999'}}>Cargando comisiones...</div></div>
 
@@ -47,16 +57,6 @@ export default function CommissionsPage({ user, role: userRole }) {
 
   const halfStart = half === 'second' ? `${month}-16` : periodStart
   const halfEnd = half === 'first' ? periodMid : periodEnd
-
-  // Build payment lookup: key = memberId-role-periodStart
-  const paymentMap = useMemo(() => {
-    const map = {}
-    payments.forEach(p => {
-      const key = `${p.memberId}-${p.role}-${p.periodStart}`
-      map[key] = p
-    })
-    return map
-  }, [payments])
 
   // Build commission lines
   const allCommissions = []
