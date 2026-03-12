@@ -35,21 +35,29 @@ export default function TeamPage() {
     e.preventDefault()
     const { roles, ...rest } = form
     const payload = { ...rest, role: roles.join(',') }
-    // Clean empty strings for numeric/date fields (Postgres rejects '' for these types)
-    if (!payload.closerCommissionRate && payload.closerCommissionRate !== 0) payload.closerCommissionRate = null
-    if (!payload.setterCommissionRate && payload.setterCommissionRate !== 0) payload.setterCommissionRate = null
-    if (!payload.commissionStartDate) payload.commissionStartDate = null
-    if (!payload.mgmtCommissionStartDate) payload.mgmtCommissionStartDate = null
+    // Clean empty/null fields — delete them so they don't get sent to DB
+    // (avoids errors if columns don't exist yet)
+    if (!payload.closerCommissionRate && payload.closerCommissionRate !== 0) delete payload.closerCommissionRate
+    if (!payload.setterCommissionRate && payload.setterCommissionRate !== 0) delete payload.setterCommissionRate
+    if (!payload.commissionStartDate) delete payload.commissionStartDate
+    if (!payload.mgmtCommissionStartDate) delete payload.mgmtCommissionStartDate
     if (editingId) {
       if (!payload.password) delete payload.password
-      await updateMember(editingId, payload)
-    } else {
-      await addMember(payload)
     }
-    refreshTeam()
-    setForm({ ...emptyForm })
-    setEditingId(null)
-    setShowForm(false)
+    try {
+      if (editingId) {
+        await updateMember(editingId, payload)
+      } else {
+        await addMember(payload)
+      }
+      refreshTeam()
+      setForm({ ...emptyForm })
+      setEditingId(null)
+      setShowForm(false)
+    } catch (err) {
+      console.error('Error guardando miembro:', err)
+      alert('Error al guardar. Revisa la consola.')
+    }
   }
 
   const startEdit = (m) => {
