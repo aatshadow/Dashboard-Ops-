@@ -232,7 +232,7 @@ export default function CommissionsPage({ user, role: userRole }) {
           </div>
           <div className="stat-card">
             <div className="stat-card-icon">📊</div>
-            <div className="stat-card-value">{myCommissions.length > 0 ? (myCommissions[0].rate * 100).toFixed(0) : 0}%</div>
+            <div className="stat-card-value">{myCommissions.length > 0 ? parseFloat((myCommissions[0].rate * 100).toFixed(1)) : 0}%</div>
             <div className="stat-card-label">Mi Tasa</div>
           </div>
         </div>
@@ -297,7 +297,7 @@ export default function CommissionsPage({ user, role: userRole }) {
                   <td className="cell-bold">{c.name}</td>
                   <td><span className={`badge badge--${c.lineRole}`}>{ROLE_LABELS[c.lineRole]}</span></td>
                   <td className="cell-money">{fmt(c.cash)}</td>
-                  <td>{(c.rate * 100).toFixed(0)}%</td>
+                  <td>{parseFloat((c.rate * 100).toFixed(1))}%</td>
                   <td className="cell-money" style={{ color: c.commission > 0 ? 'var(--success)' : 'var(--text-muted)' }}>{fmt(c.commission)}</td>
                   <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{c.lineStartDate || '-'}</td>
                   <td><span className={`badge ${c.active ? 'badge--completada' : 'badge--reembolso'}`}>{c.active ? 'Activo' : 'Inactivo'}</span></td>
