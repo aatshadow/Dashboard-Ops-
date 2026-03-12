@@ -63,21 +63,27 @@ export default function CommissionsPage({ user, role: userRole }) {
 
   team.filter(m => m.active).forEach(m => {
     const roles = getRoles(m.role)
-    const startDate = m.commissionStartDate || null
+    // Separate start dates per role type
+    const closerSetterStart = m.commissionStartDate || null
+    const mgmtStart = m.mgmtCommissionStartDate || null
 
-    // Filter sales by member's commission start date
-    const memberSales = startDate
-      ? filteredSales.filter(s => s.date >= startDate)
+    // Sales filtered by closer/setter start date
+    const csFilteredSales = closerSetterStart
+      ? filteredSales.filter(s => s.date >= closerSetterStart)
+      : filteredSales
+    // Sales filtered by mgmt start date
+    const mgmtFilteredSales = mgmtStart
+      ? filteredSales.filter(s => s.date >= mgmtStart)
       : filteredSales
 
-    const totalNetCash = memberSales.reduce((s, v) => s + v.netCash, 0)
-    const closerCash = memberSales.filter(s => s.closer === m.name).reduce((s, v) => s + v.netCash, 0)
-    const setterCash = memberSales.filter(s => s.setter === m.name).reduce((s, v) => s + v.netCash, 0)
+    const totalNetCash = mgmtFilteredSales.reduce((s, v) => s + v.netCash, 0)
+    const closerCash = csFilteredSales.filter(s => s.closer === m.name).reduce((s, v) => s + v.netCash, 0)
+    const setterCash = csFilteredSales.filter(s => s.setter === m.name).reduce((s, v) => s + v.netCash, 0)
 
     const isMultiRole = (roles.includes('closer') || roles.includes('setter')) &&
       (roles.includes('manager') || roles.includes('director'))
 
-    const addLine = (lineRole, cash, rate) => {
+    const addLine = (lineRole, cash, rate, startDate) => {
       const paymentKey = `${m.id}-${lineRole}-${halfStart}`
       const existingPayment = paymentMap[paymentKey]
       allCommissions.push({
@@ -87,6 +93,7 @@ export default function CommissionsPage({ user, role: userRole }) {
         cash,
         rate,
         commission: Math.round(cash * rate),
+        lineStartDate: startDate || null,
         paymentId: existingPayment?.id || null,
         paymentStatus: existingPayment?.status || 'pending',
         paidAt: existingPayment?.paidAt || null,
@@ -95,21 +102,21 @@ export default function CommissionsPage({ user, role: userRole }) {
 
     if (isMultiRole) {
       if (roles.includes('closer')) {
-        addLine('closer', closerCash, m.closerCommissionRate || m.commissionRate)
+        addLine('closer', closerCash, m.closerCommissionRate || m.commissionRate, closerSetterStart)
       }
       if (roles.includes('setter')) {
-        addLine('setter', setterCash, m.setterCommissionRate || m.commissionRate)
+        addLine('setter', setterCash, m.setterCommissionRate || m.commissionRate, closerSetterStart)
       }
       const mgmtRole = roles.includes('director') ? 'director' : 'manager'
-      addLine(mgmtRole, totalNetCash, m.commissionRate)
+      addLine(mgmtRole, totalNetCash, m.commissionRate, mgmtStart)
     } else {
       if (roles.includes('closer')) {
-        addLine('closer', closerCash, m.closerCommissionRate || m.commissionRate)
+        addLine('closer', closerCash, m.closerCommissionRate || m.commissionRate, closerSetterStart)
       } else if (roles.includes('setter')) {
-        addLine('setter', setterCash, m.setterCommissionRate || m.commissionRate)
+        addLine('setter', setterCash, m.setterCommissionRate || m.commissionRate, closerSetterStart)
       } else {
         const primaryRole = getPrimaryRole(m.role)
-        addLine(primaryRole, totalNetCash, m.commissionRate)
+        addLine(primaryRole, totalNetCash, m.commissionRate, mgmtStart)
       }
     }
   })
@@ -292,7 +299,7 @@ export default function CommissionsPage({ user, role: userRole }) {
                   <td className="cell-money">{fmt(c.cash)}</td>
                   <td>{(c.rate * 100).toFixed(0)}%</td>
                   <td className="cell-money" style={{ color: c.commission > 0 ? 'var(--success)' : 'var(--text-muted)' }}>{fmt(c.commission)}</td>
-                  <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{c.commissionStartDate || '-'}</td>
+                  <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{c.lineStartDate || '-'}</td>
                   <td><span className={`badge ${c.active ? 'badge--completada' : 'badge--reembolso'}`}>{c.active ? 'Activo' : 'Inactivo'}</span></td>
                   {isAdmin && (
                     <td>

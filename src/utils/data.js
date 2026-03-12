@@ -199,7 +199,7 @@ export async function getCommissionPayments(clientId) {
     .select('*')
     .eq('client_id', clientId)
     .order('period_start', { ascending: false })
-  if (error) return [] // Table may not exist yet
+  if (error || !data) return [] // Table may not exist yet or RLS blocks
   return data.map(row => toApp(row, 'commission_payments'))
 }
 
@@ -694,11 +694,13 @@ export async function getCeoFinanceSummary(clientId, yearMonth) {
   let commissions = 0
   teamData.filter(m => m.active !== false).forEach(m => {
     const roles = (m.role || '').split(',').map(r => r.trim())
-    const startDate = m.commission_start_date || null
-    const mSales = startDate ? sales.filter(s => s.date >= startDate) : sales
-    const mNetCash = mSales.reduce((s, v) => s + Number(v.net_cash || 0), 0)
-    const closerCash = mSales.filter(s => s.closer === m.name).reduce((s, v) => s + Number(v.net_cash || 0), 0)
-    const setterCash = mSales.filter(s => s.setter === m.name).reduce((s, v) => s + Number(v.net_cash || 0), 0)
+    const csStart = m.commission_start_date || null
+    const mgmtStart = m.mgmt_commission_start_date || null
+    const csSales = csStart ? sales.filter(s => s.date >= csStart) : sales
+    const mgmtSales = mgmtStart ? sales.filter(s => s.date >= mgmtStart) : sales
+    const mNetCash = mgmtSales.reduce((s, v) => s + Number(v.net_cash || 0), 0)
+    const closerCash = csSales.filter(s => s.closer === m.name).reduce((s, v) => s + Number(v.net_cash || 0), 0)
+    const setterCash = csSales.filter(s => s.setter === m.name).reduce((s, v) => s + Number(v.net_cash || 0), 0)
     const isMulti = (roles.includes('closer') || roles.includes('setter')) && (roles.includes('manager') || roles.includes('director'))
     if (isMulti) {
       if (roles.includes('closer')) commissions += Math.round(closerCash * Number(m.closer_commission_rate || m.commission_rate || 0))

@@ -6,7 +6,7 @@ import { hasRole, getRoles } from '../utils/roles'
 const ROLES = ['director', 'manager', 'closer', 'setter']
 const ROLE_LABELS = { director: 'Director', manager: 'Manager', closer: 'Closer', setter: 'Setter' }
 
-const emptyForm = { name: '', email: '', password: '', roles: ['closer'], active: true, commissionRate: 0.10, closerCommissionRate: '', setterCommissionRate: '', commissionStartDate: '' }
+const emptyForm = { name: '', email: '', password: '', roles: ['closer'], active: true, commissionRate: 0.10, closerCommissionRate: '', setterCommissionRate: '', commissionStartDate: '', mgmtCommissionStartDate: '' }
 
 export default function TeamPage() {
   const { getTeam, addMember, updateMember, deleteMember } = useClientData()
@@ -39,6 +39,7 @@ export default function TeamPage() {
     if (!payload.closerCommissionRate && payload.closerCommissionRate !== 0) payload.closerCommissionRate = null
     if (!payload.setterCommissionRate && payload.setterCommissionRate !== 0) payload.setterCommissionRate = null
     if (!payload.commissionStartDate) payload.commissionStartDate = null
+    if (!payload.mgmtCommissionStartDate) payload.mgmtCommissionStartDate = null
     if (editingId) {
       if (!payload.password) delete payload.password
       await updateMember(editingId, payload)
@@ -52,7 +53,7 @@ export default function TeamPage() {
   }
 
   const startEdit = (m) => {
-    setForm({ name: m.name, email: m.email, password: '', roles: getRoles(m.role), active: m.active, commissionRate: m.commissionRate, closerCommissionRate: m.closerCommissionRate || '', setterCommissionRate: m.setterCommissionRate || '', commissionStartDate: m.commissionStartDate || '' })
+    setForm({ name: m.name, email: m.email, password: '', roles: getRoles(m.role), active: m.active, commissionRate: m.commissionRate, closerCommissionRate: m.closerCommissionRate || '', setterCommissionRate: m.setterCommissionRate || '', commissionStartDate: m.commissionStartDate || '', mgmtCommissionStartDate: m.mgmtCommissionStartDate || '' })
     setEditingId(m.id)
     setShowForm(true)
   }
@@ -124,11 +125,20 @@ export default function TeamPage() {
                   <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>Comisión sobre ventas donde fue setter</span>
                 </div>
               )}
-              <div className="form-group">
-                <label>Comisiona Desde</label>
-                <input type="date" value={form.commissionStartDate} onChange={e => setForm({...form, commissionStartDate: e.target.value})} style={{ colorScheme: 'dark' }} />
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>Solo comisiona ventas a partir de esta fecha</span>
-              </div>
+              {(form.roles.includes('closer') || form.roles.includes('setter')) && (
+                <div className="form-group">
+                  <label>Comisiona Desde (Closer/Setter)</label>
+                  <input type="date" value={form.commissionStartDate} onChange={e => setForm({...form, commissionStartDate: e.target.value})} style={{ colorScheme: 'dark' }} />
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>Fecha inicio comision como closer/setter</span>
+                </div>
+              )}
+              {(form.roles.includes('manager') || form.roles.includes('director')) && (
+                <div className="form-group">
+                  <label>Comisiona Desde (Manager/Director)</label>
+                  <input type="date" value={form.mgmtCommissionStartDate} onChange={e => setForm({...form, mgmtCommissionStartDate: e.target.value})} style={{ colorScheme: 'dark' }} />
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>Fecha inicio comision como manager/director</span>
+                </div>
+              )}
               <div className="form-group">
                 <label>Estado</label>
                 <select value={form.active ? 'true' : 'false'} onChange={e => setForm({...form, active: e.target.value === 'true'})}>
@@ -168,7 +178,8 @@ export default function TeamPage() {
                       ))}
                       <span className={`badge ${m.active ? 'badge--completada' : 'badge--reembolso'}`}>{m.active ? 'Activo' : 'Inactivo'}</span>
                       <span className="team-card-rate">{(m.commissionRate * 100).toFixed(0)}% base{m.closerCommissionRate ? ` · ${(m.closerCommissionRate * 100).toFixed(0)}% closer` : ''}{m.setterCommissionRate ? ` · ${(m.setterCommissionRate * 100).toFixed(0)}% setter` : ''}</span>
-                      {m.commissionStartDate && <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Desde {m.commissionStartDate}</span>}
+                      {m.commissionStartDate && <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Closer/Setter desde {m.commissionStartDate}</span>}
+                      {m.mgmtCommissionStartDate && <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Mgmt desde {m.mgmtCommissionStartDate}</span>}
                     </div>
                     {!alreadyShown && (
                       <div className="team-card-actions">

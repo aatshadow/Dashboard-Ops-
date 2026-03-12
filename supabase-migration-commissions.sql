@@ -4,6 +4,7 @@
 ALTER TABLE team ADD COLUMN IF NOT EXISTS closer_commission_rate NUMERIC DEFAULT NULL;
 ALTER TABLE team ADD COLUMN IF NOT EXISTS setter_commission_rate NUMERIC DEFAULT NULL;
 ALTER TABLE team ADD COLUMN IF NOT EXISTS commission_start_date DATE DEFAULT NULL;
+ALTER TABLE team ADD COLUMN IF NOT EXISTS mgmt_commission_start_date DATE DEFAULT NULL;
 
 -- Add commission payment tracking table
 CREATE TABLE IF NOT EXISTS commission_payments (

@@ -45,6 +45,7 @@ const TEAM_MAP = {
   closerCommissionRate: 'closer_commission_rate',
   setterCommissionRate: 'setter_commission_rate',
   commissionStartDate: 'commission_start_date',
+  mgmtCommissionStartDate: 'mgmt_commission_start_date',
 }
 
 const PROJECTIONS_MAP = {
@@ -182,7 +183,7 @@ const TABLE_MAPS = {
 const VALID_COLUMNS = {
   sales: new Set(['client_id', 'date', 'client_name', 'client_email', 'client_phone', 'instagram', 'product', 'producto_interes', 'payment_type', 'installment_number', 'payment_method', 'revenue', 'cash_collected', 'closer', 'setter', 'triager', 'gestor_asignado', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'pais', 'capital_disponible', 'situacion_actual', 'exp_amazon', 'decisor_confirmado', 'fecha_llamada', 'status', 'notes', 'source', 'close_activity_id']),
   reports: new Set(['client_id', 'date', 'role', 'name', 'conversations_opened', 'follow_ups', 'offers_launched', 'appointments_booked', 'scheduled_calls', 'calls_made', 'deposits', 'closes']),
-  team: new Set(['client_id', 'name', 'email', 'password', 'role', 'active', 'commission_rate', 'closer_commission_rate', 'setter_commission_rate', 'commission_start_date']),
+  team: new Set(['client_id', 'name', 'email', 'password', 'role', 'active', 'commission_rate', 'closer_commission_rate', 'setter_commission_rate', 'commission_start_date', 'mgmt_commission_start_date']),
   projections: new Set(['client_id', 'period', 'period_type', 'type', 'member_id', 'name', 'cash_target', 'revenue_target', 'appointment_target']),
   payment_fees: new Set(['client_id', 'method', 'fee_rate']),
   products: new Set(['client_id', 'name', 'price', 'active']),

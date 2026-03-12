@@ -8,6 +8,8 @@ export function useAsync(asyncFn, defaultValue = null) {
     try {
       const result = await asyncFn()
       setData(result)
+    } catch (err) {
+      console.error('useAsync error:', err)
     } finally {
       setLoading(false)
     }
