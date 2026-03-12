@@ -192,6 +192,57 @@ export async function deleteMember(id, clientId) {
   if (error) throw error
 }
 
+// ---- COMMISSION PAYMENTS ----
+export async function getCommissionPayments(clientId) {
+  const { data, error } = await supabase
+    .from('commission_payments')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('period_start', { ascending: false })
+  if (error) throw error
+  return data.map(row => toApp(row, 'commission_payments'))
+}
+
+export async function upsertCommissionPayment(payment, clientId) {
+  // Check if exists for same member + period + role
+  const { data: existing } = await supabase
+    .from('commission_payments')
+    .select('id')
+    .eq('client_id', clientId)
+    .eq('member_id', payment.memberId)
+    .eq('period_start', payment.periodStart)
+    .eq('period_end', payment.periodEnd)
+    .eq('role', payment.role)
+    .maybeSingle()
+
+  const dbPayment = toDb(payment, 'commission_payments')
+  if (existing) {
+    delete dbPayment.client_id
+    const { error } = await supabase
+      .from('commission_payments')
+      .update(dbPayment)
+      .eq('id', existing.id)
+    if (error) throw error
+  } else {
+    dbPayment.client_id = clientId
+    const { error } = await supabase
+      .from('commission_payments')
+      .insert(dbPayment)
+    if (error) throw error
+  }
+}
+
+export async function toggleCommissionPaid(paymentId, paid) {
+  const { error } = await supabase
+    .from('commission_payments')
+    .update({
+      status: paid ? 'paid' : 'pending',
+      paid_at: paid ? new Date().toISOString() : null,
+    })
+    .eq('id', paymentId)
+  if (error) throw error
+}
+
 export async function authenticateUser(email, password, clientId) {
   const { data, error } = await supabase
     .from('team')
@@ -639,28 +690,27 @@ export async function getCeoFinanceSummary(clientId, yearMonth) {
   const netCash = sales.reduce((s, v) => s + Number(v.net_cash || 0), 0)
   const fees = cashCollected - netCash
 
-  // Commission calculation (matches CommissionsPage logic)
-  const cashByCloser = sales.reduce((acc, s) => {
-    if (s.closer) acc[s.closer] = (acc[s.closer] || 0) + Number(s.net_cash || 0)
-    return acc
-  }, {})
-  const cashBySetter = sales.reduce((acc, s) => {
-    if (s.setter) acc[s.setter] = (acc[s.setter] || 0) + Number(s.net_cash || 0)
-    return acc
-  }, {})
-
+  // Commission calculation (matches CommissionsPage dual-role logic)
   let commissions = 0
   teamData.filter(m => m.active !== false).forEach(m => {
     const roles = (m.role || '').split(',').map(r => r.trim())
-    let memberCash
-    if (roles.includes('closer')) {
-      memberCash = cashByCloser[m.name] || 0
+    const startDate = m.commission_start_date || null
+    const mSales = startDate ? sales.filter(s => s.date >= startDate) : sales
+    const mNetCash = mSales.reduce((s, v) => s + Number(v.net_cash || 0), 0)
+    const closerCash = mSales.filter(s => s.closer === m.name).reduce((s, v) => s + Number(v.net_cash || 0), 0)
+    const setterCash = mSales.filter(s => s.setter === m.name).reduce((s, v) => s + Number(v.net_cash || 0), 0)
+    const isMulti = (roles.includes('closer') || roles.includes('setter')) && (roles.includes('manager') || roles.includes('director'))
+    if (isMulti) {
+      if (roles.includes('closer')) commissions += Math.round(closerCash * Number(m.closer_commission_rate || m.commission_rate || 0))
+      if (roles.includes('setter')) commissions += Math.round(setterCash * Number(m.setter_commission_rate || m.commission_rate || 0))
+      commissions += Math.round(mNetCash * Number(m.commission_rate || 0))
+    } else if (roles.includes('closer')) {
+      commissions += Math.round(closerCash * Number(m.closer_commission_rate || m.commission_rate || 0))
     } else if (roles.includes('setter')) {
-      memberCash = cashBySetter[m.name] || 0
+      commissions += Math.round(setterCash * Number(m.setter_commission_rate || m.commission_rate || 0))
     } else {
-      memberCash = netCash
+      commissions += Math.round(mNetCash * Number(m.commission_rate || 0))
     }
-    commissions += Math.round(memberCash * Number(m.commission_rate || 0))
   })
 
   const opex = entries.reduce((s, e) => s + Number(e.amount || 0), 0)

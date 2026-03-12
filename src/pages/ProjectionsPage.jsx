@@ -72,7 +72,7 @@ function getPeriodLabel(period, periodType) {
   return `Semana ${weekNum} — ${formatDateShort(start)} al ${formatDateShort(end)}`
 }
 
-export default function ProjectionsPage() {
+export default function ProjectionsPage({ user, role: userRole }) {
   const { getProjections, addProjection, updateProjection, deleteProjection, getTeam, getSalesWithNetCash, getReports } = useClientData()
   const [projections, projLoading, refreshProjections, setProjections] = useAsync(getProjections, [])
   const [periodType, setPeriodType] = useState('monthly')
@@ -97,12 +97,11 @@ export default function ProjectionsPage() {
 
   // Current user for role-based filtering
   const currentUser = useMemo(() => {
-    const email = localStorage.getItem('fba_user')
-    return team.find(m => m.email === email) || null
-  }, [team])
+    return team.find(m => m.email === user) || null
+  }, [team, user])
 
-  const currentPrimaryRole = currentUser ? getPrimaryRole(currentUser.role) : null
-  const isAdmin = currentUser && (currentPrimaryRole === 'director' || currentPrimaryRole === 'manager')
+  const currentPrimaryRole = userRole ? getPrimaryRole(userRole) : null
+  const isAdmin = currentUser && (currentPrimaryRole === 'ceo' || currentPrimaryRole === 'director' || currentPrimaryRole === 'manager')
 
   // Filter projections by current period
   const periodProjections = projections.filter(p => {

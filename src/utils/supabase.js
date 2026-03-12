@@ -42,6 +42,9 @@ const REPORTS_MAP = {
 const TEAM_MAP = {
   clientId: 'client_id',
   commissionRate: 'commission_rate',
+  closerCommissionRate: 'closer_commission_rate',
+  setterCommissionRate: 'setter_commission_rate',
+  commissionStartDate: 'commission_start_date',
 }
 
 const PROJECTIONS_MAP = {
@@ -138,6 +141,16 @@ const CEO_FINANCE_ENTRIES_MAP = {
 
 const SUPERADMINS_MAP = {}
 
+const COMMISSION_PAYMENTS_MAP = {
+  clientId: 'client_id',
+  memberId: 'member_id',
+  periodStart: 'period_start',
+  periodEnd: 'period_end',
+  cashBase: 'cash_base',
+  commissionAmount: 'commission_amount',
+  paidAt: 'paid_at',
+}
+
 const SA_COMMISSIONS_MAP = {
   clientId: 'client_id',
   commissionRate: 'commission_rate',
@@ -162,13 +175,14 @@ const TABLE_MAPS = {
   ceo_team_notes: CEO_TEAM_NOTES_MAP,
   ceo_integrations: CEO_INTEGRATIONS_MAP,
   ceo_finance_entries: CEO_FINANCE_ENTRIES_MAP,
+  commission_payments: COMMISSION_PAYMENTS_MAP,
 }
 
 // Valid DB columns per table (prevents unknown fields from causing insert errors)
 const VALID_COLUMNS = {
   sales: new Set(['client_id', 'date', 'client_name', 'client_email', 'client_phone', 'instagram', 'product', 'producto_interes', 'payment_type', 'installment_number', 'payment_method', 'revenue', 'cash_collected', 'closer', 'setter', 'triager', 'gestor_asignado', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'pais', 'capital_disponible', 'situacion_actual', 'exp_amazon', 'decisor_confirmado', 'fecha_llamada', 'status', 'notes', 'source', 'close_activity_id']),
   reports: new Set(['client_id', 'date', 'role', 'name', 'conversations_opened', 'follow_ups', 'offers_launched', 'appointments_booked', 'scheduled_calls', 'calls_made', 'deposits', 'closes']),
-  team: new Set(['client_id', 'name', 'email', 'password', 'role', 'active', 'commission_rate']),
+  team: new Set(['client_id', 'name', 'email', 'password', 'role', 'active', 'commission_rate', 'closer_commission_rate', 'setter_commission_rate', 'commission_start_date']),
   projections: new Set(['client_id', 'period', 'period_type', 'type', 'member_id', 'name', 'cash_target', 'revenue_target', 'appointment_target']),
   payment_fees: new Set(['client_id', 'method', 'fee_rate']),
   products: new Set(['client_id', 'name', 'price', 'active']),
@@ -181,6 +195,7 @@ const VALID_COLUMNS = {
   ceo_team_notes: new Set(['client_id', 'member_id', 'note', 'updated_at']),
   ceo_integrations: new Set(['client_id', 'service', 'api_key', 'config', 'enabled', 'last_sync']),
   ceo_finance_entries: new Set(['client_id', 'date', 'category', 'description', 'amount', 'recurring', 'notes']),
+  commission_payments: new Set(['client_id', 'member_id', 'period_start', 'period_end', 'role', 'cash_base', 'rate', 'commission_amount', 'status', 'paid_at', 'notes']),
 }
 
 function buildReverse(map) {

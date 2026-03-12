@@ -172,7 +172,7 @@ export default function ClientApp() {
             <Route path="marketing" element={isDirectorOrCeo ? <MarketingDashboard /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
             <Route path="contenido" element={isDirectorOrCeo ? <ContentDashboard /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
             <Route path="equipo" element={isDirectorOrCeo ? <TeamPage /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
-            <Route path="proyecciones" element={<ProjectionsPage />} />
+            <Route path="proyecciones" element={<ProjectionsPage user={user} role={userRole} />} />
             <Route path="comisiones" element={<CommissionsPage user={user} role={userRole} />} />
             <Route path="metodos-pago" element={isDirectorOrCeo ? <PaymentMethodsPage /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
             <Route path="productos" element={isDirectorOrCeo ? <ProductsPage /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />

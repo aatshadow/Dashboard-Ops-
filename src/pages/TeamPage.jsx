@@ -6,7 +6,7 @@ import { hasRole, getRoles } from '../utils/roles'
 const ROLES = ['director', 'manager', 'closer', 'setter']
 const ROLE_LABELS = { director: 'Director', manager: 'Manager', closer: 'Closer', setter: 'Setter' }
 
-const emptyForm = { name: '', email: '', password: '', roles: ['closer'], active: true, commissionRate: 0.10 }
+const emptyForm = { name: '', email: '', password: '', roles: ['closer'], active: true, commissionRate: 0.10, closerCommissionRate: '', setterCommissionRate: '', commissionStartDate: '' }
 
 export default function TeamPage() {
   const { getTeam, addMember, updateMember, deleteMember } = useClientData()
@@ -48,7 +48,7 @@ export default function TeamPage() {
   }
 
   const startEdit = (m) => {
-    setForm({ name: m.name, email: m.email, password: '', roles: getRoles(m.role), active: m.active, commissionRate: m.commissionRate })
+    setForm({ name: m.name, email: m.email, password: '', roles: getRoles(m.role), active: m.active, commissionRate: m.commissionRate, closerCommissionRate: m.closerCommissionRate || '', setterCommissionRate: m.setterCommissionRate || '', commissionStartDate: m.commissionStartDate || '' })
     setEditingId(m.id)
     setShowForm(true)
   }
@@ -103,8 +103,27 @@ export default function TeamPage() {
                 </div>
               </div>
               <div className="form-group">
-                <label>Tasa de Comisión (decimal)</label>
-                <input type="number" step="0.01" min="0" max="1" value={form.commissionRate} onChange={e => setForm({...form, commissionRate: +e.target.value})} />
+                <label>Comisión Base (Manager/Director)</label>
+                <input type="number" step="0.01" min="0" max="1" value={form.commissionRate} onChange={e => setForm({...form, commissionRate: +e.target.value})} placeholder="Ej: 0.01" />
+              </div>
+              {form.roles.includes('closer') && (
+                <div className="form-group">
+                  <label>Comisión Closer</label>
+                  <input type="number" step="0.01" min="0" max="1" value={form.closerCommissionRate} onChange={e => setForm({...form, closerCommissionRate: e.target.value === '' ? '' : +e.target.value})} placeholder="Ej: 0.07" />
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>Comisión sobre sus ventas cerradas</span>
+                </div>
+              )}
+              {form.roles.includes('setter') && (
+                <div className="form-group">
+                  <label>Comisión Setter</label>
+                  <input type="number" step="0.01" min="0" max="1" value={form.setterCommissionRate} onChange={e => setForm({...form, setterCommissionRate: e.target.value === '' ? '' : +e.target.value})} placeholder="Ej: 0.03" />
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>Comisión sobre ventas donde fue setter</span>
+                </div>
+              )}
+              <div className="form-group">
+                <label>Comisiona Desde</label>
+                <input type="date" value={form.commissionStartDate} onChange={e => setForm({...form, commissionStartDate: e.target.value})} style={{ colorScheme: 'dark' }} />
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>Solo comisiona ventas a partir de esta fecha</span>
               </div>
               <div className="form-group">
                 <label>Estado</label>
@@ -144,7 +163,8 @@ export default function TeamPage() {
                         <span key={r} className={`badge badge--${r}`}>{ROLE_LABELS[r]}</span>
                       ))}
                       <span className={`badge ${m.active ? 'badge--completada' : 'badge--reembolso'}`}>{m.active ? 'Activo' : 'Inactivo'}</span>
-                      <span className="team-card-rate">{(m.commissionRate * 100).toFixed(0)}% comisión</span>
+                      <span className="team-card-rate">{(m.commissionRate * 100).toFixed(0)}% base{m.closerCommissionRate ? ` · ${(m.closerCommissionRate * 100).toFixed(0)}% closer` : ''}{m.setterCommissionRate ? ` · ${(m.setterCommissionRate * 100).toFixed(0)}% setter` : ''}</span>
+                      {m.commissionStartDate && <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Desde {m.commissionStartDate}</span>}
                     </div>
                     {!alreadyShown && (
                       <div className="team-card-actions">

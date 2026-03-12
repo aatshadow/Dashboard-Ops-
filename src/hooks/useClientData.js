@@ -76,5 +76,10 @@ export function useClientData() {
     updateCeoFinanceEntry: useCallback((id, updates) => data.updateCeoFinanceEntry(id, updates, clientId), [clientId]),
     deleteCeoFinanceEntry: useCallback((id) => data.deleteCeoFinanceEntry(id, clientId), [clientId]),
     getCeoFinanceSummary: useCallback((yearMonth) => data.getCeoFinanceSummary(clientId, yearMonth), [clientId]),
+
+    // Commission Payments
+    getCommissionPayments: useCallback(() => data.getCommissionPayments(clientId), [clientId]),
+    upsertCommissionPayment: useCallback((payment) => data.upsertCommissionPayment(payment, clientId), [clientId]),
+    toggleCommissionPaid: useCallback((paymentId, paid) => data.toggleCommissionPaid(paymentId, paid), [clientId]),
   }
 }
