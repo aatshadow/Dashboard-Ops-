@@ -199,7 +199,7 @@ export async function getCommissionPayments(clientId) {
     .select('*')
     .eq('client_id', clientId)
     .order('period_start', { ascending: false })
-  if (error) throw error
+  if (error) return [] // Table may not exist yet
   return data.map(row => toApp(row, 'commission_payments'))
 }
 
