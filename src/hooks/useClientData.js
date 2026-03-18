@@ -105,5 +105,19 @@ export function useClientData() {
     getCrmPipelines: useCallback(() => data.getCrmPipelines(clientId), [clientId]),
     addCrmPipeline: useCallback((pipeline) => data.addCrmPipeline(pipeline, clientId), [clientId]),
     updateCrmPipeline: useCallback((id, updates) => data.updateCrmPipeline(id, updates, clientId), [clientId]),
+
+    // CRM Files
+    getCrmFiles: useCallback((contactId) => data.getCrmFiles(clientId, contactId), [clientId]),
+    addCrmFile: useCallback((file) => data.addCrmFile(file, clientId), [clientId]),
+    deleteCrmFile: useCallback((id) => data.deleteCrmFile(id, clientId), [clientId]),
+
+    // CRM Tasks
+    getCrmTasks: useCallback((contactId) => data.getCrmTasks(clientId, contactId), [clientId]),
+    addCrmTask: useCallback((task) => data.addCrmTask(task, clientId), [clientId]),
+    updateCrmTask: useCallback((id, updates) => data.updateCrmTask(id, updates, clientId), [clientId]),
+    deleteCrmTask: useCallback((id) => data.deleteCrmTask(id, clientId), [clientId]),
+
+    // CRM Pipeline delete
+    deleteCrmPipeline: useCallback((id) => data.deleteCrmPipeline(id, clientId), [clientId]),
   }
 }

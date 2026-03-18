@@ -1024,6 +1024,83 @@ export async function updateCrmPipeline(id, updates, clientId) {
   if (error) throw error
 }
 
+export async function deleteCrmPipeline(id, clientId) {
+  const query = supabase.from('crm_pipelines').delete().eq('id', id)
+  if (clientId) query.eq('client_id', clientId)
+  const { error } = await query
+  if (error) throw error
+}
+
+// ---- CRM FILES ----
+export async function getCrmFiles(clientId, contactId) {
+  let query = supabase.from('crm_files').select('*').eq('client_id', clientId)
+  if (contactId) query = query.eq('contact_id', contactId)
+  query = query.order('created_at', { ascending: false })
+  const { data, error } = await query
+  if (error) return []
+  return data.map(row => toApp(row, 'crm_files'))
+}
+
+export async function addCrmFile(file, clientId) {
+  const dbFile = toDb(file, 'crm_files')
+  delete dbFile.id
+  dbFile.client_id = clientId
+  const { data, error } = await supabase
+    .from('crm_files')
+    .insert(dbFile)
+    .select()
+    .single()
+  if (error) throw error
+  return toApp(data, 'crm_files')
+}
+
+export async function deleteCrmFile(id, clientId) {
+  const query = supabase.from('crm_files').delete().eq('id', id)
+  if (clientId) query.eq('client_id', clientId)
+  const { error } = await query
+  if (error) throw error
+}
+
+// ---- CRM TASKS ----
+export async function getCrmTasks(clientId, contactId) {
+  let query = supabase.from('crm_tasks').select('*').eq('client_id', clientId)
+  if (contactId) query = query.eq('contact_id', contactId)
+  query = query.order('due_date', { ascending: true })
+  const { data, error } = await query
+  if (error) return []
+  return data.map(row => toApp(row, 'crm_tasks'))
+}
+
+export async function addCrmTask(task, clientId) {
+  const dbTask = toDb(task, 'crm_tasks')
+  delete dbTask.id
+  dbTask.client_id = clientId
+  const { data, error } = await supabase
+    .from('crm_tasks')
+    .insert(dbTask)
+    .select()
+    .single()
+  if (error) throw error
+  return toApp(data, 'crm_tasks')
+}
+
+export async function updateCrmTask(id, updates, clientId) {
+  const dbUpdates = toDb(updates, 'crm_tasks')
+  delete dbUpdates.id
+  delete dbUpdates.client_id
+  const query = supabase.from('crm_tasks').update(dbUpdates).eq('id', id)
+  if (clientId) query.eq('client_id', clientId)
+  const { error } = await query
+  if (error) throw error
+}
+
+export async function deleteCrmTask(id, clientId) {
+  const query = supabase.from('crm_tasks').delete().eq('id', id)
+  if (clientId) query.eq('client_id', clientId)
+  const { error } = await query
+  if (error) throw error
+}
+
 export async function getAdminDashboardData() {
   const now = new Date()
   const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`

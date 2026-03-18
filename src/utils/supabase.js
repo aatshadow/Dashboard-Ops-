@@ -166,6 +166,7 @@ const CRM_CONTACTS_MAP = {
   customFields: 'custom_fields',
   lastActivityAt: 'last_activity_at',
   updatedAt: 'updated_at',
+  pipelineId: 'pipeline_id',
 }
 
 const CRM_ACTIVITIES_MAP = {
@@ -175,6 +176,26 @@ const CRM_ACTIVITIES_MAP = {
   durationMinutes: 'duration_minutes',
   performedBy: 'performed_by',
   performedAt: 'performed_at',
+  fileUrl: 'file_url',
+  scheduledAt: 'scheduled_at',
+}
+
+const CRM_FILES_MAP = {
+  clientId: 'client_id',
+  contactId: 'contact_id',
+  fileName: 'file_name',
+  fileUrl: 'file_url',
+  fileSize: 'file_size',
+  fileType: 'file_type',
+  uploadedBy: 'uploaded_by',
+}
+
+const CRM_TASKS_MAP = {
+  clientId: 'client_id',
+  contactId: 'contact_id',
+  dueDate: 'due_date',
+  assignedTo: 'assigned_to',
+  completedAt: 'completed_at',
 }
 
 const CRM_CUSTOM_FIELDS_MAP = {
@@ -226,6 +247,8 @@ const TABLE_MAPS = {
   crm_custom_fields: CRM_CUSTOM_FIELDS_MAP,
   crm_smart_views: CRM_SMART_VIEWS_MAP,
   crm_pipelines: CRM_PIPELINES_MAP,
+  crm_files: CRM_FILES_MAP,
+  crm_tasks: CRM_TASKS_MAP,
 }
 
 // Valid DB columns per table (prevents unknown fields from causing insert errors)
@@ -246,11 +269,13 @@ const VALID_COLUMNS = {
   ceo_integrations: new Set(['client_id', 'service', 'api_key', 'config', 'enabled', 'last_sync']),
   ceo_finance_entries: new Set(['client_id', 'date', 'category', 'description', 'amount', 'recurring', 'notes']),
   commission_payments: new Set(['client_id', 'member_id', 'period_start', 'period_end', 'role', 'cash_base', 'rate', 'commission_amount', 'status', 'paid_at', 'notes']),
-  crm_contacts: new Set(['client_id', 'name', 'email', 'phone', 'company', 'position', 'instagram', 'country', 'source', 'status', 'assigned_to', 'tags', 'custom_fields', 'notes', 'deal_value', 'last_activity_at', 'updated_at']),
-  crm_activities: new Set(['client_id', 'contact_id', 'type', 'custom_type', 'title', 'description', 'outcome', 'duration_minutes', 'performed_by', 'performed_at']),
+  crm_contacts: new Set(['client_id', 'name', 'email', 'phone', 'company', 'position', 'instagram', 'country', 'source', 'status', 'assigned_to', 'tags', 'custom_fields', 'notes', 'deal_value', 'last_activity_at', 'updated_at', 'address', 'whatsapp', 'zoom_link', 'website', 'linkedin', 'pipeline_id']),
+  crm_activities: new Set(['client_id', 'contact_id', 'type', 'custom_type', 'title', 'description', 'outcome', 'duration_minutes', 'performed_by', 'performed_at', 'file_url', 'scheduled_at']),
   crm_custom_fields: new Set(['client_id', 'name', 'field_key', 'field_type', 'options', 'required', 'position', 'active']),
   crm_smart_views: new Set(['client_id', 'name', 'filters', 'columns', 'sort_by', 'sort_dir', 'color', 'icon', 'position', 'created_by']),
   crm_pipelines: new Set(['client_id', 'name', 'stages', 'is_default']),
+  crm_files: new Set(['client_id', 'contact_id', 'file_name', 'file_url', 'file_size', 'file_type', 'uploaded_by']),
+  crm_tasks: new Set(['client_id', 'contact_id', 'title', 'description', 'due_date', 'assigned_to', 'completed', 'completed_at', 'priority']),
 }
 
 function buildReverse(map) {
