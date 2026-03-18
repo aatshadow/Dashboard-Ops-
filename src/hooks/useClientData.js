@@ -81,5 +81,29 @@ export function useClientData() {
     getCommissionPayments: useCallback(() => data.getCommissionPayments(clientId), [clientId]),
     upsertCommissionPayment: useCallback((payment) => data.upsertCommissionPayment(payment, clientId), [clientId]),
     toggleCommissionPaid: useCallback((paymentId, paid) => data.toggleCommissionPaid(paymentId, paid), [clientId]),
+
+    // CRM
+    getCrmContacts: useCallback(() => data.getCrmContacts(clientId), [clientId]),
+    addCrmContact: useCallback((contact) => data.addCrmContact(contact, clientId), [clientId]),
+    updateCrmContact: useCallback((id, updates) => data.updateCrmContact(id, updates, clientId), [clientId]),
+    deleteCrmContact: useCallback((id) => data.deleteCrmContact(id, clientId), [clientId]),
+
+    getCrmActivities: useCallback((contactId) => data.getCrmActivities(clientId, contactId), [clientId]),
+    addCrmActivity: useCallback((activity) => data.addCrmActivity(activity, clientId), [clientId]),
+    deleteCrmActivity: useCallback((id) => data.deleteCrmActivity(id, clientId), [clientId]),
+
+    getCrmCustomFields: useCallback(() => data.getCrmCustomFields(clientId), [clientId]),
+    addCrmCustomField: useCallback((field) => data.addCrmCustomField(field, clientId), [clientId]),
+    updateCrmCustomField: useCallback((id, updates) => data.updateCrmCustomField(id, updates, clientId), [clientId]),
+    deleteCrmCustomField: useCallback((id) => data.deleteCrmCustomField(id, clientId), [clientId]),
+
+    getCrmSmartViews: useCallback(() => data.getCrmSmartViews(clientId), [clientId]),
+    addCrmSmartView: useCallback((view) => data.addCrmSmartView(view, clientId), [clientId]),
+    updateCrmSmartView: useCallback((id, updates) => data.updateCrmSmartView(id, updates, clientId), [clientId]),
+    deleteCrmSmartView: useCallback((id) => data.deleteCrmSmartView(id, clientId), [clientId]),
+
+    getCrmPipelines: useCallback(() => data.getCrmPipelines(clientId), [clientId]),
+    addCrmPipeline: useCallback((pipeline) => data.addCrmPipeline(pipeline, clientId), [clientId]),
+    updateCrmPipeline: useCallback((id, updates) => data.updateCrmPipeline(id, updates, clientId), [clientId]),
   }
 }

@@ -52,6 +52,21 @@ function buildNavItems(prefix) {
       ]
     },
     {
+      label: 'CRM',
+      icon: '📇',
+      children: [
+        { to: `${prefix}/crm`, label: 'Pipeline', icon: '📊' },
+      ]
+    },
+    {
+      label: 'Cold Call',
+      icon: '📞',
+      children: [
+        { to: `${prefix}/cold-call`, label: 'Dashboard', icon: '📊' },
+        { to: `${prefix}/reportes/nuevo`, label: 'Nuevo Reporte', icon: '➕' },
+      ]
+    },
+    {
       label: 'Management',
       icon: '⚙️',
       children: [
@@ -94,6 +109,7 @@ export default function Layout({ children, user, onLogout, role, clientConfig, c
     return navItems.filter(group => {
       if (group.label === 'CEO Mind') return false
       if (group.label === 'Ventas' || group.label === 'Reportes') return true
+      if (group.label === 'CRM' || group.label === 'Cold Call') return true
       if (group.label === 'Management') return true
       return false
     }).map(group => {

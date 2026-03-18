@@ -281,7 +281,8 @@ LEFT JOIN payment_fees pf
 INSERT INTO clients (slug, name, logo_url, primary_color, secondary_color, bg_color, bg_card_color, bg_sidebar_color, border_color, text_color, text_secondary_color) VALUES
   ('fba-academy', 'FBA Academy', '/assets/logos/fba-academy.jpeg', '#FF6B00', '#FFB800', '#0A0A0A', '#111111', '#0D0D0D', '#1F1F1F', '#FFFFFF', '#A0A0A0'),
   ('luxury-interiors', 'Luxury Design School', '/assets/logos/luxury-interiors.jpeg', '#C4944A', '#DDD5C8', '#1A0D12', '#231018', '#1A0D12', '#3D1520', '#DDD5C8', '#A08A6E'),
-  ('detras-de-camara', 'Detrás de Cámara', NULL, '#22C55E', '#4ADE80', '#0F0F12', '#18181B', '#0F0F12', '#2A2D34', '#F5F6F7', '#6B7280')
+  ('detras-de-camara', 'Detrás de Cámara', NULL, '#22C55E', '#4ADE80', '#0F0F12', '#18181B', '#0F0F12', '#2A2D34', '#F5F6F7', '#6B7280'),
+  ('black-wolf', 'Black Wolf', '/assets/logos/blackwolf-logo.png', '#6366F1', '#818CF8', '#09090B', '#111113', '#09090B', '#1E1E24', '#FFFFFF', '#A1A1AA')
 ON CONFLICT (slug) DO NOTHING;
 
 -- ── SuperAdmin ──
@@ -300,6 +301,10 @@ ON CONFLICT (client_id) DO NOTHING;
 
 INSERT INTO superadmin_commissions (client_id, commission_rate)
 SELECT id, 0.10 FROM clients WHERE slug = 'detras-de-camara'
+ON CONFLICT (client_id) DO NOTHING;
+
+INSERT INTO superadmin_commissions (client_id, commission_rate)
+SELECT id, 0 FROM clients WHERE slug = 'black-wolf'
 ON CONFLICT (client_id) DO NOTHING;
 
 -- ── Payment Fees (FBA Academy) ──
@@ -358,6 +363,11 @@ ON CONFLICT (client_id, email) DO NOTHING;
 -- ── Team Members (Detrás de Cámara - SuperAdmin only initially) ──
 INSERT INTO team (client_id, name, email, password, role, active, commission_rate)
 SELECT id, 'SuperAdmin', 'alex@blackwolfsec.io', 'BlackWolf88', 'director', true, 0 FROM clients WHERE slug = 'detras-de-camara'
+ON CONFLICT (client_id, email) DO NOTHING;
+
+-- ── Team Members (Black Wolf) ──
+INSERT INTO team (client_id, name, email, password, role, active, commission_rate)
+SELECT id, 'Alex', 'alex@blackwolfsec.io', 'BlackWolf88', 'ceo,director', true, 0 FROM clients WHERE slug = 'black-wolf'
 ON CONFLICT (client_id, email) DO NOTHING;
 
 -- ── Sales (FBA Academy seed data) ──
@@ -431,6 +441,24 @@ ON CONFLICT (client_id, method) DO NOTHING;
 -- ── N8n Config (Detrás de Cámara) ──
 INSERT INTO n8n_config (client_id, webhook_url, api_key, enabled, last_sync)
 SELECT id, '', '', false, NULL FROM clients WHERE slug = 'detras-de-camara';
+
+-- ── Payment Fees (Black Wolf) ──
+INSERT INTO payment_fees (client_id, method, fee_rate)
+SELECT id, 'Transferencia', 0 FROM clients WHERE slug = 'black-wolf'
+ON CONFLICT (client_id, method) DO NOTHING;
+INSERT INTO payment_fees (client_id, method, fee_rate)
+SELECT id, 'Stripe', 0.029 FROM clients WHERE slug = 'black-wolf'
+ON CONFLICT (client_id, method) DO NOTHING;
+INSERT INTO payment_fees (client_id, method, fee_rate)
+SELECT id, 'PayPal', 0.035 FROM clients WHERE slug = 'black-wolf'
+ON CONFLICT (client_id, method) DO NOTHING;
+INSERT INTO payment_fees (client_id, method, fee_rate)
+SELECT id, 'Tarjeta', 0.015 FROM clients WHERE slug = 'black-wolf'
+ON CONFLICT (client_id, method) DO NOTHING;
+
+-- ── N8n Config (Black Wolf) ──
+INSERT INTO n8n_config (client_id, webhook_url, api_key, enabled, last_sync)
+SELECT id, '', '', false, NULL FROM clients WHERE slug = 'black-wolf';
 
 -- ── Products (FBA Academy only) ──
 INSERT INTO products (client_id, name, price, active)
