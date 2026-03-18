@@ -20,7 +20,6 @@ import PaymentMethodsPage from './pages/PaymentMethodsPage'
 import ProductsPage from './pages/ProductsPage'
 import SettingsPage from './pages/SettingsPage'
 import CrmPage from './pages/CrmPage'
-import ColdCallDashboard from './pages/ColdCallDashboard'
 import CeoOverview from './pages/ceo-mind/CeoOverview'
 import CeoEquipo from './pages/ceo-mind/CeoEquipo'
 import CeoMeetings from './pages/ceo-mind/CeoMeetings'
@@ -180,8 +179,6 @@ export default function ClientApp() {
             <Route path="productos" element={isDirectorOrCeo ? <ProductsPage /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
             {/* CRM */}
             <Route path="crm" element={<CrmPage />} />
-            {/* Cold Call */}
-            <Route path="cold-call" element={<ColdCallDashboard />} />
             {/* CEO Mind — CEO only */}
             <Route path="ceo" element={isCeo ? <CeoOverview /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
             <Route path="ceo/equipo" element={isCeo ? <CeoEquipo /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />

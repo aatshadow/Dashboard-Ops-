@@ -5,11 +5,12 @@ import {
   Search, Plus, Settings, X, ChevronDown, GripVertical,
   Phone, Mail, Building2, User, Tag, Calendar, DollarSign,
   Clock, MessageSquare, Video, FileText, Trash2, Edit3,
-  Filter, LayoutGrid, List, Eye, Save, ChevronRight, Globe, Hash, CheckSquare, Link, MailIcon
+  Filter, LayoutGrid, List, Eye, Save, ChevronRight, Globe, Hash, CheckSquare, Link, MailIcon,
+  Palette, ArrowUp, ArrowDown
 } from 'lucide-react'
 
-// ─── Pipeline Statuses ─────────────────────────────────────────────────────────
-const STATUSES = [
+// ─── Pipeline Statuses (default) ─────────────────────────────────────────────
+const DEFAULT_STATUSES = [
   { key: 'lead',        label: 'Lead',         color: '#6B7280' },
   { key: 'contacted',   label: 'Contactado',   color: '#3B82F6' },
   { key: 'qualified',   label: 'Cualificado',  color: '#8B5CF6' },
@@ -18,8 +19,6 @@ const STATUSES = [
   { key: 'won',         label: 'Ganado',       color: '#22C55E' },
   { key: 'lost',        label: 'Perdido',      color: '#EF4444' },
 ]
-
-const STATUS_MAP = Object.fromEntries(STATUSES.map(s => [s.key, s]))
 
 const ACTIVITY_TYPES = [
   { key: 'call',    label: 'Llamada',  icon: Phone },
@@ -36,6 +35,12 @@ const FIELD_TYPE_ICONS = {
 const FIELD_TYPES = ['text', 'number', 'date', 'select', 'checkbox', 'url', 'email', 'phone', 'currency']
 
 const SOURCE_OPTIONS = ['Website', 'Referral', 'Social Media', 'Cold Call', 'Ad Campaign', 'Event', 'Other']
+
+const STAGE_COLORS = [
+  '#6B7280', '#3B82F6', '#8B5CF6', '#F59E0B', '#FF6B00',
+  '#22C55E', '#EF4444', '#EC4899', '#14B8A6', '#F97316',
+  '#06B6D4', '#A855F7', '#84CC16', '#E11D48',
+]
 
 const emptyContact = {
   name: '', email: '', phone: '', company: '', status: 'lead',
@@ -60,6 +65,9 @@ const fmtDateTime = (d) => {
   return new Date(d).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
+const generateFieldKey = (name) =>
+  name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+
 // ═════════════════════════════════════════════════════════════════════════════════
 // COMPONENT
 // ═════════════════════════════════════════════════════════════════════════════════
@@ -76,7 +84,21 @@ export default function CrmPage() {
   const [contacts, contactsLoading, refreshContacts] = useAsync(getCrmContacts, [])
   const [customFields, , refreshFields] = useAsync(getCrmCustomFields, [])
   const [smartViews, , refreshViews] = useAsync(getCrmSmartViews, [])
+  const [pipelines, , refreshPipelines] = useAsync(getCrmPipelines, [])
   const [team] = useAsync(getTeam, [])
+
+  // ─── Pipeline stages (from DB or defaults) ─────────────────────────────────
+  const STATUSES = useMemo(() => {
+    if (pipelines && pipelines.length > 0 && pipelines[0].stages) {
+      return pipelines[0].stages
+    }
+    return DEFAULT_STATUSES
+  }, [pipelines])
+
+  const STATUS_MAP = useMemo(() =>
+    Object.fromEntries(STATUSES.map(s => [s.key, s])),
+    [STATUSES]
+  )
 
   // ─── UI State ───────────────────────────────────────────────────────────────
   const [view, setView] = useState('kanban')
@@ -84,7 +106,7 @@ export default function CrmPage() {
   const [activeViewId, setActiveViewId] = useState(null)
   const [showNewContact, setShowNewContact] = useState(false)
   const [showCustomFields, setShowCustomFields] = useState(false)
-  const [showSmartViews, setShowSmartViews] = useState(false)
+  const [showPipelineEditor, setShowPipelineEditor] = useState(false)
   const [selectedContact, setSelectedContact] = useState(null)
   const [contactForm, setContactForm] = useState({ ...emptyContact })
   const [editingContact, setEditingContact] = useState(false)
@@ -92,9 +114,32 @@ export default function CrmPage() {
   const [sortDir, setSortDir] = useState('desc')
   const [draggedId, setDraggedId] = useState(null)
 
+  // ─── Inline Filters (independent of smart views) ────────────────────────────
+  const [inlineFilters, setInlineFilters] = useState({})
+
+  // ─── Smart View sidebar state ───────────────────────────────────────────────
+  const [svCreating, setSvCreating] = useState(false)
+  const [svEditing, setSvEditing] = useState(null)
+  const [svForm, setSvForm] = useState({ name: '', filters: {} })
+
   // ─── Smart View filtering ──────────────────────────────────────────────────
   const activeView = smartViews.find(v => v.id === activeViewId)
-  const activeFilters = activeView?.filters || {}
+
+  // When selecting a smart view, load its filters into inline filters
+  const selectSmartView = (id) => {
+    setActiveViewId(id)
+    if (id) {
+      const sv = smartViews.find(v => v.id === id)
+      if (sv?.filters) {
+        setInlineFilters({ ...sv.filters })
+      }
+    } else {
+      setInlineFilters({})
+    }
+  }
+
+  // Merge: inline filters always apply
+  const activeFilters = inlineFilters
 
   const filteredContacts = useMemo(() => {
     let list = [...contacts]
@@ -108,7 +153,7 @@ export default function CrmPage() {
         (c.phone || '').toLowerCase().includes(q)
       )
     }
-    // Smart view filters
+    // Inline filters
     if (activeFilters.status) list = list.filter(c => c.status === activeFilters.status)
     if (activeFilters.assigned_to) list = list.filter(c => c.assigned_to === activeFilters.assigned_to)
     if (activeFilters.source) list = list.filter(c => c.source === activeFilters.source)
@@ -139,7 +184,7 @@ export default function CrmPage() {
       const total = items.reduce((sum, c) => sum + (Number(c.dealValue) || 0), 0)
       return { ...s, items, total }
     })
-  }, [filteredContacts])
+  }, [filteredContacts, STATUSES])
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
   const handleSort = (col) => {
@@ -211,6 +256,43 @@ export default function CrmPage() {
     }
   }
 
+  // ─── Smart View Handlers ────────────────────────────────────────────────────
+  const svStartCreate = () => {
+    setSvForm({ name: '', filters: {} })
+    setSvCreating(true)
+    setSvEditing(null)
+  }
+
+  const svStartEdit = (v) => {
+    setSvForm({ name: v.name, filters: { ...(v.filters || {}) } })
+    setSvEditing(v.id)
+    setSvCreating(false)
+  }
+
+  const svHandleSave = async () => {
+    if (!svForm.name.trim()) return
+    try {
+      if (svEditing) {
+        await updateCrmSmartView(svEditing, svForm)
+      } else {
+        await addCrmSmartView(svForm)
+      }
+      refreshViews()
+      setSvCreating(false)
+      setSvEditing(null)
+      setSvForm({ name: '', filters: {} })
+    } catch (err) {
+      console.error('Error saving smart view:', err)
+    }
+  }
+
+  const svHandleDelete = async (id) => {
+    if (!confirm('¿Eliminar esta vista?')) return
+    await deleteCrmSmartView(id)
+    refreshViews()
+    if (activeViewId === id) selectSmartView(null)
+  }
+
   // ─── Drag & Drop ──────────────────────────────────────────────────────────
   const onDragStart = (e, contactId) => {
     setDraggedId(contactId)
@@ -231,6 +313,13 @@ export default function CrmPage() {
     await handleStatusChange(id, statusKey)
   }
 
+  // ─── Inline filter helpers ────────────────────────────────────────────────
+  const hasActiveFilters = Object.values(inlineFilters).some(v => v)
+  const clearInlineFilters = () => {
+    setInlineFilters({})
+    setActiveViewId(null)
+  }
+
   // ─── Loading ───────────────────────────────────────────────────────────────
   if (contactsLoading) {
     return (
@@ -249,7 +338,7 @@ export default function CrmPage() {
       {/* ─── Top Bar ──────────────────────────────────────────────────────── */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-        marginBottom: 24, padding: '0 0 16px', borderBottom: '1px solid var(--border)',
+        marginBottom: 0, padding: '0 0 16px', borderBottom: '1px solid var(--border)',
       }}>
         {/* View toggles */}
         <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
@@ -278,36 +367,6 @@ export default function CrmPage() {
             <List size={15} /> Lista
           </button>
         </div>
-
-        {/* Smart Views */}
-        <div style={{ position: 'relative' }}>
-          <button
-            onClick={() => setShowSmartViews(!showSmartViews)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
-              background: activeViewId ? 'rgba(255,107,0,.15)' : 'var(--bg-card)',
-              color: activeViewId ? 'var(--orange)' : 'var(--text-secondary)',
-              border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer',
-              fontSize: 13, fontWeight: 500,
-            }}
-          >
-            <Eye size={15} />
-            {activeView ? activeView.name : 'Smart Views'}
-            <ChevronDown size={14} />
-          </button>
-        </div>
-
-        {activeViewId && (
-          <button
-            onClick={() => setActiveViewId(null)}
-            style={{
-              padding: '4px 10px', fontSize: 11, background: 'rgba(239,68,68,.15)',
-              color: '#EF4444', border: 'none', borderRadius: 6, cursor: 'pointer',
-            }}
-          >
-            Limpiar filtro
-          </button>
-        )}
 
         {/* Search */}
         <div style={{
@@ -338,6 +397,7 @@ export default function CrmPage() {
               background: 'var(--bg-card)', color: 'var(--text-secondary)',
               border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', fontSize: 13,
             }}
+            title="Campos Personalizados"
           >
             <Settings size={15} />
           </button>
@@ -347,182 +407,408 @@ export default function CrmPage() {
         </div>
       </div>
 
-      {/* ─── Pipeline Summary ─────────────────────────────────────────── */}
-      <div style={{
-        display: 'flex', gap: 6, marginBottom: 20, overflowX: 'auto', paddingBottom: 4,
-      }}>
-        {STATUSES.map(s => {
-          const count = contacts.filter(c => c.status === s.key).length
-          return (
-            <div key={s.key} style={{
-              display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px',
-              background: 'var(--bg-card)', border: '1px solid var(--border)',
-              borderRadius: 20, fontSize: 12, whiteSpace: 'nowrap',
-            }}>
-              <span style={{
-                width: 8, height: 8, borderRadius: '50%', background: s.color,
-                display: 'inline-block', flexShrink: 0,
-              }} />
-              <span style={{ color: 'var(--text-secondary)' }}>{s.label}</span>
-              <span style={{ fontWeight: 700, color: 'var(--text)' }}>{count}</span>
-            </div>
-          )
-        })}
-      </div>
+      {/* ─── Main Layout: Sidebar + Content ──────────────────────────────── */}
+      <div style={{ display: 'flex', gap: 0, marginTop: 0 }}>
 
-      {/* ─── Kanban View ──────────────────────────────────────────────── */}
-      {view === 'kanban' && (
+        {/* ─── Smart Views Left Sidebar ──────────────────────────────────── */}
         <div style={{
-          display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 16,
-          minHeight: 'calc(100vh - 280px)',
+          width: 220, minWidth: 220, flexShrink: 0,
+          borderRight: '1px solid var(--border)',
+          display: 'flex', flexDirection: 'column',
+          height: 'calc(100vh - 160px)',
+          overflowY: 'auto',
+          background: 'rgba(255,255,255,.01)',
         }}>
-          {kanbanColumns.map(col => (
-            <div
-              key={col.key}
-              onDragOver={onDragOver}
-              onDrop={e => onDrop(e, col.key)}
+          {/* Header */}
+          <div style={{
+            padding: '14px 14px 10px', fontSize: 10, fontWeight: 700,
+            color: 'var(--text-secondary)', textTransform: 'uppercase',
+            letterSpacing: '1px',
+          }}>
+            Vistas
+          </div>
+
+          {/* All contacts */}
+          <SidebarViewItem
+            label="Todos los contactos"
+            icon={<Filter size={13} />}
+            active={!activeViewId}
+            onClick={() => selectSmartView(null)}
+            count={contacts.length}
+          />
+
+          {/* Divider */}
+          <div style={{ height: 1, background: 'var(--border)', margin: '4px 12px' }} />
+
+          {/* Smart views list */}
+          {smartViews.map(v => (
+            <SidebarViewItem
+              key={v.id}
+              label={v.name}
+              icon={<Eye size={13} />}
+              active={activeViewId === v.id}
+              onClick={() => selectSmartView(v.id)}
+              onEdit={() => svStartEdit(v)}
+              onDelete={() => svHandleDelete(v.id)}
+            />
+          ))}
+
+          {smartViews.length === 0 && !svCreating && (
+            <div style={{
+              padding: '16px 14px', fontSize: 11, color: 'var(--text-secondary)',
+              opacity: 0.5, textAlign: 'center',
+            }}>
+              Sin vistas guardadas
+            </div>
+          )}
+
+          {/* Inline Create/Edit Form */}
+          {(svCreating || svEditing) && (
+            <div style={{
+              margin: '4px 8px', padding: 10, background: 'rgba(255,107,0,.04)',
+              border: '1px solid rgba(255,107,0,.2)', borderRadius: 8,
+            }}>
+              <input
+                value={svForm.name}
+                onChange={e => setSvForm(p => ({ ...p, name: e.target.value }))}
+                placeholder="Nombre de la vista"
+                autoFocus
+                style={{
+                  width: '100%', padding: '6px 8px', background: 'var(--bg)',
+                  border: '1px solid var(--border)', borderRadius: 5, color: 'var(--text)',
+                  fontSize: 11, outline: 'none', boxSizing: 'border-box', marginBottom: 6,
+                }}
+              />
+              <div style={{ display: 'grid', gap: 4, marginBottom: 6 }}>
+                <select
+                  value={svForm.filters.status || ''}
+                  onChange={e => setSvForm(p => ({ ...p, filters: { ...p.filters, status: e.target.value || undefined } }))}
+                  style={svFilterSelectStyle}
+                >
+                  <option value="">Estado: Todos</option>
+                  {STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                </select>
+                <select
+                  value={svForm.filters.assigned_to || ''}
+                  onChange={e => setSvForm(p => ({ ...p, filters: { ...p.filters, assigned_to: e.target.value || undefined } }))}
+                  style={svFilterSelectStyle}
+                >
+                  <option value="">Asignado: Todos</option>
+                  {team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                </select>
+                <select
+                  value={svForm.filters.source || ''}
+                  onChange={e => setSvForm(p => ({ ...p, filters: { ...p.filters, source: e.target.value || undefined } }))}
+                  style={svFilterSelectStyle}
+                >
+                  <option value="">Fuente: Todas</option>
+                  {SOURCE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <input
+                  value={svForm.filters.tags || ''}
+                  onChange={e => setSvForm(p => ({ ...p, filters: { ...p.filters, tags: e.target.value || undefined } }))}
+                  placeholder="Filtrar por tag"
+                  style={{
+                    ...svFilterSelectStyle,
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button
+                  onClick={() => { setSvCreating(false); setSvEditing(null) }}
+                  style={{
+                    flex: 1, padding: '4px', background: 'transparent',
+                    border: '1px solid var(--border)', borderRadius: 4,
+                    cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 10,
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={svHandleSave}
+                  style={{
+                    flex: 1, padding: '4px', background: 'var(--orange)',
+                    color: '#000', border: 'none', borderRadius: 4,
+                    cursor: 'pointer', fontSize: 10, fontWeight: 700,
+                  }}
+                >
+                  {svEditing ? 'Guardar' : 'Crear'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Spacer */}
+          <div style={{ flex: 1 }} />
+
+          {/* + New view button */}
+          {!svCreating && !svEditing && (
+            <button
+              onClick={svStartCreate}
               style={{
-                minWidth: 280, maxWidth: 320, flex: '0 0 280px',
-                display: 'flex', flexDirection: 'column',
-                background: 'rgba(255,255,255,.02)', borderRadius: 12,
-                border: '1px solid var(--border)',
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '10px 14px', margin: '8px',
+                background: 'transparent', border: '1px dashed var(--border)',
+                borderRadius: 8, cursor: 'pointer', color: 'var(--text-secondary)',
+                fontSize: 12, fontWeight: 500, transition: 'all .15s',
+                width: 'calc(100% - 16px)', boxSizing: 'border-box',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.borderColor = 'var(--orange)'
+                e.currentTarget.style.color = 'var(--orange)'
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.borderColor = 'var(--border)'
+                e.currentTarget.style.color = 'var(--text-secondary)'
               }}
             >
-              {/* Column header */}
-              <div style={{
-                padding: '14px 16px 10px', display: 'flex', alignItems: 'center', gap: 8,
-                borderBottom: `2px solid ${col.color}`,
-              }}>
-                <span style={{
-                  width: 10, height: 10, borderRadius: '50%', background: col.color,
-                  flexShrink: 0,
-                }} />
-                <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', flex: 1 }}>
-                  {col.label}
-                </span>
-                <span style={{
-                  fontSize: 11, background: `${col.color}22`, color: col.color,
-                  padding: '2px 8px', borderRadius: 10, fontWeight: 700,
-                }}>
-                  {col.items.length}
-                </span>
-              </div>
-              {col.total > 0 && (
-                <div style={{
-                  padding: '6px 16px', fontSize: 11, color: 'var(--text-secondary)',
-                  borderBottom: '1px solid var(--border)',
-                }}>
-                  Total: {fmt(col.total)}
-                </div>
-              )}
+              <Plus size={13} /> Nueva vista
+            </button>
+          )}
+        </div>
 
-              {/* Cards */}
-              <div style={{ padding: 8, flex: 1, overflowY: 'auto' }}>
-                {col.items.length === 0 && (
+        {/* ─── Right Content Area ────────────────────────────────────────── */}
+        <div style={{ flex: 1, minWidth: 0, paddingLeft: 16, paddingTop: 16 }}>
+
+          {/* ─── Pipeline Summary Strip ──────────────────────────────────── */}
+          <div style={{
+            display: 'flex', gap: 6, marginBottom: 12, overflowX: 'auto', paddingBottom: 4,
+            alignItems: 'center',
+          }}>
+            {STATUSES.map(s => {
+              const count = contacts.filter(c => c.status === s.key).length
+              return (
+                <div key={s.key} style={{
+                  display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px',
+                  background: 'var(--bg-card)', border: '1px solid var(--border)',
+                  borderRadius: 20, fontSize: 12, whiteSpace: 'nowrap',
+                }}>
+                  <span style={{
+                    width: 8, height: 8, borderRadius: '50%', background: s.color,
+                    display: 'inline-block', flexShrink: 0,
+                  }} />
+                  <span style={{ color: 'var(--text-secondary)' }}>{s.label}</span>
+                  <span style={{ fontWeight: 700, color: 'var(--text)' }}>{count}</span>
+                </div>
+              )
+            })}
+            <button
+              onClick={() => setShowPipelineEditor(true)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px',
+                background: 'transparent', border: '1px solid var(--border)',
+                borderRadius: 20, cursor: 'pointer', color: 'var(--text-secondary)',
+                fontSize: 11, whiteSpace: 'nowrap', transition: 'all .15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--orange)'; e.currentTarget.style.color = 'var(--orange)' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+              title="Editar etapas del pipeline"
+            >
+              <Settings size={12} /> Editar
+            </button>
+          </div>
+
+          {/* ─── Inline Filters ──────────────────────────────────────────── */}
+          <div style={{
+            display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap',
+          }}>
+            <select
+              value={inlineFilters.status || ''}
+              onChange={e => setInlineFilters(p => ({ ...p, status: e.target.value || undefined }))}
+              style={inlineFilterStyle}
+            >
+              <option value="">Estado: Todos</option>
+              {STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+            </select>
+            <select
+              value={inlineFilters.assigned_to || ''}
+              onChange={e => setInlineFilters(p => ({ ...p, assigned_to: e.target.value || undefined }))}
+              style={inlineFilterStyle}
+            >
+              <option value="">Asignado: Todos</option>
+              {team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+            </select>
+            <select
+              value={inlineFilters.source || ''}
+              onChange={e => setInlineFilters(p => ({ ...p, source: e.target.value || undefined }))}
+              style={inlineFilterStyle}
+            >
+              <option value="">Fuente: Todas</option>
+              {SOURCE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            {hasActiveFilters && (
+              <button
+                onClick={clearInlineFilters}
+                style={{
+                  padding: '5px 12px', fontSize: 11, background: 'rgba(239,68,68,.12)',
+                  color: '#EF4444', border: '1px solid rgba(239,68,68,.25)', borderRadius: 6,
+                  cursor: 'pointer', fontWeight: 600,
+                }}
+              >
+                Limpiar filtros
+              </button>
+            )}
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginLeft: 4 }}>
+              {filteredContacts.length} contacto{filteredContacts.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+
+          {/* ─── Kanban View ──────────────────────────────────────────────── */}
+          {view === 'kanban' && (
+            <div style={{
+              display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 16,
+              minHeight: 'calc(100vh - 340px)',
+            }}>
+              {kanbanColumns.map(col => (
+                <div
+                  key={col.key}
+                  onDragOver={onDragOver}
+                  onDrop={e => onDrop(e, col.key)}
+                  style={{
+                    minWidth: 260, maxWidth: 300, flex: '0 0 260px',
+                    display: 'flex', flexDirection: 'column',
+                    background: 'rgba(255,255,255,.02)', borderRadius: 12,
+                    border: '1px solid var(--border)',
+                  }}
+                >
+                  {/* Column header */}
                   <div style={{
-                    padding: 24, textAlign: 'center', color: 'var(--text-secondary)',
-                    fontSize: 12, opacity: 0.5,
+                    padding: '14px 16px 10px', display: 'flex', alignItems: 'center', gap: 8,
+                    borderBottom: `2px solid ${col.color}`,
                   }}>
-                    Sin contactos
+                    <span style={{
+                      width: 10, height: 10, borderRadius: '50%', background: col.color,
+                      flexShrink: 0,
+                    }} />
+                    <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', flex: 1 }}>
+                      {col.label}
+                    </span>
+                    <span style={{
+                      fontSize: 11, background: `${col.color}22`, color: col.color,
+                      padding: '2px 8px', borderRadius: 10, fontWeight: 700,
+                    }}>
+                      {col.items.length}
+                    </span>
                   </div>
-                )}
-                {col.items.map(c => (
-                  <KanbanCard
-                    key={c.id}
-                    contact={c}
-                    onDragStart={onDragStart}
-                    onClick={() => openContact(c)}
-                    isDragging={draggedId === c.id}
-                  />
-                ))}
+                  {col.total > 0 && (
+                    <div style={{
+                      padding: '6px 16px', fontSize: 11, color: 'var(--text-secondary)',
+                      borderBottom: '1px solid var(--border)',
+                    }}>
+                      Total: {fmt(col.total)}
+                    </div>
+                  )}
+
+                  {/* Cards */}
+                  <div style={{ padding: 8, flex: 1, overflowY: 'auto' }}>
+                    {col.items.length === 0 && (
+                      <div style={{
+                        padding: 24, textAlign: 'center', color: 'var(--text-secondary)',
+                        fontSize: 12, opacity: 0.5,
+                      }}>
+                        Sin contactos
+                      </div>
+                    )}
+                    {col.items.map(c => (
+                      <KanbanCard
+                        key={c.id}
+                        contact={c}
+                        onDragStart={onDragStart}
+                        onClick={() => openContact(c)}
+                        isDragging={draggedId === c.id}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ─── List View ────────────────────────────────────────────────── */}
+          {view === 'list' && (
+            <div className="data-table">
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      {[
+                        { key: 'name', label: 'Nombre' },
+                        { key: 'email', label: 'Email' },
+                        { key: 'phone', label: 'Teléfono' },
+                        { key: 'company', label: 'Empresa' },
+                        { key: 'status', label: 'Estado' },
+                        { key: 'dealValue', label: 'Valor' },
+                        { key: 'assigned_to', label: 'Asignado' },
+                        { key: 'source', label: 'Fuente' },
+                        { key: 'last_activity', label: 'Últ. Actividad' },
+                        { key: 'created_at', label: 'Creado' },
+                      ].map(col => (
+                        <th
+                          key={col.key}
+                          onClick={() => handleSort(col.key)}
+                          style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+                        >
+                          {col.label}
+                          {sortCol === col.key && (
+                            <span style={{ marginLeft: 4, fontSize: 10 }}>
+                              {sortDir === 'asc' ? '▲' : '▼'}
+                            </span>
+                          )}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedContacts.length === 0 && (
+                      <tr>
+                        <td colSpan={10} style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>
+                          No hay contactos
+                        </td>
+                      </tr>
+                    )}
+                    {sortedContacts.map(c => (
+                      <tr
+                        key={c.id}
+                        onClick={() => openContact(c)}
+                        style={{ cursor: 'pointer', transition: 'background .15s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,.04)'}
+                        onMouseLeave={e => e.currentTarget.style.background = ''}
+                      >
+                        <td style={{ fontWeight: 600 }}>{c.name || '—'}</td>
+                        <td style={{ fontSize: 12 }}>{c.email || '—'}</td>
+                        <td style={{ fontSize: 12 }}>{c.phone || '—'}</td>
+                        <td>{c.company || '—'}</td>
+                        <td>
+                          <select
+                            value={c.status}
+                            onClick={e => e.stopPropagation()}
+                            onChange={e => handleStatusChange(c.id, e.target.value)}
+                            style={{
+                              background: `${STATUS_MAP[c.status]?.color || '#666'}22`,
+                              color: STATUS_MAP[c.status]?.color || '#999',
+                              border: `1px solid ${STATUS_MAP[c.status]?.color || '#666'}44`,
+                              borderRadius: 6, padding: '3px 8px', fontSize: 11,
+                              fontWeight: 600, cursor: 'pointer', outline: 'none',
+                            }}
+                          >
+                            {STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                          </select>
+                        </td>
+                        <td style={{ fontWeight: 600, color: 'var(--orange)' }}>{fmt(c.dealValue)}</td>
+                        <td style={{ fontSize: 12 }}>{c.assigned_to || '—'}</td>
+                        <td style={{ fontSize: 12 }}>{c.source || '—'}</td>
+                        <td style={{ fontSize: 12 }}>{fmtDate(c.last_activity)}</td>
+                        <td style={{ fontSize: 12 }}>{fmtDate(c.created_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
-          ))}
+          )}
         </div>
-      )}
-
-      {/* ─── List View ────────────────────────────────────────────────── */}
-      {view === 'list' && (
-        <div className="data-table">
-          <div className="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  {[
-                    { key: 'name', label: 'Nombre' },
-                    { key: 'email', label: 'Email' },
-                    { key: 'phone', label: 'Teléfono' },
-                    { key: 'company', label: 'Empresa' },
-                    { key: 'status', label: 'Estado' },
-                    { key: 'dealValue', label: 'Valor' },
-                    { key: 'assigned_to', label: 'Asignado' },
-                    { key: 'source', label: 'Fuente' },
-                    { key: 'last_activity', label: 'Últ. Actividad' },
-                    { key: 'created_at', label: 'Creado' },
-                  ].map(col => (
-                    <th
-                      key={col.key}
-                      onClick={() => handleSort(col.key)}
-                      style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
-                    >
-                      {col.label}
-                      {sortCol === col.key && (
-                        <span style={{ marginLeft: 4, fontSize: 10 }}>
-                          {sortDir === 'asc' ? '▲' : '▼'}
-                        </span>
-                      )}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {sortedContacts.length === 0 && (
-                  <tr>
-                    <td colSpan={10} style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>
-                      No hay contactos
-                    </td>
-                  </tr>
-                )}
-                {sortedContacts.map(c => (
-                  <tr
-                    key={c.id}
-                    onClick={() => openContact(c)}
-                    style={{ cursor: 'pointer', transition: 'background .15s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,.04)'}
-                    onMouseLeave={e => e.currentTarget.style.background = ''}
-                  >
-                    <td style={{ fontWeight: 600 }}>{c.name || '—'}</td>
-                    <td style={{ fontSize: 12 }}>{c.email || '—'}</td>
-                    <td style={{ fontSize: 12 }}>{c.phone || '—'}</td>
-                    <td>{c.company || '—'}</td>
-                    <td>
-                      <select
-                        value={c.status}
-                        onClick={e => e.stopPropagation()}
-                        onChange={e => handleStatusChange(c.id, e.target.value)}
-                        style={{
-                          background: `${STATUS_MAP[c.status]?.color || '#666'}22`,
-                          color: STATUS_MAP[c.status]?.color || '#999',
-                          border: `1px solid ${STATUS_MAP[c.status]?.color || '#666'}44`,
-                          borderRadius: 6, padding: '3px 8px', fontSize: 11,
-                          fontWeight: 600, cursor: 'pointer', outline: 'none',
-                        }}
-                      >
-                        {STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-                      </select>
-                    </td>
-                    <td style={{ fontWeight: 600, color: 'var(--orange)' }}>{fmt(c.dealValue)}</td>
-                    <td style={{ fontSize: 12 }}>{c.assigned_to || '—'}</td>
-                    <td style={{ fontSize: 12 }}>{c.source || '—'}</td>
-                    <td style={{ fontSize: 12 }}>{fmtDate(c.last_activity)}</td>
-                    <td style={{ fontSize: 12 }}>{fmtDate(c.created_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* ─── Contact Detail Sidebar ───────────────────────────────────── */}
       {selectedContact && (
@@ -530,6 +816,8 @@ export default function CrmPage() {
           contact={selectedContact}
           customFields={customFields}
           team={team}
+          statuses={STATUSES}
+          statusMap={STATUS_MAP}
           onClose={closeContact}
           onUpdate={handleUpdateContact}
           onDelete={handleDeleteContact}
@@ -542,18 +830,26 @@ export default function CrmPage() {
         />
       )}
 
-      {/* ─── Smart Views Panel ────────────────────────────────────────── */}
-      {showSmartViews && (
-        <SmartViewsPanel
-          views={smartViews}
-          activeViewId={activeViewId}
-          onSelect={(id) => { setActiveViewId(id); setShowSmartViews(false) }}
-          onClose={() => setShowSmartViews(false)}
-          onAdd={addCrmSmartView}
-          onUpdate={updateCrmSmartView}
-          onDelete={deleteCrmSmartView}
-          refresh={refreshViews}
-          team={team}
+      {/* ─── Pipeline Editor Modal ──────────────────────────────────────── */}
+      {showPipelineEditor && (
+        <PipelineEditorModal
+          statuses={STATUSES}
+          pipelines={pipelines}
+          onClose={() => setShowPipelineEditor(false)}
+          onSave={async (stages) => {
+            try {
+              if (pipelines && pipelines.length > 0) {
+                await updateCrmPipeline(pipelines[0].id, { stages })
+              } else {
+                await addCrmPipeline({ name: 'Default', stages })
+              }
+              refreshPipelines()
+              setShowPipelineEditor(false)
+            } catch (err) {
+              console.error('Error saving pipeline:', err)
+              alert('Error al guardar pipeline.')
+            }
+          }}
         />
       )}
 
@@ -576,9 +872,81 @@ export default function CrmPage() {
           setForm={setContactForm}
           customFields={customFields}
           team={team}
+          statuses={STATUSES}
           onClose={() => setShowNewContact(false)}
           onSave={handleSaveNewContact}
         />
+      )}
+    </div>
+  )
+}
+
+// ─── Inline filter dropdown style ───────────────────────────────────────────
+const inlineFilterStyle = {
+  padding: '6px 10px', background: 'var(--bg-card)',
+  border: '1px solid var(--border)', borderRadius: 6,
+  color: 'var(--text)', fontSize: 12, outline: 'none',
+  cursor: 'pointer', minWidth: 130,
+}
+
+const svFilterSelectStyle = {
+  width: '100%', padding: '5px 6px', background: 'var(--bg)',
+  border: '1px solid var(--border)', borderRadius: 4,
+  color: 'var(--text)', fontSize: 10, outline: 'none',
+}
+
+// ═════════════════════════════════════════════════════════════════════════════════
+// SIDEBAR VIEW ITEM
+// ═════════════════════════════════════════════════════════════════════════════════
+function SidebarViewItem({ label, icon, active, onClick, onEdit, onDelete, count }) {
+  const [hovered, setHovered] = useState(false)
+
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '8px 14px', cursor: 'pointer',
+        background: active ? 'rgba(255,107,0,.1)' : hovered ? 'rgba(255,255,255,.03)' : 'transparent',
+        borderLeft: active ? '3px solid var(--orange)' : '3px solid transparent',
+        transition: 'all .12s',
+      }}
+    >
+      <span style={{ color: active ? 'var(--orange)' : 'var(--text-secondary)', flexShrink: 0 }}>
+        {icon}
+      </span>
+      <span style={{
+        fontSize: 12, color: active ? 'var(--orange)' : 'var(--text)',
+        fontWeight: active ? 700 : 400, flex: 1,
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      }}>
+        {label}
+      </span>
+      {count !== undefined && (
+        <span style={{
+          fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600,
+          background: 'rgba(255,255,255,.05)', padding: '1px 6px', borderRadius: 8,
+        }}>
+          {count}
+        </span>
+      )}
+      {hovered && onEdit && (
+        <div style={{ display: 'flex', gap: 2 }} onClick={e => e.stopPropagation()}>
+          <button onClick={onEdit} style={{
+            padding: 3, background: 'transparent', border: 'none',
+            cursor: 'pointer', color: 'var(--text-secondary)', lineHeight: 1,
+          }}>
+            <Edit3 size={11} />
+          </button>
+          <button onClick={onDelete} style={{
+            padding: 3, background: 'transparent', border: 'none',
+            cursor: 'pointer', color: '#EF4444', lineHeight: 1,
+          }}>
+            <Trash2 size={11} />
+          </button>
+        </div>
       )}
     </div>
   )
@@ -659,10 +1027,13 @@ function KanbanCard({ contact, onDragStart, onClick, isDragging }) {
 // CONTACT SIDEBAR
 // ═════════════════════════════════════════════════════════════════════════════════
 function ContactSidebar({
-  contact, customFields, team, onClose, onUpdate, onDelete,
+  contact, customFields, team, statuses, statusMap, onClose, onUpdate, onDelete,
   onStatusChange, editing, setEditing,
   getCrmActivities, addCrmActivity, deleteCrmActivity,
 }) {
+  const STATUSES = statuses
+  const STATUS_MAP = statusMap
+
   const [activities, activitiesLoading, refreshActivities] = useAsync(
     useCallback(() => getCrmActivities(contact.id), [contact.id]),
     []
@@ -845,7 +1216,7 @@ function ContactSidebar({
                   </div>
                   <div style={{ display: 'grid', gap: 6 }}>
                     {customFields.map(f => {
-                      const val = contact.customFields?.[f.id || f.name]
+                      const val = contact.customFields?.[f.field_key || f.id || f.name]
                       if (val === undefined || val === '') return null
                       return (
                         <div key={f.id || f.name} style={{
@@ -940,10 +1311,10 @@ function ContactSidebar({
                   <CustomFieldInput
                     key={f.id || f.name}
                     field={f}
-                    value={editForm.customFields?.[f.id || f.name] || ''}
+                    value={editForm.customFields?.[f.field_key || f.id || f.name] || ''}
                     onChange={v => setEditForm(p => ({
                       ...p,
-                      customFields: { ...p.customFields, [f.id || f.name]: v },
+                      customFields: { ...p.customFields, [f.field_key || f.id || f.name]: v },
                     }))}
                   />
                 ))}
@@ -1205,230 +1576,177 @@ function CustomFieldInput({ field, value, onChange }) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════════
-// SMART VIEWS PANEL
+// PIPELINE EDITOR MODAL
 // ═════════════════════════════════════════════════════════════════════════════════
-function SmartViewsPanel({ views, activeViewId, onSelect, onClose, onAdd, onUpdate, onDelete, refresh, team }) {
-  const [creating, setCreating] = useState(false)
-  const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ name: '', filters: {} })
+function PipelineEditorModal({ statuses, onClose, onSave }) {
+  const [stages, setStages] = useState(() => statuses.map((s, i) => ({ ...s, position: i })))
 
-  const startCreate = () => {
-    setForm({ name: '', filters: {} })
-    setCreating(true)
-    setEditing(null)
+  const updateStage = (idx, field, value) => {
+    setStages(prev => prev.map((s, i) => i === idx ? { ...s, [field]: value } : s))
   }
 
-  const startEdit = (v) => {
-    setForm({ name: v.name, filters: { ...(v.filters || {}) } })
-    setEditing(v.id)
-    setCreating(false)
+  const moveStage = (idx, dir) => {
+    const newStages = [...stages]
+    const swapIdx = idx + dir
+    if (swapIdx < 0 || swapIdx >= newStages.length) return
+    ;[newStages[idx], newStages[swapIdx]] = [newStages[swapIdx], newStages[idx]]
+    setStages(newStages)
   }
 
-  const handleSave = async () => {
-    if (!form.name.trim()) return
-    try {
-      if (editing) {
-        await onUpdate(editing, form)
-      } else {
-        await onAdd(form)
-      }
-      refresh()
-      setCreating(false)
-      setEditing(null)
-      setForm({ name: '', filters: {} })
-    } catch (err) {
-      console.error('Error saving smart view:', err)
-    }
+  const addStage = () => {
+    const key = `stage_${Date.now()}`
+    setStages(prev => [...prev, { key, label: 'Nueva Etapa', color: '#6B7280' }])
   }
 
-  const handleDelete = async (id) => {
-    if (!confirm('¿Eliminar esta vista?')) return
-    await onDelete(id)
-    refresh()
-    if (activeViewId === id) onSelect(null)
+  const removeStage = (idx) => {
+    if (stages.length <= 2) return
+    setStages(prev => prev.filter((_, i) => i !== idx))
   }
 
   return (
     <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+      <div onClick={onClose} style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 1000,
+      }} />
       <div style={{
-        position: 'absolute', top: 70, left: 200, width: 380, maxHeight: 500,
-        background: 'var(--bg-card)', border: '1px solid var(--border)',
-        borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,.4)', zIndex: 999,
-        overflow: 'hidden', display: 'flex', flexDirection: 'column',
+        position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+        width: 520, maxWidth: '95vw', maxHeight: '80vh', background: 'var(--bg-card)',
+        border: '1px solid var(--border)', borderRadius: 14,
+        boxShadow: '0 12px 48px rgba(0,0,0,.5)', zIndex: 1001,
+        display: 'flex', flexDirection: 'column', overflow: 'hidden',
       }}>
+        {/* Header */}
         <div style={{
-          padding: '14px 16px', borderBottom: '1px solid var(--border)',
+          padding: '16px 20px', borderBottom: '1px solid var(--border)',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
-          <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>Smart Views</span>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={startCreate} style={{
-              padding: '4px 10px', background: 'var(--orange)', color: '#000',
-              border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 11, fontWeight: 700,
-              display: 'flex', alignItems: 'center', gap: 4,
-            }}>
-              <Plus size={12} /> Nueva
-            </button>
-            <button onClick={onClose} style={{
-              padding: '4px', background: 'transparent', border: 'none',
-              cursor: 'pointer', color: 'var(--text-secondary)',
-            }}>
-              <X size={16} />
-            </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Palette size={16} style={{ color: 'var(--orange)' }} />
+            <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)' }}>Etapas del Pipeline</span>
           </div>
+          <button onClick={onClose} style={{
+            padding: 4, background: 'transparent', border: 'none',
+            cursor: 'pointer', color: 'var(--text-secondary)',
+          }}>
+            <X size={18} />
+          </button>
         </div>
 
-        <div style={{ overflowY: 'auto', flex: 1 }}>
-          {/* All contacts option */}
-          <div
-            onClick={() => onSelect(null)}
-            style={{
-              padding: '10px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
-              background: !activeViewId ? 'rgba(255,107,0,.08)' : 'transparent',
+        {/* Body */}
+        <div style={{ overflowY: 'auto', flex: 1, padding: '12px 20px' }}>
+          {stages.map((stage, idx) => (
+            <div key={stage.key + idx} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0',
               borderBottom: '1px solid var(--border)',
-              transition: 'background .15s',
-            }}
-            onMouseEnter={e => !activeViewId || (e.currentTarget.style.background = 'rgba(255,255,255,.03)')}
-            onMouseLeave={e => e.currentTarget.style.background = !activeViewId ? 'rgba(255,107,0,.08)' : 'transparent'}
-          >
-            <Filter size={13} style={{ color: activeViewId ? 'var(--text-secondary)' : 'var(--orange)' }} />
-            <span style={{ fontSize: 13, color: !activeViewId ? 'var(--orange)' : 'var(--text)', fontWeight: !activeViewId ? 700 : 400 }}>
-              Todos los contactos
-            </span>
-          </div>
-
-          {views.map(v => (
-            <div key={v.id} style={{
-              padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8,
-              background: activeViewId === v.id ? 'rgba(255,107,0,.08)' : 'transparent',
-              borderBottom: '1px solid var(--border)', transition: 'background .15s',
             }}>
-              <div
-                onClick={() => onSelect(v.id)}
-                style={{ flex: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
-              >
-                <Eye size={13} style={{ color: activeViewId === v.id ? 'var(--orange)' : 'var(--text-secondary)' }} />
-                <span style={{ fontSize: 13, color: activeViewId === v.id ? 'var(--orange)' : 'var(--text)', fontWeight: activeViewId === v.id ? 700 : 400 }}>
-                  {v.name}
-                </span>
+              {/* Reorder buttons */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <button
+                  onClick={() => moveStage(idx, -1)}
+                  disabled={idx === 0}
+                  style={{
+                    padding: 0, background: 'transparent', border: 'none',
+                    cursor: idx === 0 ? 'default' : 'pointer',
+                    color: idx === 0 ? 'var(--border)' : 'var(--text-secondary)',
+                    fontSize: 10, lineHeight: 1,
+                  }}
+                >
+                  <ArrowUp size={12} />
+                </button>
+                <button
+                  onClick={() => moveStage(idx, 1)}
+                  disabled={idx === stages.length - 1}
+                  style={{
+                    padding: 0, background: 'transparent', border: 'none',
+                    cursor: idx === stages.length - 1 ? 'default' : 'pointer',
+                    color: idx === stages.length - 1 ? 'var(--border)' : 'var(--text-secondary)',
+                    fontSize: 10, lineHeight: 1,
+                  }}
+                >
+                  <ArrowDown size={12} />
+                </button>
               </div>
-              <button onClick={() => startEdit(v)} style={{
-                padding: 4, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)',
+
+              {/* Color picker */}
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="color"
+                  value={stage.color}
+                  onChange={e => updateStage(idx, 'color', e.target.value)}
+                  style={{
+                    width: 28, height: 28, padding: 0, border: '2px solid var(--border)',
+                    borderRadius: 6, cursor: 'pointer', background: 'transparent',
+                  }}
+                />
+              </div>
+
+              {/* Name input */}
+              <input
+                value={stage.label}
+                onChange={e => updateStage(idx, 'label', e.target.value)}
+                style={{
+                  flex: 1, padding: '6px 10px', background: 'var(--bg)',
+                  border: '1px solid var(--border)', borderRadius: 6,
+                  color: 'var(--text)', fontSize: 13, outline: 'none',
+                }}
+              />
+
+              {/* Key (read only) */}
+              <span style={{
+                fontSize: 10, color: 'var(--text-secondary)', fontFamily: 'monospace',
+                background: 'rgba(255,255,255,.03)', padding: '3px 6px', borderRadius: 4,
+                whiteSpace: 'nowrap',
               }}>
-                <Edit3 size={12} />
-              </button>
-              <button onClick={() => handleDelete(v.id)} style={{
-                padding: 4, background: 'transparent', border: 'none', cursor: 'pointer', color: '#EF4444',
-              }}>
-                <Trash2 size={12} />
+                {stage.key}
+              </span>
+
+              {/* Delete */}
+              <button
+                onClick={() => removeStage(idx)}
+                disabled={stages.length <= 2}
+                style={{
+                  padding: 4, background: 'transparent', border: 'none',
+                  cursor: stages.length <= 2 ? 'default' : 'pointer',
+                  color: stages.length <= 2 ? 'var(--border)' : '#EF4444',
+                }}
+              >
+                <Trash2 size={13} />
               </button>
             </div>
           ))}
 
-          {views.length === 0 && !creating && (
-            <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 12 }}>
-              No hay vistas guardadas
-            </div>
-          )}
+          <button
+            onClick={addStage}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, marginTop: 12,
+              padding: '8px 14px', background: 'transparent',
+              border: '1px dashed var(--border)', borderRadius: 8,
+              cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 12,
+              width: '100%', justifyContent: 'center',
+            }}
+          >
+            <Plus size={14} /> Añadir etapa
+          </button>
+        </div>
 
-          {/* Create / Edit Form */}
-          {(creating || editing) && (
-            <div style={{ padding: 16, borderTop: '1px solid var(--border)', background: 'rgba(255,255,255,.02)' }}>
-              <div style={{ marginBottom: 10 }}>
-                <label style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: 4 }}>
-                  Nombre de la vista
-                </label>
-                <input
-                  value={form.name}
-                  onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-                  placeholder="Ej: Leads Calientes"
-                  style={{
-                    width: '100%', padding: '7px 10px', background: 'var(--bg)',
-                    border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)',
-                    fontSize: 12, outline: 'none', boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-                <div>
-                  <label style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Estado</label>
-                  <select
-                    value={form.filters.status || ''}
-                    onChange={e => setForm(p => ({ ...p, filters: { ...p.filters, status: e.target.value || undefined } }))}
-                    style={{
-                      width: '100%', padding: '6px 8px', background: 'var(--bg)',
-                      border: '1px solid var(--border)', borderRadius: 5, color: 'var(--text)', fontSize: 11,
-                    }}
-                  >
-                    <option value="">Todos</option>
-                    {STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Asignado</label>
-                  <select
-                    value={form.filters.assigned_to || ''}
-                    onChange={e => setForm(p => ({ ...p, filters: { ...p.filters, assigned_to: e.target.value || undefined } }))}
-                    style={{
-                      width: '100%', padding: '6px 8px', background: 'var(--bg)',
-                      border: '1px solid var(--border)', borderRadius: 5, color: 'var(--text)', fontSize: 11,
-                    }}
-                  >
-                    <option value="">Todos</option>
-                    {team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Fuente</label>
-                  <select
-                    value={form.filters.source || ''}
-                    onChange={e => setForm(p => ({ ...p, filters: { ...p.filters, source: e.target.value || undefined } }))}
-                    style={{
-                      width: '100%', padding: '6px 8px', background: 'var(--bg)',
-                      border: '1px solid var(--border)', borderRadius: 5, color: 'var(--text)', fontSize: 11,
-                    }}
-                  >
-                    <option value="">Todas</option>
-                    {SOURCE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Tag</label>
-                  <input
-                    value={form.filters.tags || ''}
-                    onChange={e => setForm(p => ({ ...p, filters: { ...p.filters, tags: e.target.value || undefined } }))}
-                    placeholder="Filtrar por tag"
-                    style={{
-                      width: '100%', padding: '6px 8px', background: 'var(--bg)',
-                      border: '1px solid var(--border)', borderRadius: 5, color: 'var(--text)', fontSize: 11,
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                <button
-                  onClick={() => { setCreating(false); setEditing(null) }}
-                  style={{
-                    padding: '5px 12px', background: 'transparent', border: '1px solid var(--border)',
-                    borderRadius: 5, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 11,
-                  }}
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleSave}
-                  style={{
-                    padding: '5px 12px', background: 'var(--orange)', color: '#000',
-                    border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 11, fontWeight: 700,
-                  }}
-                >
-                  {editing ? 'Actualizar' : 'Crear'}
-                </button>
-              </div>
-            </div>
-          )}
+        {/* Footer */}
+        <div style={{
+          padding: '12px 20px', borderTop: '1px solid var(--border)',
+          display: 'flex', gap: 8, justifyContent: 'flex-end',
+        }}>
+          <button onClick={onClose} style={{
+            padding: '8px 18px', background: 'var(--bg)', border: '1px solid var(--border)',
+            borderRadius: 6, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 13,
+          }}>
+            Cancelar
+          </button>
+          <button
+            onClick={() => onSave(stages)}
+            className="btn-action"
+            style={{ padding: '8px 18px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <Save size={14} /> Guardar
+          </button>
         </div>
       </div>
     </>
@@ -1461,8 +1779,10 @@ function CustomFieldsModal({ fields, onClose, onAdd, onUpdate, onDelete, refresh
 
   const handleSave = async () => {
     if (!form.name.trim()) return
+    const fieldKey = generateFieldKey(form.name)
     const payload = {
       name: form.name,
+      field_key: fieldKey,
       type: form.type,
       position: form.position,
       options: form.type === 'select' ? form.options.split(',').map(o => o.trim()).filter(Boolean) : [],
@@ -1590,7 +1910,8 @@ function CustomFieldsModal({ fields, onClose, onAdd, onUpdate, onDelete, refresh
                       <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>{f.name}</div>
                       <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
                         {f.type}
-                        {f.type === 'select' && f.options?.length > 0 && ` (${f.options.join(', ')})`}
+                        {f.field_key && <span style={{ fontFamily: 'monospace', marginLeft: 6, opacity: 0.6 }}>({f.field_key})</span>}
+                        {f.type === 'select' && f.options?.length > 0 && ` — ${f.options.join(', ')}`}
                       </div>
                     </div>
                     <button onClick={() => startEdit(f)} style={{
@@ -1630,9 +1951,11 @@ function CustomFieldsModal({ fields, onClose, onAdd, onUpdate, onDelete, refresh
 
 // ─── Field Form (used inside Custom Fields Modal) ──────────────────────────────
 function FieldForm({ form, setForm, onSave, onCancel, isEdit }) {
+  const fieldKey = generateFieldKey(form.name)
+
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
         <div>
           <label style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: 3 }}>
             Nombre del campo
@@ -1667,6 +1990,11 @@ function FieldForm({ form, setForm, onSave, onCancel, isEdit }) {
           </select>
         </div>
       </div>
+      {form.name && (
+        <div style={{ marginBottom: 8, fontSize: 10, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+          field_key: <span style={{ color: 'var(--orange)' }}>{fieldKey}</span>
+        </div>
+      )}
       {form.type === 'select' && (
         <div style={{ marginBottom: 10 }}>
           <label style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: 3 }}>
@@ -1705,7 +2033,9 @@ function FieldForm({ form, setForm, onSave, onCancel, isEdit }) {
 // ═════════════════════════════════════════════════════════════════════════════════
 // NEW CONTACT MODAL
 // ═════════════════════════════════════════════════════════════════════════════════
-function NewContactModal({ form, setForm, customFields, team, onClose, onSave }) {
+function NewContactModal({ form, setForm, customFields, team, statuses, onClose, onSave }) {
+  const STATUSES = statuses || DEFAULT_STATUSES
+
   return (
     <>
       <div onClick={onClose} style={{
@@ -1914,10 +2244,10 @@ function NewContactModal({ form, setForm, customFields, team, onClose, onSave })
                   <CustomFieldInput
                     key={f.id || f.name}
                     field={f}
-                    value={form.customFields?.[f.id || f.name] || ''}
+                    value={form.customFields?.[f.field_key || f.id || f.name] || ''}
                     onChange={v => setForm(p => ({
                       ...p,
-                      customFields: { ...p.customFields, [f.id || f.name]: v },
+                      customFields: { ...p.customFields, [f.field_key || f.id || f.name]: v },
                     }))}
                   />
                 ))}

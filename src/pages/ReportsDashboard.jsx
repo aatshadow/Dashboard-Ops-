@@ -61,12 +61,14 @@ export default function ReportsDashboard() {
   const [datePreset, setDatePreset] = useState('thisMonth')
   const [setterFilter, setSetterFilter] = useState('')
   const [closerFilter, setCloserFilter] = useState('')
+  const [coldCallerFilter, setColdCallerFilter] = useState('')
   const [productFilter, setProductFilter] = useState('')
   const [flippedCards, setFlippedCards] = useState(new Set())
 
   // Available filter options
   const setterNames = [...new Set(allReports.filter(r => r.role === 'setter').map(r => r.name))]
   const closerNames = [...new Set(allReports.filter(r => r.role === 'closer').map(r => r.name))]
+  const coldCallerNames = [...new Set(allReports.filter(r => r.role === 'cold_caller').map(r => r.name))]
   const products = [...new Set(allSales.map(s => s.product))]
 
   const range = getDateRange(datePreset)
@@ -85,11 +87,15 @@ export default function ReportsDashboard() {
   const closers = currentReports.filter(r => r.role === 'closer' && (!closerFilter || r.name === closerFilter))
   const prevSetters = prevReportsAll.filter(r => r.role === 'setter' && (!setterFilter || r.name === setterFilter))
   const prevClosers = prevReportsAll.filter(r => r.role === 'closer' && (!closerFilter || r.name === closerFilter))
+  const coldCallers = currentReports.filter(r => r.role === 'cold_caller' && (!coldCallerFilter || r.name === coldCallerFilter))
+  const prevColdCallers = prevReportsAll.filter(r => r.role === 'cold_caller' && (!coldCallerFilter || r.name === coldCallerFilter))
 
-  // Section visibility: selecting only one hides the other
-  const showSetters = !closerFilter || setterFilter
-  const showClosers = !setterFilter || closerFilter
-  const showLeaderboards = !setterFilter && !closerFilter
+  // Section visibility: selecting only one hides the others
+  const anyFilterSet = !!(setterFilter || closerFilter || coldCallerFilter)
+  const showSetters = !anyFilterSet || !!setterFilter
+  const showClosers = !anyFilterSet || !!closerFilter
+  const showColdCallers = !anyFilterSet || !!coldCallerFilter
+  const showLeaderboards = !anyFilterSet
 
   /* ════════════ SETTER METRICS ════════════ */
   const totalConvos = setters.reduce((s, r) => s + r.conversationsOpened, 0)
@@ -133,6 +139,26 @@ export default function ReportsDashboard() {
   const prevCloserOfertaRate = prevCalls ? Math.round(prevCloserOffers / prevCalls * 100) : 0
   const prevCloseRate = prevCalls ? Math.round(prevCloses / prevCalls * 100) : 0
 
+  /* ════════════ COLD CALLER METRICS ════════════ */
+  const totalCCDeals = coldCallers.reduce((s, r) => s + r.deals, 0)
+  const totalCCPickUps = coldCallers.reduce((s, r) => s + r.pickUps, 0)
+  const totalCCOffers = coldCallers.reduce((s, r) => s + r.offers, 0)
+  const totalCCScheduleCalls = coldCallers.reduce((s, r) => s + r.scheduleCalls, 0)
+
+  const prevCCDeals = prevColdCallers.reduce((s, r) => s + r.deals, 0)
+  const prevCCPickUps = prevColdCallers.reduce((s, r) => s + r.pickUps, 0)
+  const prevCCOffers = prevColdCallers.reduce((s, r) => s + r.offers, 0)
+  const prevCCScheduleCalls = prevColdCallers.reduce((s, r) => s + r.scheduleCalls, 0)
+
+  // Cold caller ratios
+  const ccPickUpRate = totalCCDeals ? Math.round(totalCCPickUps / totalCCDeals * 100) : 0
+  const ccOffersPickUps = totalCCPickUps ? Math.round(totalCCOffers / totalCCPickUps * 100) : 0
+  const ccAgendasPickUps = totalCCPickUps ? Math.round(totalCCScheduleCalls / totalCCPickUps * 100) : 0
+
+  const prevCCPickUpRate = prevCCDeals ? Math.round(prevCCPickUps / prevCCDeals * 100) : 0
+  const prevCCOffersPickUps = prevCCPickUps ? Math.round(prevCCOffers / prevCCPickUps * 100) : 0
+  const prevCCAgendasPickUps = prevCCPickUps ? Math.round(prevCCScheduleCalls / prevCCPickUps * 100) : 0
+
   /* ════════════ DAILY DATA (for sparklines & charts) ════════════ */
   // Setter daily
   const setterDailyMap = setters.reduce((acc, r) => {
@@ -171,6 +197,24 @@ export default function ReportsDashboard() {
       closeRate: d.llamadas ? Math.round(d.cierres / d.llamadas * 100) : 0,
     }))
 
+  // Cold caller daily
+  const ccDailyMap = coldCallers.reduce((acc, r) => {
+    if (!acc[r.date]) acc[r.date] = { date: r.date, deals: 0, pickUps: 0, offers: 0, scheduleCalls: 0 }
+    acc[r.date].deals += r.deals
+    acc[r.date].pickUps += r.pickUps
+    acc[r.date].offers += r.offers
+    acc[r.date].scheduleCalls += r.scheduleCalls
+    return acc
+  }, {})
+  const ccDaily = Object.values(ccDailyMap)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map(d => ({
+      ...d,
+      pickUpRate: d.deals ? Math.round(d.pickUps / d.deals * 100) : 0,
+      offersPickUpsRate: d.pickUps ? Math.round(d.offers / d.pickUps * 100) : 0,
+      agendasPickUpsRate: d.pickUps ? Math.round(d.scheduleCalls / d.pickUps * 100) : 0,
+    }))
+
   /* ════════════ BY PERSON (for bar charts) ════════════ */
   const setterByPerson = Object.values(setters.reduce((acc, r) => {
     if (!acc[r.name]) acc[r.name] = { name: r.name, conversaciones: 0, followUps: 0, ofertas: 0, agendas: 0 }
@@ -186,6 +230,15 @@ export default function ReportsDashboard() {
     acc[r.name].llamadas += r.callsMade
     acc[r.name].ofertas += r.offersLaunched
     acc[r.name].cierres += r.closes
+    return acc
+  }, {}))
+
+  const ccByPerson = Object.values(coldCallers.reduce((acc, r) => {
+    if (!acc[r.name]) acc[r.name] = { name: r.name, deals: 0, pickUps: 0, offers: 0, scheduleCalls: 0 }
+    acc[r.name].deals += r.deals
+    acc[r.name].pickUps += r.pickUps
+    acc[r.name].offers += r.offers
+    acc[r.name].scheduleCalls += r.scheduleCalls
     return acc
   }, {}))
 
@@ -209,6 +262,17 @@ export default function ReportsDashboard() {
       const volNorm = d.conversaciones / maxConvos * 100
       const score = br * 0.6 + volNorm * 0.4
       return { ...d, bookingRate: Math.round(br), score: Math.round(score) }
+    }).sort((a, b) => b.score - a.score)
+  })()
+
+  const ccLeaderboard = (() => {
+    if (ccByPerson.length === 0) return []
+    const maxDeals = Math.max(...ccByPerson.map(d => d.deals), 1)
+    return ccByPerson.map(d => {
+      const pur = d.deals ? (d.pickUps / d.deals * 100) : 0
+      const volNorm = d.deals / maxDeals * 100
+      const score = pur * 0.6 + volNorm * 0.4
+      return { ...d, pickUpRate: Math.round(pur), score: Math.round(score) }
     }).sort((a, b) => b.score - a.score)
   })()
 
@@ -239,6 +303,7 @@ export default function ReportsDashboard() {
           <>
             <FilterSelect label="Setter" value={setterFilter} onChange={setSetterFilter} options={setterNames} />
             <FilterSelect label="Closer" value={closerFilter} onChange={setCloserFilter} options={closerNames} />
+            <FilterSelect label="Cold Caller" value={coldCallerFilter} onChange={setColdCallerFilter} options={coldCallerNames} />
             <FilterSelect label="Producto" value={productFilter} onChange={setProductFilter} options={products} />
           </>
         }
@@ -310,6 +375,39 @@ export default function ReportsDashboard() {
                 </div>
               ))}
               {setterLeaderboard.length === 0 && <div className="leaderboard-empty">Sin datos en este período</div>}
+            </div>
+          </div>
+
+          <div className="leaderboard-card">
+            <div className="leaderboard-header">
+              <span className="leaderboard-trophy">🏆</span>
+              <div>
+                <h3 className="leaderboard-title">Leaderboard Cold Callers</h3>
+                <p className="leaderboard-subtitle">Score = Pick Up Rate (60%) + Volumen (40%)</p>
+              </div>
+            </div>
+            <div className="leaderboard-list">
+              {ccLeaderboard.map((c, i) => (
+                <div key={c.name} className={`leaderboard-row ${i === 0 ? 'leaderboard-row--first' : ''}`}>
+                  <div className="leaderboard-rank">{medals[i] || `#${i + 1}`}</div>
+                  <div className="leaderboard-avatar">{c.name.charAt(0)}</div>
+                  <div className="leaderboard-info">
+                    <div className="leaderboard-name">{c.name}</div>
+                    <div className="leaderboard-stats">{c.deals} deals &middot; {c.pickUps} pick ups &middot; {c.offers} ofertas</div>
+                  </div>
+                  <div className="leaderboard-metrics">
+                    <div className="leaderboard-metric-main">{c.pickUpRate}%</div>
+                    <div className="leaderboard-metric-label">pick up rate</div>
+                  </div>
+                  <div className="leaderboard-score">
+                    <div className="leaderboard-score-bar">
+                      <div className="leaderboard-score-fill" style={{ width: `${c.score}%`, background: '#6366F1' }} />
+                    </div>
+                    <span className="leaderboard-score-num">{c.score}</span>
+                  </div>
+                </div>
+              ))}
+              {ccLeaderboard.length === 0 && <div className="leaderboard-empty">Sin datos en este período</div>}
             </div>
           </div>
         </div>
@@ -557,6 +655,155 @@ export default function ReportsDashboard() {
                       <td>{totVentas}</td>
                       <td>€{fmt(totRev)}</td>
                       <td style={{color:'#4ade80'}}>€{fmt(totCash)}</td>
+                    </tr>
+                  )]
+                })()}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {/* ═══════════ COLD CALLERS ═══════════ */}
+      {showColdCallers && (
+        <>
+          <div className="section-label-dash">Cold Callers</div>
+          <div className="stats-grid stats-grid--4">
+            <FlipStatCard id="cc-deals" icon="📋" value={totalCCDeals} label="Deals"
+              compClass={dc(totalCCDeals, prevCCDeals)} compText={ct(totalCCDeals, prevCCDeals)}
+              flipped={flippedCards.has('cc-deals')} onFlip={toggleFlip}
+              sparkData={ccDaily} sparkKey="deals" color="#6366F1" />
+            <FlipStatCard id="cc-pickups" icon="📞" value={totalCCPickUps} label="Pick Ups"
+              compClass={dc(totalCCPickUps, prevCCPickUps)} compText={ct(totalCCPickUps, prevCCPickUps)}
+              flipped={flippedCards.has('cc-pickups')} onFlip={toggleFlip}
+              sparkData={ccDaily} sparkKey="pickUps" color="#818CF8" />
+            <FlipStatCard id="cc-offers" icon="📨" value={totalCCOffers} label="Ofertas"
+              compClass={dc(totalCCOffers, prevCCOffers)} compText={ct(totalCCOffers, prevCCOffers)}
+              flipped={flippedCards.has('cc-offers')} onFlip={toggleFlip}
+              sparkData={ccDaily} sparkKey="offers" color="#A78BFA" />
+            <FlipStatCard id="cc-schedule" icon="📅" value={totalCCScheduleCalls} label="Schedule Calls"
+              compClass={dc(totalCCScheduleCalls, prevCCScheduleCalls)} compText={ct(totalCCScheduleCalls, prevCCScheduleCalls)}
+              flipped={flippedCards.has('cc-schedule')} onFlip={toggleFlip}
+              sparkData={ccDaily} sparkKey="scheduleCalls" color="#C4B5FD" />
+          </div>
+
+          <div className="section-label-dash" style={{marginTop: 8}}>Ratios Cold Callers</div>
+          <div className="stats-grid stats-grid--3">
+            <FlipStatCard id="cc-pickUpRate" icon="📊" value={`${ccPickUpRate}%`} label="Pick Up Rate"
+              sub={`${totalCCPickUps}/${totalCCDeals}`}
+              compClass={dc(ccPickUpRate, prevCCPickUpRate)} compText={ct(ccPickUpRate, prevCCPickUpRate, '%')}
+              flipped={flippedCards.has('cc-pickUpRate')} onFlip={toggleFlip}
+              sparkData={ccDaily} sparkKey="pickUpRate" color="#6366F1" />
+            <FlipStatCard id="cc-offersPickUps" icon="📊" value={`${ccOffersPickUps}%`} label="% Ofertas / Pick Ups"
+              sub={`${totalCCOffers}/${totalCCPickUps}`}
+              compClass={dc(ccOffersPickUps, prevCCOffersPickUps)} compText={ct(ccOffersPickUps, prevCCOffersPickUps, '%')}
+              flipped={flippedCards.has('cc-offersPickUps')} onFlip={toggleFlip}
+              sparkData={ccDaily} sparkKey="offersPickUpsRate" color="#818CF8" />
+            <FlipStatCard id="cc-agendasPickUps" icon="🎯" value={`${ccAgendasPickUps}%`} label="% Agendas / Pick Ups"
+              sub={`${totalCCScheduleCalls}/${totalCCPickUps}`}
+              compClass={dc(ccAgendasPickUps, prevCCAgendasPickUps)} compText={ct(ccAgendasPickUps, prevCCAgendasPickUps, '%')}
+              flipped={flippedCards.has('cc-agendasPickUps')} onFlip={toggleFlip}
+              sparkData={ccDaily} sparkKey="agendasPickUpsRate" color="#A78BFA" />
+          </div>
+
+          <div className="charts-grid">
+            <div className="chart-card">
+              <h3 className="chart-title">Actividad Cold Callers por día</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={ccDaily} barGap={2}>
+                  <XAxis dataKey="date" stroke="#666" fontSize={13} tickFormatter={d => d.slice(5)} />
+                  <YAxis stroke="#666" fontSize={13} />
+                  <Tooltip contentStyle={{ background: '#111', border: '1px solid #1f1f1f', borderRadius: 8, color: '#fff', fontSize: 13 }} />
+                  <Bar dataKey="deals" fill="#6366F1" radius={[4,4,0,0]} />
+                  <Bar dataKey="pickUps" fill="#818CF8" radius={[4,4,0,0]} />
+                  <Bar dataKey="offers" fill="#A78BFA" radius={[4,4,0,0]} />
+                  <Bar dataKey="scheduleCalls" fill="#C4B5FD" radius={[4,4,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+              <div className="chart-legend">
+                <span><span className="legend-dot" style={{background:'#6366F1'}} /> Deals</span>
+                <span><span className="legend-dot" style={{background:'#818CF8'}} /> Pick Ups</span>
+                <span><span className="legend-dot" style={{background:'#A78BFA'}} /> Ofertas</span>
+                <span><span className="legend-dot" style={{background:'#C4B5FD'}} /> Schedule Calls</span>
+              </div>
+            </div>
+            <div className="chart-card">
+              <h3 className="chart-title">Rendimiento por Cold Caller</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={ccByPerson} barGap={4}>
+                  <XAxis dataKey="name" stroke="#666" fontSize={13} />
+                  <YAxis stroke="#666" fontSize={13} />
+                  <Tooltip contentStyle={{ background: '#111', border: '1px solid #1f1f1f', borderRadius: 8, color: '#fff', fontSize: 13 }} />
+                  <Bar dataKey="deals" fill="#6366F1" radius={[4,4,0,0]} />
+                  <Bar dataKey="pickUps" fill="#818CF8" radius={[4,4,0,0]} />
+                  <Bar dataKey="offers" fill="#A78BFA" radius={[4,4,0,0]} />
+                  <Bar dataKey="scheduleCalls" fill="#C4B5FD" radius={[4,4,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+              <div className="chart-legend">
+                <span><span className="legend-dot" style={{background:'#6366F1'}} /> Deals</span>
+                <span><span className="legend-dot" style={{background:'#818CF8'}} /> Pick Ups</span>
+                <span><span className="legend-dot" style={{background:'#A78BFA'}} /> Ofertas</span>
+                <span><span className="legend-dot" style={{background:'#C4B5FD'}} /> Schedule Calls</span>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ═══ RESUMEN POR COLD CALLER ═══ */}
+      {showColdCallers && (
+        <>
+          <div className="section-label-dash" style={{marginTop: 24}}>Resumen por Cold Caller</div>
+          <div className="table-wrapper" style={{ marginBottom: 28 }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Deals</th>
+                  <th>Pick Ups</th>
+                  <th>Ofertas</th>
+                  <th>Schedule Calls</th>
+                  <th>Pick Up Rate</th>
+                  <th>% Ofertas/PU</th>
+                  <th>% Agendas/PU</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(() => {
+                  if (ccByPerson.length === 0) return <tr><td colSpan={8} style={{textAlign:'center',opacity:.5}}>Sin datos</td></tr>
+                  let totD = 0, totP = 0, totO = 0, totS = 0
+                  const rows = ccByPerson.map(c => {
+                    const pur = c.deals ? Math.round(c.pickUps / c.deals * 100) : 0
+                    const opr = c.pickUps ? Math.round(c.offers / c.pickUps * 100) : 0
+                    const apr = c.pickUps ? Math.round(c.scheduleCalls / c.pickUps * 100) : 0
+                    totD += c.deals; totP += c.pickUps; totO += c.offers; totS += c.scheduleCalls
+                    return (
+                      <tr key={c.name}>
+                        <td><strong>{c.name}</strong></td>
+                        <td>{c.deals}</td>
+                        <td>{c.pickUps}</td>
+                        <td>{c.offers}</td>
+                        <td>{c.scheduleCalls}</td>
+                        <td>{pur}%</td>
+                        <td>{opr}%</td>
+                        <td>{apr}%</td>
+                      </tr>
+                    )
+                  })
+                  const totPUR = totD ? Math.round(totP / totD * 100) : 0
+                  const totOPR = totP ? Math.round(totO / totP * 100) : 0
+                  const totAPR = totP ? Math.round(totS / totP * 100) : 0
+                  return [...rows, (
+                    <tr key="_total" style={{fontWeight: 700, borderTop: '2px solid #333'}}>
+                      <td>TOTAL</td>
+                      <td>{totD}</td>
+                      <td>{totP}</td>
+                      <td>{totO}</td>
+                      <td>{totS}</td>
+                      <td>{totPUR}%</td>
+                      <td>{totOPR}%</td>
+                      <td>{totAPR}%</td>
                     </tr>
                   )]
                 })()}
