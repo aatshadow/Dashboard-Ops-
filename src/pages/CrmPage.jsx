@@ -67,7 +67,7 @@ const FILTER_OPS = [
 const emptyContact = {
   name: '', email: '', phone: '', company: '', status: 'lead',
   dealValue: '', assigned_to: '', source: '', tags: '', notes: '',
-  address: '', whatsapp: '', zoom_link: '', website: '', linkedin: '',
+  address: '', whatsapp: '', zoom_link: '', website: '', instagram: '',
   pipelineId: '', customFields: {},
 }
 
@@ -200,7 +200,7 @@ export default function CrmPage() {
   const allFilterFields = useMemo(() => [
     ...FILTER_FIELDS,
     ...(customFields || []).map(f => ({
-      key: `cf_${f.field_key || f.id}`, label: f.name, type: CF_TYPE_MAP[f.type] || 'text',
+      key: `cf_${f.fieldKey || f.field_key || f.id}`, label: f.name, type: CF_TYPE_MAP[f.fieldType || f.type] || 'text',
       cfOptions: f.options,
     })),
   ], [customFields])
@@ -290,7 +290,7 @@ export default function CrmPage() {
       tags: fd.get('tags'), notes: fd.get('notes'),
       address: fd.get('address'), whatsapp: fd.get('whatsapp'),
       zoom_link: fd.get('zoom_link'), website: fd.get('website'),
-      linkedin: fd.get('linkedin'),
+      instagram: fd.get('instagram'),
       pipelineId: activePipeline?.id || '',
       customFields: {},
     }
@@ -786,7 +786,6 @@ export default function CrmPage() {
           onStatusChange={handleStatusChange}
           getCrmActivities={getCrmActivities} addCrmActivity={addCrmActivity} deleteCrmActivity={deleteCrmActivity}
           getCrmFiles={getCrmFiles} addCrmFile={addCrmFile} deleteCrmFile={deleteCrmFile}
-          getCrmTasks={getCrmTasks} addCrmTask={addCrmTask} updateCrmTask={updateCrmTask} deleteCrmTask={deleteCrmTask}
         />
       )}
 
@@ -1019,7 +1018,6 @@ function ContactSidebar({
   contact, customFields, team, statuses, statusMap, onClose, onUpdate, onDelete, onStatusChange,
   getCrmActivities, addCrmActivity, deleteCrmActivity,
   getCrmFiles, addCrmFile, deleteCrmFile,
-  getCrmTasks, addCrmTask, updateCrmTask, deleteCrmTask,
 }) {
   const STATUSES = statuses
   const [tab, setTab] = useState('details') // details | files
@@ -1032,14 +1030,6 @@ function ContactSidebar({
   )
   const [newActivity, setNewActivity] = useState({ type: 'note', description: '', scheduledAt: '' })
   const [showActivityForm, setShowActivityForm] = useState(false)
-
-  // Tasks
-  const [tasks, , refreshTasks] = useAsync(
-    useCallback(() => getCrmTasks(contact.id), [contact.id]), []
-  )
-  const [newTaskTitle, setNewTaskTitle] = useState('')
-  const [newTaskExpanded, setNewTaskExpanded] = useState(false)
-  const [newTaskDetails, setNewTaskDetails] = useState({ dueDate: '', assignedTo: '', description: '', priority: 'medium' })
 
   // Files
   const [files, , refreshFiles] = useAsync(
@@ -1059,7 +1049,7 @@ function ContactSidebar({
       assigned_to: contact.assigned_to || '', source: contact.source || '',
       tags: contact.tags || '', address: contact.address || '',
       whatsapp: contact.whatsapp || '', zoom_link: contact.zoom_link || '',
-      website: contact.website || '', linkedin: contact.linkedin || '',
+      website: contact.website || '', instagram: contact.instagram || '',
       customFields: contact.customFields || {},
     })
     setEditing(true)
@@ -1081,25 +1071,6 @@ function ContactSidebar({
     refreshActivities()
     setNewActivity({ type: 'note', description: '', scheduledAt: '' })
     setShowActivityForm(false)
-  }
-
-  const handleAddTask = async () => {
-    if (!newTaskTitle.trim()) return
-    await addCrmTask({
-      contact_id: contact.id, title: newTaskTitle, completed: false,
-      dueDate: newTaskDetails.dueDate || undefined,
-      assignedTo: newTaskDetails.assignedTo || undefined,
-      description: newTaskDetails.description || undefined,
-      priority: newTaskDetails.priority || 'medium',
-    })
-    refreshTasks(); setNewTaskTitle('')
-    setNewTaskDetails({ dueDate: '', assignedTo: '', description: '', priority: 'medium' })
-    setNewTaskExpanded(false)
-  }
-
-  const handleToggleTask = async (task) => {
-    await updateCrmTask(task.id, { completed: !task.completed })
-    refreshTasks()
   }
 
   const handleFileUpload = async (e) => {
@@ -1145,7 +1116,21 @@ function ContactSidebar({
             {(contact.name || '?')[0].toUpperCase()}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{contact.name || 'Sin nombre'}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{contact.name || 'Sin nombre'}</div>
+              {contact.phone && (
+                <a href={`https://wa.me/${contact.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer"
+                  title="WhatsApp" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: '50%', background: '#25D36622', color: '#25D366', border: 'none', cursor: 'pointer', flexShrink: 0 }}>
+                  <MessageSquare size={13} />
+                </a>
+              )}
+              {contact.instagram && (
+                <a href={`https://instagram.com/${contact.instagram.replace(/^@/, '')}`} target="_blank" rel="noreferrer"
+                  title="Instagram" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: '50%', background: '#E1306C22', color: '#E1306C', border: 'none', cursor: 'pointer', flexShrink: 0 }}>
+                  <Globe size={13} />
+                </a>
+              )}
+            </div>
             {contact.company && <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{contact.company}</div>}
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
@@ -1211,8 +1196,8 @@ function ContactSidebar({
                       href={contact.zoom_link} />
                     <LinkRow icon={<Globe size={13} />} label="Website" value={contact.website ? 'Visitar' : ''}
                       href={contact.website} />
-                    <LinkRow icon={<Link size={13} />} label="LinkedIn" value={contact.linkedin ? 'Perfil' : ''}
-                      href={contact.linkedin} />
+                    <LinkRow icon={<Globe size={13} />} label="Instagram" value={contact.instagram ? `@${contact.instagram.replace(/^@/, '')}` : ''}
+                      href={contact.instagram ? `https://instagram.com/${contact.instagram.replace(/^@/, '')}` : null} />
                     <LinkRow icon={<Calendar size={13} />} label="Creado" value={fmtDate(contact.created_at)} />
                   </div>
                   {contact.tags && (
@@ -1230,12 +1215,12 @@ function ContactSidebar({
                     <div style={{ marginTop: 12 }}>
                       <div style={S.sectionLabel}>Campos Personalizados</div>
                       {customFields.map(f => {
-                        const val = contact.customFields?.[f.field_key || f.id || f.name]
+                        const val = contact.customFields?.[f.fieldKey || f.field_key || f.id || f.name]
                         if (val === undefined || val === '') return null
                         return (
                           <div key={f.id || f.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
                             <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{f.name}</span>
-                            <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500 }}>{f.type === 'checkbox' ? (val ? 'Sí' : 'No') : String(val)}</span>
+                            <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500 }}>{(f.fieldType || f.type) === 'checkbox' ? (val ? 'Sí' : 'No') : String(val)}</span>
                           </div>
                         )
                       })}
@@ -1254,7 +1239,7 @@ function ContactSidebar({
                       { label: 'Dirección', key: 'address' }, { label: 'WhatsApp', key: 'whatsapp' },
                       { label: 'Zoom Link', key: 'zoom_link', type: 'url' },
                       { label: 'Website', key: 'website', type: 'url' },
-                      { label: 'LinkedIn', key: 'linkedin', type: 'url' },
+                      { label: 'Instagram', key: 'instagram' },
                       { label: 'Tags', key: 'tags' },
                     ].map(f => (
                       <div key={f.key}>
@@ -1277,8 +1262,8 @@ function ContactSidebar({
                       </select>
                     </div>
                     {customFields.map(f => (
-                      <CustomFieldInput key={f.id || f.name} field={f} value={editForm.customFields?.[f.field_key || f.id || f.name] || ''}
-                        onChange={v => setEditForm(p => ({ ...p, customFields: { ...p.customFields, [f.field_key || f.id || f.name]: v } }))} />
+                      <CustomFieldInput key={f.id || f.name} field={{ ...f, type: f.fieldType || f.type }} value={editForm.customFields?.[f.fieldKey || f.field_key || f.id || f.name] || ''}
+                        onChange={v => setEditForm(p => ({ ...p, customFields: { ...p.customFields, [f.fieldKey || f.field_key || f.id || f.name]: v } }))} />
                     ))}
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
@@ -1287,78 +1272,6 @@ function ContactSidebar({
                   </div>
                 </div>
               )}
-
-              {/* TASKS section */}
-              <div style={{ marginBottom: 24 }}>
-                <div style={S.sectionLabel}>Tareas</div>
-                {(tasks || []).map(t => {
-                  const prioColor = t.priority === 'high' ? '#EF4444' : t.priority === 'low' ? '#6B7280' : '#F59E0B'
-                  return (
-                    <div key={t.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <button onClick={() => handleToggleTask(t)}
-                          style={{ padding: 0, background: 'transparent', border: 'none', cursor: 'pointer', color: t.completed ? 'var(--orange)' : 'var(--text-secondary)', flexShrink: 0 }}>
-                          {t.completed ? <Check size={16} /> : <Square size={16} />}
-                        </button>
-                        <span style={{ fontSize: 12, color: 'var(--text)', textDecoration: t.completed ? 'line-through' : 'none', opacity: t.completed ? .5 : 1, flex: 1 }}>{t.title}</span>
-                        {t.priority && <Flag size={10} style={{ color: prioColor, flexShrink: 0 }} />}
-                        <button onClick={() => { if (confirm('¿Eliminar tarea?')) { deleteCrmTask(t.id); refreshTasks() } }}
-                          style={{ padding: 2, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', opacity: .4 }}><Trash2 size={11} /></button>
-                      </div>
-                      {(t.dueDate || t.assignedTo || t.description) && (
-                        <div style={{ marginLeft: 24, marginTop: 3, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                          {t.dueDate && <span style={{ fontSize: 10, color: new Date(t.dueDate) < new Date() && !t.completed ? '#EF4444' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 2 }}><Clock size={9} /> {fmtDate(t.dueDate)}</span>}
-                          {t.assignedTo && <span style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 2 }}><User size={9} /> {t.assignedTo}</span>}
-                          {t.description && <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontStyle: 'italic' }}>{t.description.slice(0, 40)}{t.description.length > 40 ? '...' : ''}</span>}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-                <div style={{ marginTop: 8 }}>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <input value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} placeholder="Nueva tarea..."
-                      onKeyDown={e => e.key === 'Enter' && !newTaskExpanded && handleAddTask()}
-                      style={{ ...S.input, flex: 1, fontSize: 12, padding: '6px 8px' }} />
-                    <button onClick={() => setNewTaskExpanded(!newTaskExpanded)} title="Más opciones"
-                      style={{ padding: '6px 8px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 11 }}>
-                      <ChevronDown size={12} style={{ transform: newTaskExpanded ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
-                    </button>
-                    <button onClick={handleAddTask} style={{ padding: '6px 10px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>
-                      <Plus size={12} />
-                    </button>
-                  </div>
-                  {newTaskExpanded && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 6, padding: 8, background: 'var(--bg)', borderRadius: 6, border: '1px solid var(--border)' }}>
-                      <div>
-                        <label style={{ fontSize: 9, color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: 2 }}>Fecha límite</label>
-                        <input type="date" value={newTaskDetails.dueDate} onChange={e => setNewTaskDetails(p => ({ ...p, dueDate: e.target.value }))}
-                          style={{ ...S.inputSm, colorScheme: 'dark' }} />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: 9, color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: 2 }}>Asignar a</label>
-                        <select value={newTaskDetails.assignedTo} onChange={e => setNewTaskDetails(p => ({ ...p, assignedTo: e.target.value }))} style={S.inputSm}>
-                          <option value="">—</option>
-                          {team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label style={{ fontSize: 9, color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: 2 }}>Prioridad</label>
-                        <select value={newTaskDetails.priority} onChange={e => setNewTaskDetails(p => ({ ...p, priority: e.target.value }))} style={S.inputSm}>
-                          <option value="low">Baja</option>
-                          <option value="medium">Media</option>
-                          <option value="high">Alta</option>
-                        </select>
-                      </div>
-                      <div style={{ gridColumn: 'span 2' }}>
-                        <label style={{ fontSize: 9, color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: 2 }}>Descripción</label>
-                        <input value={newTaskDetails.description} onChange={e => setNewTaskDetails(p => ({ ...p, description: e.target.value }))}
-                          placeholder="Detalles..." style={S.inputSm} />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
 
               {/* NOTES section */}
               <div style={{ marginBottom: 24 }}>
@@ -1654,12 +1567,12 @@ function CustomFieldsModal({ fields, onClose, onAdd, onUpdate, onDelete, refresh
   const [form, setForm] = useState({ name: '', type: 'text', options: '', position: 0 })
 
   const startCreate = () => { setForm({ name: '', type: 'text', options: '', position: fields.length }); setCreating(true); setEditingId(null) }
-  const startEdit = (f) => { setForm({ name: f.name, type: f.type, options: (f.options || []).join(', '), position: f.position || 0 }); setEditingId(f.id); setCreating(false) }
+  const startEdit = (f) => { setForm({ name: f.name, type: f.fieldType || f.type, options: (f.options || []).join(', '), position: f.position || 0 }); setEditingId(f.id); setCreating(false) }
 
   const handleSave = async () => {
     if (!form.name.trim()) return
     const payload = {
-      name: form.name, field_key: generateFieldKey(form.name), type: form.type, position: form.position,
+      name: form.name, fieldKey: generateFieldKey(form.name), fieldType: form.type, position: form.position,
       options: form.type === 'select' ? form.options.split(',').map(o => o.trim()).filter(Boolean) : [],
     }
     if (editingId) await onUpdate(editingId, payload)
@@ -1699,7 +1612,7 @@ function CustomFieldsModal({ fields, onClose, onAdd, onUpdate, onDelete, refresh
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>No hay campos personalizados.</div>
           )}
           {sortedFields.map((f, idx) => {
-            const Icon = FIELD_TYPE_ICONS[f.type] || FileText
+            const Icon = FIELD_TYPE_ICONS[f.fieldType || f.type] || FileText
             const isE = editingId === f.id
             return (
               <div key={f.id} style={{ padding: '10px 12px', marginBottom: 6, background: isE ? 'rgba(255,107,0,.05)' : 'var(--bg)', border: `1px solid ${isE ? 'var(--orange)' : 'var(--border)'}`, borderRadius: 8 }}>
@@ -1713,7 +1626,7 @@ function CustomFieldsModal({ fields, onClose, onAdd, onUpdate, onDelete, refresh
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>{f.name}</div>
                       <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
-                        {f.type}{f.field_key && <span style={{ fontFamily: 'monospace', marginLeft: 6, opacity: 0.6 }}>({f.field_key})</span>}
+                        {f.fieldType || f.type}{(f.fieldKey || f.field_key) && <span style={{ fontFamily: 'monospace', marginLeft: 6, opacity: 0.6 }}>({f.fieldKey || f.field_key})</span>}
                       </div>
                     </div>
                     <button onClick={() => startEdit(f)} style={{ ...S.btnGhost, padding: '4px 8px', fontSize: 11 }}><Edit3 size={12} /></button>
@@ -1836,13 +1749,18 @@ function TasksView({ tasks, contacts, team, onToggle, onDelete, onAdd, onUpdate,
       {filtered.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)', fontSize: 13 }}>No hay tareas</div>}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {filtered.map(t => {
-          const ct = contactMap[t.contact_id]
+          const ct = contactMap[t.contactId || t.contact_id]
           return (
             <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, transition: 'all .15s' }}
               onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(255,107,0,.3)'} onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
               <button onClick={() => onToggle(t)} style={{ padding: 0, background: 'transparent', border: 'none', cursor: 'pointer', color: t.completed ? 'var(--orange)' : 'var(--text-secondary)', flexShrink: 0 }}>
                 {t.completed ? <Check size={18} /> : <Square size={18} />}</button>
               <div style={{ flex: 1, minWidth: 0 }}>
+                {ct && (
+                  <button onClick={() => onContactClick(ct)} style={{ padding: '2px 10px', marginBottom: 4, background: 'rgba(255,107,0,.08)', border: '1px solid rgba(255,107,0,.2)', borderRadius: 6, cursor: 'pointer', color: 'var(--orange)', fontSize: 12, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <User size={11} /> {ct.name} {ct.company && <span style={{ fontWeight: 400, opacity: .7 }}>({ct.company})</span>}
+                  </button>
+                )}
                 <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)', textDecoration: t.completed ? 'line-through' : 'none', opacity: t.completed ? .5 : 1 }}>{t.title}</div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 3, flexWrap: 'wrap', alignItems: 'center' }}>
                   {t.priority && <span style={{ fontSize: 10, color: prioColor(t.priority), fontWeight: 600, display: 'flex', alignItems: 'center', gap: 2 }}><Flag size={9} /> {prioLabel(t.priority)}</span>}
@@ -1851,7 +1769,6 @@ function TasksView({ tasks, contacts, team, onToggle, onDelete, onAdd, onUpdate,
                   {t.description && <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontStyle: 'italic' }}>{t.description.slice(0, 50)}</span>}
                 </div>
               </div>
-              {ct && <button onClick={() => onContactClick(ct)} style={{ padding: '3px 8px', background: 'rgba(255,107,0,.08)', border: '1px solid rgba(255,107,0,.2)', borderRadius: 6, cursor: 'pointer', color: 'var(--orange)', fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap' }}>{ct.name}</button>}
               <button onClick={() => onDelete(t)} style={{ padding: 3, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', opacity: .4, flexShrink: 0 }}><Trash2 size={13} /></button>
             </div>
           )
@@ -1914,7 +1831,7 @@ function NewContactModal({ customFields, team, statuses, onClose, onSave }) {
               { name: 'whatsapp', label: 'WhatsApp', placeholder: '+34...' },
               { name: 'zoom_link', label: 'Zoom', placeholder: 'https://zoom.us/...' },
               { name: 'website', label: 'Website', placeholder: 'https://...' },
-              { name: 'linkedin', label: 'LinkedIn', placeholder: 'https://linkedin.com/in/...' },
+              { name: 'instagram', label: 'Instagram', placeholder: '@usuario' },
             ].map(f => (
               <div key={f.name}>
                 <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, display: 'block' }}>{f.label}</label>

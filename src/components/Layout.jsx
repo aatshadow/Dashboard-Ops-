@@ -56,7 +56,14 @@ function buildNavItems(prefix) {
       icon: '📇',
       children: [
         { to: `${prefix}/crm`, label: 'Pipeline', icon: '📊' },
-        { to: `${prefix}/crm?view=tasks`, label: 'Tareas', icon: '✅' },
+        { to: `${prefix}/crm?view=tasks`, label: 'Tareas CRM', icon: '✅' },
+      ]
+    },
+    {
+      label: 'Task Management',
+      icon: '📋',
+      children: [
+        { to: `${prefix}/task-management`, label: 'Gestión de Tareas', icon: '📋' },
       ]
     },
     {
@@ -103,6 +110,7 @@ export default function Layout({ children, user, onLogout, role, clientConfig, c
       if (group.label === 'CEO Mind') return false
       if (group.label === 'Ventas' || group.label === 'Reportes') return true
       if (group.label === 'CRM') return true
+      if (group.label === 'Task Management') return true
       if (group.label === 'Management') return true
       return false
     }).map(group => {

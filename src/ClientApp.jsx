@@ -28,6 +28,7 @@ import CeoIdeas from './pages/ceo-mind/CeoIdeas'
 import CeoPulsoSemanal from './pages/ceo-mind/CeoPulsoSemanal'
 import CeoRoadmap from './pages/ceo-mind/CeoRoadmap'
 import CeoFinanzas from './pages/ceo-mind/CeoFinanzas'
+import TaskManagementPage from './pages/TaskManagementPage'
 
 export default function ClientApp() {
   const { clientSlug } = useParams()
@@ -179,6 +180,7 @@ export default function ClientApp() {
             <Route path="productos" element={isDirectorOrCeo ? <ProductsPage /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
             {/* CRM */}
             <Route path="crm" element={<CrmPage />} />
+            <Route path="task-management" element={<TaskManagementPage />} />
             {/* CEO Mind — CEO only */}
             <Route path="ceo" element={isCeo ? <CeoOverview /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
             <Route path="ceo/equipo" element={isCeo ? <CeoEquipo /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
