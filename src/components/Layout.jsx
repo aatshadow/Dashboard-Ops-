@@ -3,37 +3,38 @@ import { useState, useMemo, useEffect } from 'react'
 import { getPrimaryRole, hasRole } from '../utils/roles'
 import AgentChat from './AgentChat'
 
-function buildNavItems(prefix) {
+function buildNavItems(prefix, slug) {
+  const en = slug === 'black-wolf'
   return [
     {
       label: 'CEO Mind',
       icon: '🧠',
       children: [
         { to: `${prefix}/ceo`, label: 'Overview', icon: '🧠' },
-        { to: `${prefix}/ceo/equipo`, label: 'Equipo', icon: '👥' },
+        { to: `${prefix}/ceo/equipo`, label: en ? 'Team' : 'Equipo', icon: '👥' },
         { to: `${prefix}/ceo/meetings`, label: 'Meetings', icon: '🎙️' },
-        { to: `${prefix}/ceo/proyectos`, label: 'Proyectos', icon: '📁' },
+        { to: `${prefix}/ceo/proyectos`, label: en ? 'Projects' : 'Proyectos', icon: '📁' },
         { to: `${prefix}/ceo/ideas`, label: 'Ideas', icon: '💡' },
-        { to: `${prefix}/ceo/pulso`, label: 'Pulso Semanal', icon: '📊' },
+        { to: `${prefix}/ceo/pulso`, label: en ? 'Weekly Pulse' : 'Pulso Semanal', icon: '📊' },
         { to: `${prefix}/ceo/roadmap`, label: 'Roadmap', icon: '🗺️' },
-        { to: `${prefix}/ceo/finanzas`, label: 'Finanzas', icon: '💰' },
+        { to: `${prefix}/ceo/finanzas`, label: en ? 'Finance' : 'Finanzas', icon: '💰' },
       ]
     },
     {
-      label: 'Ventas',
+      label: en ? 'Sales' : 'Ventas',
       icon: '💰',
       children: [
         { to: `${prefix}/ventas`, label: 'Dashboard', icon: '📊' },
-        { to: `${prefix}/ventas/tabla`, label: 'Tabla', icon: '📑' },
-        { to: `${prefix}/ventas/nueva`, label: 'Reportar Venta', icon: '➕' },
+        { to: `${prefix}/ventas/tabla`, label: en ? 'Table' : 'Tabla', icon: '📑' },
+        { to: `${prefix}/ventas/nueva`, label: en ? 'Report Sale' : 'Reportar Venta', icon: '➕' },
       ]
     },
     {
-      label: 'Reportes',
+      label: en ? 'Reports' : 'Reportes',
       icon: '📋',
       children: [
         { to: `${prefix}/reportes`, label: 'Dashboard', icon: '📊' },
-        { to: `${prefix}/reportes/tabla`, label: 'Tabla', icon: '📝' },
+        { to: `${prefix}/reportes/tabla`, label: en ? 'Table' : 'Tabla', icon: '📝' },
         { to: `${prefix}/reportes/nuevo`, label: 'EOD Report', icon: '🕐' },
       ]
     },
@@ -45,7 +46,7 @@ function buildNavItems(prefix) {
       ]
     },
     {
-      label: 'Contenido',
+      label: en ? 'Content' : 'Contenido',
       icon: '🎬',
       children: [
         { to: `${prefix}/contenido`, label: 'Dashboard', icon: '📊' },
@@ -56,14 +57,14 @@ function buildNavItems(prefix) {
       icon: '📇',
       children: [
         { to: `${prefix}/crm`, label: 'Pipeline', icon: '📊' },
-        { to: `${prefix}/crm?view=tasks`, label: 'Tareas CRM', icon: '✅' },
+        { to: `${prefix}/crm?view=tasks`, label: en ? 'CRM Tasks' : 'Tareas CRM', icon: '✅' },
       ]
     },
     {
       label: 'Task Management',
       icon: '📋',
       children: [
-        { to: `${prefix}/task-management`, label: 'Gestión de Tareas', icon: '📋' },
+        { to: `${prefix}/task-management`, label: en ? 'Task Board' : 'Gestión de Tareas', icon: '📋' },
         { to: `${prefix}/planning`, label: 'Planning', icon: '📅' },
       ]
     },
@@ -71,11 +72,11 @@ function buildNavItems(prefix) {
       label: 'Management',
       icon: '⚙️',
       children: [
-        { to: `${prefix}/equipo`, label: 'Equipo', icon: '👥' },
-        { to: `${prefix}/proyecciones`, label: 'Proyecciones', icon: '🎯' },
-        { to: `${prefix}/comisiones`, label: 'Comisiones', icon: '💸' },
-        { to: `${prefix}/productos`, label: 'Productos', icon: '📦' },
-        { to: `${prefix}/metodos-pago`, label: 'Métodos de Pago', icon: '💳' },
+        { to: `${prefix}/equipo`, label: en ? 'Team' : 'Equipo', icon: '👥' },
+        { to: `${prefix}/proyecciones`, label: en ? 'Projections' : 'Proyecciones', icon: '🎯' },
+        { to: `${prefix}/comisiones`, label: en ? 'Commissions' : 'Comisiones', icon: '💸' },
+        { to: `${prefix}/productos`, label: en ? 'Products' : 'Productos', icon: '📦' },
+        { to: `${prefix}/metodos-pago`, label: en ? 'Payment Methods' : 'Métodos de Pago', icon: '💳' },
         { to: `${prefix}/settings`, label: 'Settings', icon: '⚙️' },
       ]
     },
@@ -88,7 +89,7 @@ export default function Layout({ children, user, onLogout, role, clientConfig, c
   const location = useLocation()
 
   const prefix = `/${clientSlug}`
-  const navItems = useMemo(() => buildNavItems(prefix), [prefix])
+  const navItems = useMemo(() => buildNavItems(prefix, clientSlug), [prefix, clientSlug])
 
   const logoUrl = clientConfig?.logoUrl || null
   const brandName = clientConfig?.name || 'Dashboard'
@@ -109,9 +110,10 @@ export default function Layout({ children, user, onLogout, role, clientConfig, c
 
     return navItems.filter(group => {
       if (group.label === 'CEO Mind') return false
-      if (group.label === 'Ventas' || group.label === 'Reportes') return true
+      if (['Ventas', 'Sales', 'Reportes', 'Reports'].includes(group.label)) return true
       if (group.label === 'CRM') return true
       if (group.label === 'Task Management') return true
+      if (['Marketing', 'Contenido', 'Content'].includes(group.label)) return true
       if (group.label === 'Management') return true
       return false
     }).map(group => {
