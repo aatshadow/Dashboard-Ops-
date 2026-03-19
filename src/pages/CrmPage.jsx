@@ -918,7 +918,7 @@ export default function CrmPage() {
               if (id) await updateCrmPipeline(id, data)
               else { const p = await addCrmPipeline(data); setActivePipelineId(p?.id) }
               refreshPipelines()
-            } catch (err) { alert(L('Error al guardar pipeline.', 'Error saving pipeline.')) }
+            } catch (err) { console.error('Pipeline save error:', err); alert(L('Error al guardar pipeline.', 'Error saving pipeline.')) }
           }}
           onDeletePipeline={async (id) => {
             if (!confirm(L('¿Eliminar este pipeline?', 'Delete this pipeline?'))) return
@@ -1612,15 +1612,19 @@ function PipelineEditorModal({ pipelines, activePipeline, onClose, onSavePipelin
   const addStage = () => setStages(prev => [...prev, { key: `stage_${Date.now()}`, label: L('Nueva Etapa', 'New Stage'), color: '#6B7280' }])
   const removeStage = (idx) => { if (stages.length > 2) setStages(prev => prev.filter((_, i) => i !== idx)) }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const cleanStages = stages.map(({ position, ...rest }) => rest)
-    if (creating) {
-      onSavePipeline(null, { name: name || L('Nuevo Pipeline', 'New Pipeline'), stages: cleanStages })
-      setCreating(false)
-    } else if (selected) {
-      onSavePipeline(selected.id, { name, stages: cleanStages })
+    try {
+      if (creating) {
+        await onSavePipeline(null, { name: name || L('Nuevo Pipeline', 'New Pipeline'), stages: cleanStages, isDefault: false })
+        setCreating(false)
+      } else if (selected) {
+        await onSavePipeline(selected.id, { name, stages: cleanStages })
+      }
+      onClose()
+    } catch (err) {
+      console.error('Pipeline save error:', err)
     }
-    onClose()
   }
 
   const startNew = () => {
