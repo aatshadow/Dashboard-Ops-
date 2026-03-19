@@ -611,11 +611,11 @@ export default function CrmPage() {
               </button>
               {showFilterAdd && (
                 <div style={{
-                  position: 'absolute', top: '100%', left: 0, marginTop: 4, minWidth: 160,
+                  position: 'absolute', top: '100%', left: 0, marginTop: 4, minWidth: 180,
                   background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8,
-                  boxShadow: '0 8px 24px rgba(0,0,0,.4)', zIndex: 50, maxHeight: 200, overflowY: 'auto',
+                  boxShadow: '0 8px 24px rgba(0,0,0,.4)', zIndex: 50, maxHeight: 400, overflowY: 'auto',
                 }}>
-                  {allFilterFields.map(f => (
+                  {FILTER_FIELDS.map(f => (
                     <div key={f.key} onClick={() => addFilter(f.key)}
                       style={{ padding: '7px 14px', fontSize: 12, cursor: 'pointer', color: 'var(--text)' }}
                       onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,.04)'}
@@ -623,6 +623,24 @@ export default function CrmPage() {
                       {f.label}
                     </div>
                   ))}
+                  {customFields && customFields.length > 0 && (
+                    <>
+                      <div style={{ padding: '4px 14px', fontSize: 9, fontWeight: 700, color: 'var(--orange)', textTransform: 'uppercase', letterSpacing: '1px', borderTop: '1px solid var(--border)', marginTop: 2, paddingTop: 8 }}>
+                        Campos Personalizados
+                      </div>
+                      {customFields.map(f => {
+                        const fk = f.fieldKey || f.field_key || f.id
+                        return (
+                          <div key={`cf_${fk}`} onClick={() => addFilter(`cf_${fk}`)}
+                            style={{ padding: '7px 14px', fontSize: 12, cursor: 'pointer', color: 'var(--text)' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,.04)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                            {f.name}
+                          </div>
+                        )
+                      })}
+                    </>
+                  )}
                 </div>
               )}
             </div>
