@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useClientData } from '../hooks/useClientData'
 import { useAsync } from '../hooks/useAsync'
-import { Plus, X, Flag, Clock, Check, Square, Trash2, User, ChevronDown } from 'lucide-react'
+import { Plus, X, Flag, Clock, Check, Square, Trash2, User, ChevronDown, AlertTriangle } from 'lucide-react'
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
 const PRIO_COLORS = { high: '#EF4444', medium: '#F59E0B', low: '#6B7280' }
@@ -12,6 +12,7 @@ export default function TaskManagementPage() {
   const [team] = useAsync(getTeam, [])
   const [tasks, , refreshTasks] = useAsync(useCallback(() => getCrmTasks(), []), [])
   const [filter, setFilter] = useState('all')
+  const [activeView, setActiveView] = useState('todas')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ title: '', description: '', dueDate: '', assignedTo: '', priority: 'medium' })
   const [dragItem, setDragItem] = useState(null)
@@ -28,6 +29,21 @@ export default function TaskManagementPage() {
     const unassigned = { id: '__unassigned', name: 'Sin Asignar' }
     return [unassigned, ...members]
   }, [team])
+
+  const urgentTasks = useMemo(() => {
+    if (!filteredTasks) return []
+    const now = new Date()
+    return filteredTasks.filter(t => {
+      if (t.completed) return false
+      if (t.priority === 'high') return true
+      if (t.dueDate && new Date(t.dueDate) < now) return true
+      return false
+    }).sort((a, b) => {
+      if (a.priority === 'high' && b.priority !== 'high') return -1
+      if (b.priority === 'high' && a.priority !== 'high') return 1
+      return (a.dueDate || '').localeCompare(b.dueDate || '')
+    })
+  }, [filteredTasks])
 
   const tasksByMember = useMemo(() => {
     const map = {}
@@ -73,7 +89,9 @@ export default function TaskManagementPage() {
 
   const S = {
     page: { padding: 24, height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
-    header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexShrink: 0 },
+    header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexShrink: 0 },
+    viewBar: { display: 'flex', gap: 4, background: 'var(--bg-card)', borderRadius: 8, padding: 3, marginBottom: 14, flexShrink: 0, alignSelf: 'flex-start' },
+    viewTab: (active) => ({ padding: '6px 16px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600, border: 'none', background: active ? 'var(--orange)' : 'transparent', color: active ? '#000' : 'var(--text-secondary)', transition: 'all .15s', display: 'flex', alignItems: 'center', gap: 5 }),
     title: { fontSize: 22, fontWeight: 800, color: 'var(--text)' },
     filterBar: { display: 'flex', gap: 6, alignItems: 'center' },
     filterBtn: (active) => ({
@@ -120,6 +138,36 @@ export default function TaskManagementPage() {
         </button>
       </div>
 
+      <div style={S.viewBar}>
+        {[['todas', 'Todas'], ['persona', 'Por Persona'], ['urgentes', 'Urgentes']].map(([k, l]) => (
+          <button key={k} onClick={() => setActiveView(k)} style={S.viewTab(activeView === k)}>
+            {k === 'urgentes' && <AlertTriangle size={12} />}
+            {l}
+            {k === 'urgentes' && urgentTasks.length > 0 && <span style={{ background: '#EF4444', color: '#fff', fontSize: 9, padding: '1px 5px', borderRadius: 8, fontWeight: 700 }}>{urgentTasks.length}</span>}
+          </button>
+        ))}
+      </div>
+
+      {activeView === 'urgentes' ? (
+        <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {urgentTasks.length === 0 && <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14 }}>No hay tareas urgentes</div>}
+          {urgentTasks.map(t => (
+            <div key={t.id} style={{ padding: '10px 14px', background: 'var(--bg-card)', borderRadius: 8, border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button onClick={() => handleToggle(t)} style={{ padding: 0, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', flexShrink: 0 }}>
+                <Square size={15} />
+              </button>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>{t.title}</div>
+                {t.description && <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{t.description.slice(0, 80)}</div>}
+              </div>
+              {t.assignedTo && <span style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 3 }}><User size={10} />{t.assignedTo}</span>}
+              {t.priority && <span style={{ fontSize: 10, color: PRIO_COLORS[t.priority], fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}><Flag size={10} />{PRIO_LABELS[t.priority]}</span>}
+              {t.dueDate && <span style={{ fontSize: 10, color: new Date(t.dueDate) < new Date() ? '#EF4444' : 'var(--text-secondary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}><Clock size={10} />{fmtDate(t.dueDate)}</span>}
+              <button onClick={() => handleDelete(t)} style={{ padding: 2, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', opacity: 0.4 }}><Trash2 size={12} /></button>
+            </div>
+          ))}
+        </div>
+      ) : (
       <div style={S.board}>
         {columns.map(col => {
           const colTasks = tasksByMember[col.name] || []
@@ -161,6 +209,7 @@ export default function TaskManagementPage() {
           )
         })}
       </div>
+      )}
 
       {showForm && (
         <>

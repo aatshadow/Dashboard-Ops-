@@ -33,7 +33,7 @@ const FIELD_TYPE_ICONS = {
   text: FileText, number: Hash, date: Calendar, select: ChevronDown,
   checkbox: CheckSquare, url: Link, email: MailIcon, phone: Phone, currency: DollarSign,
 }
-const FIELD_TYPES = ['text', 'number', 'date', 'select', 'checkbox', 'url', 'email', 'phone', 'currency']
+const FIELD_TYPES = ['text', 'number', 'date', 'datetime', 'select', 'checkbox', 'url', 'email', 'phone', 'currency']
 const SOURCE_OPTIONS = ['Website', 'Referral', 'Social Media', 'Cold Call', 'Ad Campaign', 'Event', 'Other']
 const STAGE_COLORS = [
   '#6B7280', '#3B82F6', '#8B5CF6', '#F59E0B', '#FF6B00',
@@ -53,6 +53,8 @@ const FILTER_FIELDS = [
   { key: 'phone', label: 'Teléfono', type: 'text' },
   { key: 'name', label: 'Nombre', type: 'text' },
   { key: 'notes', label: 'Notas', type: 'text' },
+  { key: 'updated_at', label: 'Último cambio', type: 'date' },
+  { key: 'created_at', label: 'Fecha creación', type: 'date' },
 ]
 const FILTER_OPS = [
   { key: 'equals', label: 'es igual a' },
@@ -62,6 +64,7 @@ const FILTER_OPS = [
   { key: 'lt', label: 'menor que' },
   { key: 'is_empty', label: 'está vacío' },
   { key: 'is_not_empty', label: 'no está vacío' },
+  { key: 'in_last', label: 'en los últimos' },
 ]
 
 const emptyContact = {
@@ -96,6 +99,22 @@ function matchesFilter(contact, filter) {
     case 'lt': return Number(cv) < Number(value)
     case 'is_empty': return !cv || cv === '—'
     case 'is_not_empty': return !!cv && cv !== '—'
+    case 'in_last': {
+      const dateVal = new Date(raw)
+      if (isNaN(dateVal)) return false
+      const [amt, unit] = (value || '').split('_')
+      const n = Number(amt) || 0
+      const now = new Date()
+      let ms = 0
+      switch(unit) {
+        case 'hours': ms = n * 3600000; break
+        case 'days': ms = n * 86400000; break
+        case 'weeks': ms = n * 604800000; break
+        case 'months': ms = n * 2592000000; break
+        default: ms = n * 86400000
+      }
+      return (now - dateVal) <= ms
+    }
     default: return true
   }
 }
@@ -196,7 +215,7 @@ export default function CrmPage() {
   const [allTasks, , refreshAllTasks] = useAsync(getCrmTasks, [])
 
   // ─── Custom fields as filter fields ────────────────────────────────────────
-  const CF_TYPE_MAP = { text: 'text', number: 'number', date: 'text', select: 'select', checkbox: 'text', url: 'text', email: 'text', phone: 'text', currency: 'number' }
+  const CF_TYPE_MAP = { text: 'text', number: 'number', date: 'date', datetime: 'date', select: 'select', checkbox: 'text', url: 'text', email: 'text', phone: 'text', currency: 'number' }
   const allFilterFields = useMemo(() => [
     ...FILTER_FIELDS,
     ...(customFields || []).map(f => ({
@@ -586,7 +605,22 @@ export default function CrmPage() {
                     {FILTER_OPS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
                   </select>
                   {!['is_empty', 'is_not_empty'].includes(f.op) && (
-                    ff?.type === 'select' ? (
+                    f.op === 'in_last' ? (
+                      <>
+                        <input type="number" value={(f.value || '').split('_')[0] || ''}
+                          onChange={e => updateFilter(idx, { value: `${e.target.value}_${(f.value || '').split('_')[1] || 'days'}` })}
+                          style={{ background: 'transparent', border: 'none', color: 'var(--orange)', fontSize: 11, outline: 'none', width: 30, textAlign: 'center' }}
+                          min="1" />
+                        <select value={(f.value || '').split('_')[1] || 'days'}
+                          onChange={e => updateFilter(idx, { value: `${(f.value || '').split('_')[0] || '7'}_${e.target.value}` })}
+                          style={{ background: 'transparent', border: 'none', color: 'var(--orange)', fontSize: 10, outline: 'none' }}>
+                          <option value="hours">horas</option>
+                          <option value="days">días</option>
+                          <option value="weeks">semanas</option>
+                          <option value="months">meses</option>
+                        </select>
+                      </>
+                    ) : ff?.type === 'select' ? (
                       <select value={f.value || ''} onChange={e => updateFilter(idx, { value: e.target.value })}
                         style={{ background: 'transparent', border: 'none', color: 'var(--orange)', fontSize: 11, outline: 'none', maxWidth: 90 }}>
                         <option value="">--</option>
@@ -595,6 +629,9 @@ export default function CrmPage() {
                         {f.field === 'source' && SOURCE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                         {ff?.cfOptions && ff.cfOptions.map(o => <option key={o} value={o}>{o}</option>)}
                       </select>
+                    ) : ff?.type === 'date' ? (
+                      <input type="date" value={f.value || ''} onChange={e => updateFilter(idx, { value: e.target.value })}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--orange)', fontSize: 11, outline: 'none', colorScheme: 'dark' }} />
                     ) : (
                       <input value={f.value || ''} onChange={e => updateFilter(idx, { value: e.target.value })}
                         placeholder="..." style={{ background: 'transparent', border: 'none', color: 'var(--orange)', fontSize: 11, outline: 'none', width: 60 }} />
@@ -1446,9 +1483,9 @@ function CustomFieldInput({ field, value, onChange }) {
           {(field.options || []).map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       ) : (
-        <input type={field.type === 'date' ? 'date' : field.type === 'number' || field.type === 'currency' ? 'number' : field.type === 'email' ? 'email' : field.type === 'url' ? 'url' : field.type === 'phone' ? 'tel' : 'text'}
+        <input type={field.type === 'datetime' ? 'datetime-local' : field.type === 'date' ? 'date' : field.type === 'number' || field.type === 'currency' ? 'number' : field.type === 'email' ? 'email' : field.type === 'url' ? 'url' : field.type === 'phone' ? 'tel' : 'text'}
           value={value} onChange={e => onChange(e.target.value)}
-          style={{ ...S.input, ...(field.type === 'date' ? { colorScheme: 'dark' } : {}) }} />
+          style={{ ...S.input, ...(field.type === 'date' || field.type === 'datetime' ? { colorScheme: 'dark' } : {}) }} />
       )}
     </div>
   )

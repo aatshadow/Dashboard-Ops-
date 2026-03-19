@@ -3,8 +3,8 @@ import { useClientData } from '../hooks/useClientData'
 import { useAsync } from '../hooks/useAsync'
 import { hasRole, getRoles } from '../utils/roles'
 
-const ROLES = ['director', 'manager', 'closer', 'setter']
-const ROLE_LABELS = { director: 'Director', manager: 'Manager', closer: 'Closer', setter: 'Setter' }
+const ROLES = ['director', 'manager', 'closer', 'setter', 'cold_caller']
+const ROLE_LABELS = { director: 'Director', manager: 'Manager', closer: 'Closer', setter: 'Setter', cold_caller: 'Cold Caller' }
 
 const emptyForm = { name: '', email: '', password: '', roles: ['closer'], active: true, commissionRate: 0.10, closerCommissionRate: '', setterCommissionRate: '', commissionStartDate: '', mgmtCommissionStartDate: '' }
 

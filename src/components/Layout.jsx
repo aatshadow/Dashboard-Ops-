@@ -64,6 +64,7 @@ function buildNavItems(prefix) {
       icon: '📋',
       children: [
         { to: `${prefix}/task-management`, label: 'Gestión de Tareas', icon: '📋' },
+        { to: `${prefix}/planning`, label: 'Planning', icon: '📅' },
       ]
     },
     {
