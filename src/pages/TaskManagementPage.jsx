@@ -1,13 +1,18 @@
 import { useState, useMemo, useCallback } from 'react'
+import { useClient } from '../contexts/ClientContext'
 import { useClientData } from '../hooks/useClientData'
 import { useAsync } from '../hooks/useAsync'
 import { Plus, X, Flag, Clock, Check, Square, Trash2, User, ChevronDown, AlertTriangle } from 'lucide-react'
 
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
 const PRIO_COLORS = { high: '#EF4444', medium: '#F59E0B', low: '#6B7280' }
-const PRIO_LABELS = { high: 'Alta', medium: 'Media', low: 'Baja' }
 
 export default function TaskManagementPage() {
+  const { clientSlug } = useClient()
+  const en = clientSlug === 'black-wolf'
+  const L = (es, enText) => en ? enText : es
+  const locale = en ? 'en-US' : 'es-ES'
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' }) : ''
+  const PRIO_LABELS = { high: L('Alta', 'High'), medium: L('Media', 'Medium'), low: L('Baja', 'Low') }
   const { getTeam, getCrmTasks, addCrmTask, updateCrmTask, deleteCrmTask } = useClientData()
   const [team] = useAsync(getTeam, [])
   const [tasks, , refreshTasks] = useAsync(useCallback(() => getCrmTasks(), []), [])
@@ -26,7 +31,7 @@ export default function TaskManagementPage() {
 
   const columns = useMemo(() => {
     const members = (team || []).filter(m => m.active !== false)
-    const unassigned = { id: '__unassigned', name: 'Sin Asignar' }
+    const unassigned = { id: '__unassigned', name: L('Sin Asignar', 'Unassigned') }
     return [unassigned, ...members]
   }, [team])
 
@@ -49,7 +54,7 @@ export default function TaskManagementPage() {
     const map = {}
     columns.forEach(c => { map[c.name] = [] })
     filteredTasks.forEach(t => {
-      const key = t.assignedTo || 'Sin Asignar'
+      const key = t.assignedTo || L('Sin Asignar', 'Unassigned')
       if (!map[key]) map[key] = []
       map[key].push(t)
     })
@@ -74,14 +79,14 @@ export default function TaskManagementPage() {
   }
 
   const handleDelete = async (t) => {
-    if (!confirm('Eliminar tarea?')) return
+    if (!confirm(L('Eliminar tarea?', 'Delete task?'))) return
     await deleteCrmTask(t.id)
     refreshTasks()
   }
 
   const handleDrop = async (memberName) => {
     if (!dragItem || dragItem.assignedTo === memberName) { setDragItem(null); return }
-    const newAssigned = memberName === 'Sin Asignar' ? '' : memberName
+    const newAssigned = memberName === L('Sin Asignar', 'Unassigned') ? '' : memberName
     await updateCrmTask(dragItem.id, { assignedTo: newAssigned })
     refreshTasks()
     setDragItem(null)
@@ -126,20 +131,20 @@ export default function TaskManagementPage() {
     <div style={S.page}>
       <div style={S.header}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <span style={S.title}>Gestion de Tareas</span>
+          <span style={S.title}>{L('Gestion de Tareas', 'Task Management')}</span>
           <div style={S.filterBar}>
-            {[['all', 'Todas'], ['pending', 'Pendientes'], ['completed', 'Completadas']].map(([k, l]) => (
+            {[['all', L('Todas', 'All')], ['pending', L('Pendientes', 'Pending')], ['completed', L('Completadas', 'Completed')]].map(([k, l]) => (
               <button key={k} onClick={() => setFilter(k)} style={S.filterBtn(filter === k)}>{l}</button>
             ))}
           </div>
         </div>
         <button onClick={() => setShowForm(true)} style={{ padding: '8px 16px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Plus size={14} /> Nueva Tarea
+          <Plus size={14} /> {L('Nueva Tarea', 'New Task')}
         </button>
       </div>
 
       <div style={S.viewBar}>
-        {[['todas', 'Todas'], ['persona', 'Por Persona'], ['urgentes', 'Urgentes']].map(([k, l]) => (
+        {[['todas', L('Todas', 'All')], ['persona', L('Por Persona', 'By Person')], ['urgentes', L('Urgentes', 'Urgent')]].map(([k, l]) => (
           <button key={k} onClick={() => setActiveView(k)} style={S.viewTab(activeView === k)}>
             {k === 'urgentes' && <AlertTriangle size={12} />}
             {l}
@@ -150,7 +155,7 @@ export default function TaskManagementPage() {
 
       {activeView === 'urgentes' ? (
         <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {urgentTasks.length === 0 && <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14 }}>No hay tareas urgentes</div>}
+          {urgentTasks.length === 0 && <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14 }}>{L('No hay tareas urgentes', 'No urgent tasks')}</div>}
           {urgentTasks.map(t => (
             <div key={t.id} style={{ padding: '10px 14px', background: 'var(--bg-card)', borderRadius: 8, border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
               <button onClick={() => handleToggle(t)} style={{ padding: 0, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', flexShrink: 0 }}>
@@ -202,7 +207,7 @@ export default function TaskManagementPage() {
                   </div>
                 ))}
                 {colTasks.length === 0 && (
-                  <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 12, opacity: 0.5 }}>Sin tareas</div>
+                  <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 12, opacity: 0.5 }}>{L('Sin tareas', 'No tasks')}</div>
                 )}
               </div>
             </div>
@@ -216,42 +221,42 @@ export default function TaskManagementPage() {
           <div onClick={() => setShowForm(false)} style={S.overlay} />
           <div style={S.modal}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)' }}>Nueva Tarea</span>
+              <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)' }}>{L('Nueva Tarea', 'New Task')}</span>
               <button onClick={() => setShowForm(false)} style={{ padding: 4, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><X size={18} /></button>
             </div>
             <div style={{ display: 'grid', gap: 12 }}>
               <div>
-                <label style={S.label}>Titulo *</label>
-                <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder="Nombre de la tarea" style={S.input} />
+                <label style={S.label}>{L('Titulo *', 'Title *')}</label>
+                <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder={L('Nombre de la tarea', 'Task name')} style={S.input} />
               </div>
               <div>
-                <label style={S.label}>Descripcion</label>
-                <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} rows={3} placeholder="Detalles..." style={{ ...S.input, resize: 'vertical', fontFamily: 'inherit' }} />
+                <label style={S.label}>{L('Descripcion', 'Description')}</label>
+                <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} rows={3} placeholder={L('Detalles...', 'Details...')} style={{ ...S.input, resize: 'vertical', fontFamily: 'inherit' }} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label style={S.label}>Fecha limite</label>
+                  <label style={S.label}>{L('Fecha limite', 'Due date')}</label>
                   <input type="date" value={form.dueDate} onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))} style={{ ...S.input, colorScheme: 'dark' }} />
                 </div>
                 <div>
-                  <label style={S.label}>Prioridad</label>
+                  <label style={S.label}>{L('Prioridad', 'Priority')}</label>
                   <select value={form.priority} onChange={e => setForm(p => ({ ...p, priority: e.target.value }))} style={S.input}>
-                    <option value="low">Baja</option>
-                    <option value="medium">Media</option>
-                    <option value="high">Alta</option>
+                    <option value="low">{L('Baja', 'Low')}</option>
+                    <option value="medium">{L('Media', 'Medium')}</option>
+                    <option value="high">{L('Alta', 'High')}</option>
                   </select>
                 </div>
               </div>
               <div>
-                <label style={S.label}>Asignar a</label>
+                <label style={S.label}>{L('Asignar a', 'Assign to')}</label>
                 <select value={form.assignedTo} onChange={e => setForm(p => ({ ...p, assignedTo: e.target.value }))} style={S.input}>
-                  <option value="">Sin asignar</option>
+                  <option value="">{L('Sin asignar', 'Unassigned')}</option>
                   {(team || []).filter(m => m.active !== false).map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
                 </select>
               </div>
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
-                <button onClick={() => setShowForm(false)} style={{ padding: '8px 18px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 7, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 13 }}>Cancelar</button>
-                <button onClick={handleAdd} style={{ padding: '8px 18px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 7, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>Crear Tarea</button>
+                <button onClick={() => setShowForm(false)} style={{ padding: '8px 18px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 7, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 13 }}>{L('Cancelar', 'Cancel')}</button>
+                <button onClick={handleAdd} style={{ padding: '8px 18px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 7, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>{L('Crear Tarea', 'Create Task')}</button>
               </div>
             </div>
           </div>

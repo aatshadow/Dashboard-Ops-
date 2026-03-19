@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useClient } from '../contexts/ClientContext'
 import { useClientData } from '../hooks/useClientData'
 import { useAsync } from '../hooks/useAsync'
 import {
@@ -163,6 +164,20 @@ const S = {
 // MAIN COMPONENT
 // ═════════════════════════════════════════════════════════════════════════════════
 export default function CrmPage() {
+  const { clientSlug } = useClient()
+  const en = clientSlug === 'black-wolf'
+  const L = (es, enText) => en ? enText : es
+
+  // Locale-aware formatters
+  const locale = en ? 'en-US' : 'es-ES'
+  const fmtL = (v) => {
+    const n = Number(v)
+    if (!n && n !== 0) return '—'
+    return n.toLocaleString(locale, { style: 'currency', currency: en ? 'USD' : 'EUR', minimumFractionDigits: 0 })
+  }
+  const fmtDateL = (d) => d ? new Date(d).toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+  const fmtDateTimeL = (d) => d ? new Date(d).toLocaleString(locale, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'
+
   const {
     getCrmContacts, addCrmContact, updateCrmContact, deleteCrmContact,
     getCrmActivities, addCrmActivity, deleteCrmActivity,
@@ -173,6 +188,41 @@ export default function CrmPage() {
     getCrmTasks, addCrmTask, updateCrmTask, deleteCrmTask,
     getTeam,
   } = useClientData()
+
+  // Translated constants
+  const ACTIVITY_TYPES_L = en ? [
+    { key: 'call', label: 'Call', icon: Phone },
+    { key: 'email', label: 'Email', icon: Mail },
+    { key: 'meeting', label: 'Meeting', icon: Video },
+    { key: 'note', label: 'Note', icon: FileText },
+  ] : ACTIVITY_TYPES
+
+  const FILTER_FIELDS_L = en ? [
+    { key: 'status', label: 'Status', type: 'select' },
+    { key: 'assigned_to', label: 'Assigned', type: 'select' },
+    { key: 'source', label: 'Source', type: 'select' },
+    { key: 'company', label: 'Company', type: 'text' },
+    { key: 'country', label: 'Country', type: 'text' },
+    { key: 'tags', label: 'Tags', type: 'text' },
+    { key: 'dealValue', label: 'Value', type: 'number' },
+    { key: 'email', label: 'Email', type: 'text' },
+    { key: 'phone', label: 'Phone', type: 'text' },
+    { key: 'name', label: 'Name', type: 'text' },
+    { key: 'notes', label: 'Notes', type: 'text' },
+    { key: 'updated_at', label: 'Last change', type: 'date' },
+    { key: 'created_at', label: 'Created', type: 'date' },
+  ] : FILTER_FIELDS
+
+  const FILTER_OPS_L = en ? [
+    { key: 'equals', label: 'equals' },
+    { key: 'not_equals', label: 'not equals' },
+    { key: 'contains', label: 'contains' },
+    { key: 'gt', label: 'greater than' },
+    { key: 'lt', label: 'less than' },
+    { key: 'is_empty', label: 'is empty' },
+    { key: 'is_not_empty', label: 'is not empty' },
+    { key: 'in_last', label: 'in the last' },
+  ] : FILTER_OPS
 
   const [contacts, contactsLoading, refreshContacts] = useAsync(getCrmContacts, [])
   const [customFields, , refreshFields] = useAsync(getCrmCustomFields, [])
@@ -188,7 +238,16 @@ export default function CrmPage() {
     return pipelines.find(p => p.isDefault) || pipelines[0]
   }, [pipelines, activePipelineId])
 
-  const STATUSES = useMemo(() => activePipeline?.stages || DEFAULT_STATUSES, [activePipeline])
+  const DEFAULT_STATUSES_EN = [
+    { key: 'lead',        label: 'Lead',         color: '#6B7280' },
+    { key: 'contacted',   label: 'Contacted',    color: '#3B82F6' },
+    { key: 'qualified',   label: 'Qualified',    color: '#8B5CF6' },
+    { key: 'proposal',    label: 'Proposal',     color: '#F59E0B' },
+    { key: 'negotiation', label: 'Negotiation',  color: '#FF6B00' },
+    { key: 'won',         label: 'Won',          color: '#22C55E' },
+    { key: 'lost',        label: 'Lost',         color: '#EF4444' },
+  ]
+  const STATUSES = useMemo(() => activePipeline?.stages || (en ? DEFAULT_STATUSES_EN : DEFAULT_STATUSES), [activePipeline, en])
   const STATUS_MAP = useMemo(() => Object.fromEntries(STATUSES.map(s => [s.key, s])), [STATUSES])
 
   // ─── URL params (for sidebar navigation to tasks view) ────────────────────
@@ -217,7 +276,7 @@ export default function CrmPage() {
   // ─── Custom fields as filter fields ────────────────────────────────────────
   const CF_TYPE_MAP = { text: 'text', number: 'number', date: 'date', datetime: 'date', select: 'select', checkbox: 'text', url: 'text', email: 'text', phone: 'text', currency: 'number' }
   const allFilterFields = useMemo(() => [
-    ...FILTER_FIELDS,
+    ...FILTER_FIELDS_L,
     ...(customFields || []).map(f => ({
       key: `cf_${f.fieldKey || f.field_key || f.id}`, label: f.name, type: CF_TYPE_MAP[f.fieldType || f.type] || 'text',
       cfOptions: f.options,
@@ -317,7 +376,7 @@ export default function CrmPage() {
       await addCrmContact(payload)
       refreshContacts()
       setShowNewContact(false)
-    } catch (err) { alert('Error al guardar contacto.') }
+    } catch (err) { alert(L('Error al guardar contacto.', 'Error saving contact.')) }
   }
 
   const handleUpdateContact = async (updates) => {
@@ -330,7 +389,7 @@ export default function CrmPage() {
   }
 
   const handleDeleteContact = async () => {
-    if (!selectedContact || !confirm('¿Eliminar este contacto?')) return
+    if (!selectedContact || !confirm(L('¿Eliminar este contacto?', 'Delete this contact?'))) return
     await deleteCrmContact(selectedContact.id)
     refreshContacts()
     closeContact()
@@ -369,7 +428,7 @@ export default function CrmPage() {
     } catch (err) { console.error('Error saving smart view:', err) }
   }
   const svHandleDelete = async (id) => {
-    if (!confirm('¿Eliminar esta vista?')) return
+    if (!confirm(L('¿Eliminar esta vista?', 'Delete this view?'))) return
     await deleteCrmSmartView(id)
     refreshViews()
     if (activeViewId === id) selectSmartView(null)
@@ -392,7 +451,7 @@ export default function CrmPage() {
 
   // ─── Loading ──────────────────────────────────────────────────────────────
   if (contactsLoading) {
-    return <div className="dashboard"><div style={{ textAlign: 'center', padding: 60, color: '#999' }}>Cargando CRM...</div></div>
+    return <div className="dashboard"><div style={{ textAlign: 'center', padding: 60, color: '#999' }}>{L('Cargando CRM...', 'Loading CRM...')}</div></div>
   }
 
   // ═════════════════════════════════════════════════════════════════════════════
@@ -449,7 +508,7 @@ export default function CrmPage() {
                     cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 12, justifyContent: 'center',
                   }}
                 >
-                  <Settings size={12} /> Gestionar Pipelines
+                  <Settings size={12} /> {L('Gestionar Pipelines', 'Manage Pipelines')}
                 </button>
               </div>
             </div>
@@ -460,9 +519,9 @@ export default function CrmPage() {
         <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
           {[
             { key: 'kanban', label: 'Kanban', Icon: LayoutGrid },
-            { key: 'list', label: 'Lista', Icon: List },
-            { key: 'calendar', label: 'Calendario', Icon: Calendar },
-            { key: 'tasks', label: 'Tareas', Icon: CheckSquare },
+            { key: 'list', label: L('Lista', 'List'), Icon: List },
+            { key: 'calendar', label: L('Calendario', 'Calendar'), Icon: Calendar },
+            { key: 'tasks', label: L('Tareas', 'Tasks'), Icon: CheckSquare },
           ].map((v, vi) => (
             <button
               key={v.key}
@@ -489,7 +548,7 @@ export default function CrmPage() {
           <Search size={15} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
           <input
             value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar contactos..."
+            placeholder={L('Buscar contactos...', 'Search contacts...')}
             style={{ background: 'transparent', border: 'none', outline: 'none', color: 'var(--text)', fontSize: 13, width: '100%' }}
           />
           {search && <X size={14} style={{ cursor: 'pointer', color: 'var(--text-secondary)' }} onClick={() => setSearch('')} />}
@@ -498,11 +557,11 @@ export default function CrmPage() {
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           <button onClick={() => setShowCustomFields(true)}
             style={{ ...S.btnGhost, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px' }}
-            title="Campos Personalizados">
+            title={L('Campos Personalizados', 'Custom Fields')}>
             <Settings size={15} />
           </button>
           <button className="btn-action" onClick={() => setShowNewContact(true)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={15} /> Nuevo Contacto
+            <Plus size={15} /> {L('Nuevo Contacto', 'New Contact')}
           </button>
         </div>
       </div>
@@ -517,9 +576,9 @@ export default function CrmPage() {
           background: 'rgba(255,255,255,.01)',
         }}>
           <div style={{ padding: '14px 14px 10px', fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-            Vistas
+            {L('Vistas', 'Views')}
           </div>
-          <SidebarViewItem label="Todos los contactos" icon={<Filter size={13} />}
+          <SidebarViewItem label={L('Todos los contactos', 'All contacts')} icon={<Filter size={13} />}
             active={!activeViewId} onClick={() => selectSmartView(null)} count={contacts.length} />
           <div style={{ height: 1, background: 'var(--border)', margin: '4px 12px' }} />
           {smartViews.map(v => (
@@ -529,25 +588,25 @@ export default function CrmPage() {
           ))}
           {smartViews.length === 0 && !svCreating && (
             <div style={{ padding: '16px 14px', fontSize: 11, color: 'var(--text-secondary)', opacity: 0.5, textAlign: 'center' }}>
-              Sin vistas guardadas
+              {L('Sin vistas guardadas', 'No saved views')}
             </div>
           )}
           {/* SV Create/Edit */}
           {(svCreating || svEditing) && (
             <div style={{ margin: '4px 8px', padding: 10, background: 'rgba(255,107,0,.04)', border: '1px solid rgba(255,107,0,.2)', borderRadius: 8 }}>
               <input value={svForm.name} onChange={e => setSvForm(p => ({ ...p, name: e.target.value }))}
-                placeholder="Nombre de la vista" autoFocus style={{ ...S.inputSm, marginBottom: 6 }} />
+                placeholder={L('Nombre de la vista', 'View name')} autoFocus style={{ ...S.inputSm, marginBottom: 6 }} />
               <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 4 }}>
-                Filtros actuales ({filters.length}) se guardarán con la vista
+                {L(`Filtros actuales (${filters.length}) se guardarán con la vista`, `Current filters (${filters.length}) will be saved with the view`)}
               </div>
               <div style={{ display: 'flex', gap: 4 }}>
                 <button onClick={() => { setSvCreating(false); setSvEditing(null) }}
                   style={{ flex: 1, padding: '4px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 10 }}>
-                  Cancelar
+                  {L('Cancelar', 'Cancel')}
                 </button>
                 <button onClick={() => { setSvForm(p => ({ ...p, filters: [...filters] })); svHandleSave() }}
                   style={{ flex: 1, padding: '4px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 10, fontWeight: 700 }}>
-                  {svEditing ? 'Guardar' : 'Crear'}
+                  {svEditing ? L('Guardar', 'Save') : L('Crear', 'Create')}
                 </button>
               </div>
             </div>
@@ -564,7 +623,7 @@ export default function CrmPage() {
               onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--orange)'; e.currentTarget.style.color = 'var(--orange)' }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
             >
-              <Plus size={13} /> Nueva vista
+              <Plus size={13} /> {L('Nueva vista', 'New view')}
             </button>
           )}
         </div>
@@ -602,7 +661,7 @@ export default function CrmPage() {
                   </select>
                   <select value={f.op} onChange={e => updateFilter(idx, { op: e.target.value })}
                     style={{ background: 'transparent', border: 'none', color: 'var(--orange)', fontSize: 10, outline: 'none' }}>
-                    {FILTER_OPS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+                    {FILTER_OPS_L.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
                   </select>
                   {!['is_empty', 'is_not_empty'].includes(f.op) && (
                     f.op === 'in_last' ? (
@@ -614,10 +673,10 @@ export default function CrmPage() {
                         <select value={(f.value || '').split('_')[1] || 'days'}
                           onChange={e => updateFilter(idx, { value: `${(f.value || '').split('_')[0] || '7'}_${e.target.value}` })}
                           style={{ background: 'transparent', border: 'none', color: 'var(--orange)', fontSize: 10, outline: 'none' }}>
-                          <option value="hours">horas</option>
-                          <option value="days">días</option>
-                          <option value="weeks">semanas</option>
-                          <option value="months">meses</option>
+                          <option value="hours">{L('horas', 'hours')}</option>
+                          <option value="days">{L('días', 'days')}</option>
+                          <option value="weeks">{L('semanas', 'weeks')}</option>
+                          <option value="months">{L('meses', 'months')}</option>
                         </select>
                       </>
                     ) : ff?.type === 'select' ? (
@@ -644,7 +703,7 @@ export default function CrmPage() {
             <div style={{ position: 'relative' }}>
               <button onClick={() => setShowFilterAdd(!showFilterAdd)}
                 style={{ ...S.btnGhost, display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, padding: '4px 10px' }}>
-                <Plus size={12} /> Filtro
+                <Plus size={12} /> {L('Filtro', 'Filter')}
               </button>
               {showFilterAdd && (
                 <div style={{
@@ -652,7 +711,7 @@ export default function CrmPage() {
                   background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8,
                   boxShadow: '0 8px 24px rgba(0,0,0,.4)', zIndex: 50, maxHeight: 400, overflowY: 'auto',
                 }}>
-                  {FILTER_FIELDS.map(f => (
+                  {FILTER_FIELDS_L.map(f => (
                     <div key={f.key} onClick={() => addFilter(f.key)}
                       style={{ padding: '7px 14px', fontSize: 12, cursor: 'pointer', color: 'var(--text)' }}
                       onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,.04)'}
@@ -663,7 +722,7 @@ export default function CrmPage() {
                   {customFields && customFields.length > 0 && (
                     <>
                       <div style={{ padding: '4px 14px', fontSize: 9, fontWeight: 700, color: 'var(--orange)', textTransform: 'uppercase', letterSpacing: '1px', borderTop: '1px solid var(--border)', marginTop: 2, paddingTop: 8 }}>
-                        Campos Personalizados
+                        {L('Campos Personalizados', 'Custom Fields')}
                       </div>
                       {customFields.map(f => {
                         const fk = f.fieldKey || f.field_key || f.id
@@ -684,11 +743,11 @@ export default function CrmPage() {
             {filters.length > 0 && (
               <button onClick={clearFilters}
                 style={{ padding: '4px 10px', fontSize: 11, background: 'rgba(239,68,68,.12)', color: '#EF4444', border: '1px solid rgba(239,68,68,.25)', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
-                Limpiar
+                {L('Limpiar', 'Clear')}
               </button>
             )}
             <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginLeft: 4 }}>
-              {filteredContacts.length} contacto{filteredContacts.length !== 1 ? 's' : ''}
+              {filteredContacts.length} {L(`contacto${filteredContacts.length !== 1 ? 's' : ''}`, `contact${filteredContacts.length !== 1 ? 's' : ''}`)}
             </span>
           </div>
 
@@ -710,15 +769,15 @@ export default function CrmPage() {
                   </div>
                   {col.total > 0 && (
                     <div style={{ padding: '6px 16px', fontSize: 11, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' }}>
-                      Total: {fmt(col.total)}
+                      Total: {fmtL(col.total)}
                     </div>
                   )}
                   <div style={{ padding: 8, flex: 1, overflowY: 'auto' }}>
                     {col.items.length === 0 && (
-                      <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 12, opacity: 0.5 }}>Sin contactos</div>
+                      <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 12, opacity: 0.5 }}>{L('Sin contactos', 'No contacts')}</div>
                     )}
                     {col.items.map(c => (
-                      <KanbanCard key={c.id} contact={c} onDragStart={onDragStart} onClick={() => openContact(c)} isDragging={draggedId === c.id} />
+                      <KanbanCard key={c.id} contact={c} onDragStart={onDragStart} onClick={() => openContact(c)} isDragging={draggedId === c.id} en={en} />
                     ))}
                   </div>
                 </div>
@@ -729,11 +788,11 @@ export default function CrmPage() {
           {/* ─── List View (Card/Bubble Style) ─────────────────────────── */}
           {view === 'list' && (() => {
             const LIST_COLS = [
-              { key: 'name', label: 'Nombre' }, { key: 'email', label: 'Email' },
-              { key: 'phone', label: 'Teléfono' }, { key: 'company', label: 'Empresa' },
-              { key: 'status', label: 'Estado' }, { key: 'dealValue', label: 'Valor' },
-              { key: 'assigned_to', label: 'Asignado' }, { key: 'source', label: 'Fuente' },
-              { key: 'tags', label: 'Tags' }, { key: 'created_at', label: 'Creado' },
+              { key: 'name', label: L('Nombre', 'Name') }, { key: 'email', label: 'Email' },
+              { key: 'phone', label: L('Teléfono', 'Phone') }, { key: 'company', label: L('Empresa', 'Company') },
+              { key: 'status', label: L('Estado', 'Status') }, { key: 'dealValue', label: L('Valor', 'Value') },
+              { key: 'assigned_to', label: L('Asignado', 'Assigned') }, { key: 'source', label: L('Fuente', 'Source') },
+              { key: 'tags', label: 'Tags' }, { key: 'created_at', label: L('Creado', 'Created') },
             ]
             const visCols = LIST_COLS.filter(c => listVisibleFields.includes(c.key))
             const renderField = (c, key) => {
@@ -743,8 +802,8 @@ export default function CrmPage() {
                   {STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
                 </select>
               )
-              if (key === 'dealValue') return <span style={{ fontWeight: 700, color: 'var(--orange)', fontSize: 12 }}>{fmt(c.dealValue)}</span>
-              if (key === 'created_at') return <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{fmtDate(c.created_at)}</span>
+              if (key === 'dealValue') return <span style={{ fontWeight: 700, color: 'var(--orange)', fontSize: 12 }}>{fmtL(c.dealValue)}</span>
+              if (key === 'created_at') return <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{fmtDateL(c.created_at)}</span>
               return <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{c[key] || '—'}</span>
             }
             return (
@@ -759,7 +818,7 @@ export default function CrmPage() {
                   </div>
                   <div style={{ position: 'relative' }}>
                     <button onClick={() => setShowListSettings(!showListSettings)} style={{ ...S.btnGhost, padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
-                      <Settings size={12} /> Columnas
+                      <Settings size={12} /> {L('Columnas', 'Columns')}
                     </button>
                     {showListSettings && (
                       <>
@@ -779,7 +838,7 @@ export default function CrmPage() {
                   </div>
                 </div>
                 {sortedContacts.length === 0 && (
-                  <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>No hay contactos</div>
+                  <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>{L('No hay contactos', 'No contacts')}</div>
                 )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {sortedContacts.map(c => (
@@ -791,7 +850,7 @@ export default function CrmPage() {
                         {(c.name || '?')[0].toUpperCase()}
                       </div>
                       <div style={{ flex: '0 0 auto', minWidth: 120 }}>
-                        <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>{c.name || 'Sin nombre'}</div>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>{c.name || L('Sin nombre', 'No name')}</div>
                         {listVisibleFields.includes('company') && c.company && <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{c.company}</div>}
                       </div>
                       <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', minWidth: 0 }}>
@@ -815,6 +874,7 @@ export default function CrmPage() {
               contacts={filteredContacts}
               getCrmActivities={getCrmActivities}
               onContactClick={openContact}
+              en={en}
             />
           )}
 
@@ -823,10 +883,11 @@ export default function CrmPage() {
             <TasksView
               tasks={allTasks || []} contacts={contacts} team={team}
               onToggle={async (t) => { await updateCrmTask(t.id, { completed: !t.completed }); refreshAllTasks() }}
-              onDelete={async (t) => { if (confirm('¿Eliminar tarea?')) { await deleteCrmTask(t.id); refreshAllTasks() } }}
+              onDelete={async (t) => { if (confirm(L('¿Eliminar tarea?', 'Delete task?'))) { await deleteCrmTask(t.id); refreshAllTasks() } }}
               onAdd={async (data) => { await addCrmTask(data); refreshAllTasks() }}
               onUpdate={async (id, data) => { await updateCrmTask(id, data); refreshAllTasks() }}
               onContactClick={openContact}
+              en={en}
             />
           )}
         </div>
@@ -836,11 +897,12 @@ export default function CrmPage() {
       {selectedContact && (
         <ContactSidebar
           contact={selectedContact} customFields={customFields} team={team}
-          statuses={STATUSES} statusMap={STATUS_MAP}
+          statuses={STATUSES} statusMap={STATUS_MAP} pipelines={pipelines || []}
           onClose={closeContact} onUpdate={handleUpdateContact} onDelete={handleDeleteContact}
           onStatusChange={handleStatusChange}
           getCrmActivities={getCrmActivities} addCrmActivity={addCrmActivity} deleteCrmActivity={deleteCrmActivity}
           getCrmFiles={getCrmFiles} addCrmFile={addCrmFile} deleteCrmFile={deleteCrmFile}
+          en={en}
         />
       )}
 
@@ -850,15 +912,16 @@ export default function CrmPage() {
           pipelines={pipelines || []}
           activePipeline={activePipeline}
           onClose={() => setShowPipelineEditor(false)}
+          en={en}
           onSavePipeline={async (id, data) => {
             try {
               if (id) await updateCrmPipeline(id, data)
               else { const p = await addCrmPipeline(data); setActivePipelineId(p?.id) }
               refreshPipelines()
-            } catch (err) { alert('Error al guardar pipeline.') }
+            } catch (err) { alert(L('Error al guardar pipeline.', 'Error saving pipeline.')) }
           }}
           onDeletePipeline={async (id) => {
-            if (!confirm('¿Eliminar este pipeline?')) return
+            if (!confirm(L('¿Eliminar este pipeline?', 'Delete this pipeline?'))) return
             await deleteCrmPipeline(id)
             refreshPipelines()
             if (activePipelineId === id) setActivePipelineId(null)
@@ -869,13 +932,13 @@ export default function CrmPage() {
       {/* ─── Custom Fields Modal ──────────────────────────────────────── */}
       {showCustomFields && (
         <CustomFieldsModal fields={customFields} onClose={() => setShowCustomFields(false)}
-          onAdd={addCrmCustomField} onUpdate={updateCrmCustomField} onDelete={deleteCrmCustomField} refresh={refreshFields} />
+          onAdd={addCrmCustomField} onUpdate={updateCrmCustomField} onDelete={deleteCrmCustomField} refresh={refreshFields} en={en} />
       )}
 
       {/* ─── New Contact Modal ────────────────────────────────────────── */}
       {showNewContact && (
         <NewContactModal customFields={customFields} team={team} statuses={STATUSES}
-          onClose={() => setShowNewContact(false)} onSave={handleSaveNewContact} />
+          onClose={() => setShowNewContact(false)} onSave={handleSaveNewContact} en={en} />
       )}
 
       {/* Click away for filter dropdown */}
@@ -921,7 +984,9 @@ function SidebarViewItem({ label, icon, active, onClick, onEdit, onDelete, count
 // ═════════════════════════════════════════════════════════════════════════════════
 // KANBAN CARD
 // ═════════════════════════════════════════════════════════════════════════════════
-function KanbanCard({ contact, onDragStart, onClick, isDragging }) {
+function KanbanCard({ contact, onDragStart, onClick, isDragging, en }) {
+  const L = (es, enText) => en ? enText : es
+  const fmtL = (v) => { const n = Number(v); if (!n && n !== 0) return '—'; return n.toLocaleString(en ? 'en-US' : 'es-ES', { style: 'currency', currency: en ? 'USD' : 'EUR', minimumFractionDigits: 0 }) }
   const c = contact
   const tags = (c.tags || '').split(',').map(t => t.trim()).filter(Boolean)
   return (
@@ -933,9 +998,9 @@ function KanbanCard({ contact, onDragStart, onClick, isDragging }) {
       }}
       onMouseEnter={e => { if (!isDragging) { e.currentTarget.style.borderColor = 'var(--orange)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(255,107,0,.12)' } }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,.15)' }}>
-      <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', marginBottom: 4 }}>{c.name || 'Sin nombre'}</div>
+      <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', marginBottom: 4 }}>{c.name || L('Sin nombre', 'No name')}</div>
       {c.company && <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-secondary)', marginBottom: 6 }}><Building2 size={11} /> {c.company}</div>}
-      {Number(c.dealValue) > 0 && <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--orange)', marginBottom: 6 }}>{fmt(c.dealValue)}</div>}
+      {Number(c.dealValue) > 0 && <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--orange)', marginBottom: 6 }}>{fmtL(c.dealValue)}</div>}
       {c.assigned_to && <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-secondary)', marginBottom: 6 }}><User size={11} /> {c.assigned_to}</div>}
       {tags.length > 0 && (
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
@@ -952,7 +1017,10 @@ function KanbanCard({ contact, onDragStart, onClick, isDragging }) {
 // ═════════════════════════════════════════════════════════════════════════════════
 // CALENDAR VIEW
 // ═════════════════════════════════════════════════════════════════════════════════
-function CalendarView({ contacts, getCrmActivities, onContactClick }) {
+function CalendarView({ contacts, getCrmActivities, onContactClick, en }) {
+  const L = (es, enText) => en ? enText : es
+  const locale = en ? 'en-US' : 'es-ES'
+  const fmtDateTimeL = (d) => d ? new Date(d).toLocaleString(locale, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'
   const [month, setMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1) })
   const [allActivities, setAllActivities] = useState([])
   const [selectedDay, setSelectedDay] = useState(null)
@@ -977,7 +1045,7 @@ function CalendarView({ contacts, getCrmActivities, onContactClick }) {
   const firstDay = new Date(year, mo, 1).getDay() || 7 // Mon=1
   const daysInMonth = new Date(year, mo + 1, 0).getDate()
   const weeks = Math.ceil((firstDay - 1 + daysInMonth) / 7)
-  const monthName = month.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
+  const monthName = month.toLocaleDateString(locale, { month: 'long', year: 'numeric' })
 
   const scheduledActivities = useMemo(() =>
     allActivities.filter(a => a.scheduledAt && ['meeting', 'call'].includes(a.type)),
@@ -1005,7 +1073,7 @@ function CalendarView({ contacts, getCrmActivities, onContactClick }) {
       </div>
       {/* Day headers */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, marginBottom: 1 }}>
-        {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => (
+        {(en ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] : ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']).map(d => (
           <div key={d} style={{ padding: '8px 0', textAlign: 'center', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>{d}</div>
         ))}
       </div>
@@ -1046,8 +1114,8 @@ function CalendarView({ contacts, getCrmActivities, onContactClick }) {
       {/* Selected day events */}
       {selectedDay && (
         <div style={{ marginTop: 16, padding: 14, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10 }}>
-          <div style={{ ...S.sectionLabel, marginBottom: 8 }}>{selectedDay} {monthName} - Eventos ({dayEvents.length})</div>
-          {dayEvents.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-secondary)', opacity: .5 }}>Sin eventos</div>}
+          <div style={{ ...S.sectionLabel, marginBottom: 8 }}>{selectedDay} {monthName} - {L('Eventos', 'Events')} ({dayEvents.length})</div>
+          {dayEvents.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-secondary)', opacity: .5 }}>{L('Sin eventos', 'No events')}</div>}
           {dayEvents.map((a, i) => {
             const at = ACTIVITY_TYPES.find(x => x.key === a.type) || ACTIVITY_TYPES[3]
             return (
@@ -1056,7 +1124,7 @@ function CalendarView({ contacts, getCrmActivities, onContactClick }) {
                 <at.icon size={13} style={{ color: 'var(--orange)' }} />
                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{a.contactName}</span>
                 <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{a.description?.slice(0, 40)}</span>
-                <span style={{ fontSize: 10, color: 'var(--text-secondary)', marginLeft: 'auto' }}>{fmtDateTime(a.scheduledAt)}</span>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', marginLeft: 'auto' }}>{fmtDateTimeL(a.scheduledAt)}</span>
               </div>
             )
           })}
@@ -1070,10 +1138,22 @@ function CalendarView({ contacts, getCrmActivities, onContactClick }) {
 // CONTACT SIDEBAR (with tabs: Details / Files)
 // ═════════════════════════════════════════════════════════════════════════════════
 function ContactSidebar({
-  contact, customFields, team, statuses, statusMap, onClose, onUpdate, onDelete, onStatusChange,
+  contact, customFields, team, statuses, statusMap, pipelines, onClose, onUpdate, onDelete, onStatusChange,
   getCrmActivities, addCrmActivity, deleteCrmActivity,
   getCrmFiles, addCrmFile, deleteCrmFile,
+  en,
 }) {
+  const L = (es, enText) => en ? enText : es
+  const locale = en ? 'en-US' : 'es-ES'
+  const fmtL = (v) => { const n = Number(v); if (!n && n !== 0) return '—'; return n.toLocaleString(locale, { style: 'currency', currency: en ? 'USD' : 'EUR', minimumFractionDigits: 0 }) }
+  const fmtDateL = (d) => d ? new Date(d).toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+  const fmtDateTimeL = (d) => d ? new Date(d).toLocaleString(locale, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'
+  const ACTIVITY_TYPES_L = en ? [
+    { key: 'call', label: 'Call', icon: Phone },
+    { key: 'email', label: 'Email', icon: Mail },
+    { key: 'meeting', label: 'Meeting', icon: Video },
+    { key: 'note', label: 'Note', icon: FileText },
+  ] : ACTIVITY_TYPES
   const STATUSES = statuses
   const [tab, setTab] = useState('details') // details | files
   const [editing, setEditing] = useState(false)
@@ -1105,6 +1185,7 @@ function ContactSidebar({
       tags: contact.tags || '', address: contact.address || '',
       whatsapp: contact.whatsapp || '', zoom_link: contact.zoom_link || '',
       website: contact.website || '', instagram: contact.instagram || '',
+      pipelineId: contact.pipelineId || '',
       customFields: contact.customFields || {},
     })
     setEditing(true)
@@ -1172,7 +1253,7 @@ function ContactSidebar({
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{contact.name || 'Sin nombre'}</div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{contact.name || L('Sin nombre', 'No name')}</div>
               {contact.phone && (
                 <a href={`https://wa.me/${contact.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer"
                   title="WhatsApp" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: '50%', background: '#25D36622', color: '#25D366', border: 'none', cursor: 'pointer', flexShrink: 0 }}>
@@ -1189,7 +1270,7 @@ function ContactSidebar({
             {contact.company && <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{contact.company}</div>}
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            {!editing && <button onClick={startEditing} style={{ ...S.btnGhost, display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}><Edit3 size={13} /> Editar</button>}
+            {!editing && <button onClick={startEditing} style={{ ...S.btnGhost, display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}><Edit3 size={13} /> {L('Editar', 'Edit')}</button>}
             <button onClick={onDelete} style={{ padding: '6px 10px', background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.3)', borderRadius: 6, cursor: 'pointer', color: '#EF4444', display: 'flex', alignItems: 'center', fontSize: 12 }}><Trash2 size={13} /></button>
             <button onClick={onClose} style={{ padding: '6px', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><X size={18} /></button>
           </div>
@@ -1197,7 +1278,7 @@ function ContactSidebar({
 
         {/* Tabs */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          {[{ key: 'details', label: 'Detalles' }, { key: 'files', label: 'Archivos' }].map(t => (
+          {[{ key: 'details', label: L('Detalles', 'Details') }, { key: 'files', label: L('Archivos', 'Files') }].map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
               style={{
                 flex: 1, padding: '10px', background: 'transparent', border: 'none',
@@ -1217,7 +1298,7 @@ function ContactSidebar({
             <>
               {/* Status buttons */}
               <div style={{ marginBottom: 20 }}>
-                <div style={S.sectionLabel}>Estado</div>
+                <div style={S.sectionLabel}>{L('Estado', 'Status')}</div>
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                   {STATUSES.map(st => (
                     <button key={st.key} onClick={() => onStatusChange(contact.id, st.key)}
@@ -1233,27 +1314,37 @@ function ContactSidebar({
                 </div>
               </div>
 
+              {/* Pipeline selector */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={S.sectionLabel}>Pipeline</div>
+                <select value={contact.pipelineId || ''} 
+                  onChange={e => onUpdate({ pipelineId: e.target.value })}
+                  style={S.input}>
+                  {(pipelines || []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+
               {/* ABOUT section */}
               {!editing ? (
                 <div style={{ marginBottom: 24 }}>
-                  <div style={S.sectionLabel}>Información</div>
+                  <div style={S.sectionLabel}>{L('Información', 'Information')}</div>
                   <div style={{ display: 'grid', gap: 2 }}>
                     <LinkRow icon={<Mail size={13} />} label="Email" value={contact.email} href={contact.email ? `mailto:${contact.email}` : null} />
-                    <LinkRow icon={<Phone size={13} />} label="Teléfono" value={contact.phone} />
-                    <LinkRow icon={<Building2 size={13} />} label="Empresa" value={contact.company} />
-                    <LinkRow icon={<DollarSign size={13} />} label="Valor" value={fmt(contact.dealValue)} />
-                    <LinkRow icon={<User size={13} />} label="Asignado" value={contact.assigned_to} />
-                    <LinkRow icon={<Globe size={13} />} label="Fuente" value={contact.source} />
-                    <LinkRow icon={<MapPin size={13} />} label="Dirección" value={contact.address} />
+                    <LinkRow icon={<Phone size={13} />} label={L('Teléfono', 'Phone')} value={contact.phone} />
+                    <LinkRow icon={<Building2 size={13} />} label={L('Empresa', 'Company')} value={contact.company} />
+                    <LinkRow icon={<DollarSign size={13} />} label={L('Valor', 'Value')} value={fmtL(contact.dealValue)} />
+                    <LinkRow icon={<User size={13} />} label={L('Asignado', 'Assigned')} value={contact.assigned_to} />
+                    <LinkRow icon={<Globe size={13} />} label={L('Fuente', 'Source')} value={contact.source} />
+                    <LinkRow icon={<MapPin size={13} />} label={L('Dirección', 'Address')} value={contact.address} />
                     <LinkRow icon={<MessageSquare size={13} />} label="WhatsApp" value={contact.whatsapp}
                       href={contact.whatsapp ? `https://wa.me/${contact.whatsapp.replace(/[^0-9]/g, '')}` : null} />
-                    <LinkRow icon={<Video size={13} />} label="Zoom" value={contact.zoom_link ? 'Enlace' : ''}
+                    <LinkRow icon={<Video size={13} />} label="Zoom" value={contact.zoom_link ? L('Enlace', 'Link') : ''}
                       href={contact.zoom_link} />
-                    <LinkRow icon={<Globe size={13} />} label="Website" value={contact.website ? 'Visitar' : ''}
+                    <LinkRow icon={<Globe size={13} />} label="Website" value={contact.website ? L('Visitar', 'Visit') : ''}
                       href={contact.website} />
                     <LinkRow icon={<Globe size={13} />} label="Instagram" value={contact.instagram ? `@${contact.instagram.replace(/^@/, '')}` : ''}
                       href={contact.instagram ? `https://instagram.com/${contact.instagram.replace(/^@/, '')}` : null} />
-                    <LinkRow icon={<Calendar size={13} />} label="Creado" value={fmtDate(contact.created_at)} />
+                    <LinkRow icon={<Calendar size={13} />} label={L('Creado', 'Created')} value={fmtDateL(contact.created_at)} />
                   </div>
                   {contact.tags && (
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 0' }}>
@@ -1268,14 +1359,14 @@ function ContactSidebar({
                   {/* Custom fields display */}
                   {customFields.length > 0 && contact.customFields && Object.keys(contact.customFields).length > 0 && (
                     <div style={{ marginTop: 12 }}>
-                      <div style={S.sectionLabel}>Campos Personalizados</div>
+                      <div style={S.sectionLabel}>{L('Campos Personalizados', 'Custom Fields')}</div>
                       {customFields.map(f => {
                         const val = contact.customFields?.[f.fieldKey || f.field_key || f.id || f.name]
                         if (val === undefined || val === '') return null
                         return (
                           <div key={f.id || f.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
                             <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{f.name}</span>
-                            <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500 }}>{(f.fieldType || f.type) === 'checkbox' ? (val ? 'Sí' : 'No') : String(val)}</span>
+                            <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500 }}>{(f.fieldType || f.type) === 'checkbox' ? (val ? L('Sí', 'Yes') : 'No') : String(val)}</span>
                           </div>
                         )
                       })}
@@ -1285,13 +1376,13 @@ function ContactSidebar({
               ) : (
                 /* Edit Form */
                 <div style={{ marginBottom: 24 }}>
-                  <div style={S.sectionLabel}>Editar Información</div>
+                  <div style={S.sectionLabel}>{L('Editar Información', 'Edit Information')}</div>
                   <div style={{ display: 'grid', gap: 8 }}>
                     {[
-                      { label: 'Nombre', key: 'name' }, { label: 'Email', key: 'email', type: 'email' },
-                      { label: 'Teléfono', key: 'phone' }, { label: 'Empresa', key: 'company' },
-                      { label: 'Valor del Trato', key: 'dealValue', type: 'number' },
-                      { label: 'Dirección', key: 'address' }, { label: 'WhatsApp', key: 'whatsapp' },
+                      { label: L('Nombre', 'Name'), key: 'name' }, { label: 'Email', key: 'email', type: 'email' },
+                      { label: L('Teléfono', 'Phone'), key: 'phone' }, { label: L('Empresa', 'Company'), key: 'company' },
+                      { label: L('Valor del Trato', 'Deal Value'), key: 'dealValue', type: 'number' },
+                      { label: L('Dirección', 'Address'), key: 'address' }, { label: 'WhatsApp', key: 'whatsapp' },
                       { label: 'Zoom Link', key: 'zoom_link', type: 'url' },
                       { label: 'Website', key: 'website', type: 'url' },
                       { label: 'Instagram', key: 'instagram' },
@@ -1303,17 +1394,23 @@ function ContactSidebar({
                       </div>
                     ))}
                     <div>
-                      <label style={S.label}>Asignado a</label>
+                      <label style={S.label}>{L('Asignado a', 'Assigned to')}</label>
                       <select value={editForm.assigned_to} onChange={e => setEditForm(p => ({ ...p, assigned_to: e.target.value }))} style={S.input}>
-                        <option value="">— Sin asignar —</option>
+                        <option value="">{L('— Sin asignar —', '— Unassigned —')}</option>
                         {team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label style={S.label}>Fuente</label>
+                      <label style={S.label}>{L('Fuente', 'Source')}</label>
                       <select value={editForm.source} onChange={e => setEditForm(p => ({ ...p, source: e.target.value }))} style={S.input}>
-                        <option value="">— Seleccionar —</option>
+                        <option value="">{L('— Seleccionar —', '— Select —')}</option>
                         {SOURCE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={S.label}>Pipeline</label>
+                      <select value={editForm.pipelineId || ''} onChange={e => setEditForm(p => ({ ...p, pipelineId: e.target.value }))} style={S.input}>
+                        {(pipelines || []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                     </div>
                     {customFields.map(f => (
@@ -1322,8 +1419,8 @@ function ContactSidebar({
                     ))}
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-                    <button onClick={() => setEditing(false)} style={{ ...S.btnGhost, flex: 1, padding: '8px', fontSize: 13 }}>Cancelar</button>
-                    <button onClick={saveEdit} className="btn-action" style={{ flex: 1, padding: '8px', fontSize: 13 }}><Save size={13} style={{ marginRight: 4 }} /> Guardar</button>
+                    <button onClick={() => setEditing(false)} style={{ ...S.btnGhost, flex: 1, padding: '8px', fontSize: 13 }}>{L('Cancelar', 'Cancel')}</button>
+                    <button onClick={saveEdit} className="btn-action" style={{ flex: 1, padding: '8px', fontSize: 13 }}><Save size={13} style={{ marginRight: 4 }} /> {L('Guardar', 'Save')}</button>
                   </div>
                 </div>
               )}
@@ -1331,11 +1428,11 @@ function ContactSidebar({
               {/* NOTES section */}
               <div style={{ marginBottom: 24 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={S.sectionLabel}>Notas</span>
+                  <span style={S.sectionLabel}>{L('Notas', 'Notes')}</span>
                   {notesEdit === null ? (
                     <button onClick={() => setNotesEdit(contact.notes || '')} style={{ ...S.btnGhost, fontSize: 10, padding: '3px 8px' }}><Edit3 size={10} /></button>
                   ) : (
-                    <button onClick={handleSaveNotes} style={{ padding: '3px 8px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 10, fontWeight: 700 }}>Guardar</button>
+                    <button onClick={handleSaveNotes} style={{ padding: '3px 8px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 10, fontWeight: 700 }}>{L('Guardar', 'Save')}</button>
                   )}
                 </div>
                 {notesEdit !== null ? (
@@ -1343,7 +1440,7 @@ function ContactSidebar({
                     style={{ ...S.input, resize: 'vertical', fontFamily: 'inherit', fontSize: 12 }} />
                 ) : (
                   <div style={{ padding: 10, background: 'var(--bg-card)', borderRadius: 8, fontSize: 13, color: 'var(--text)', lineHeight: 1.5, border: '1px solid var(--border)', minHeight: 40 }}>
-                    {contact.notes || <span style={{ color: 'var(--text-secondary)', opacity: .5 }}>Sin notas</span>}
+                    {contact.notes || <span style={{ color: 'var(--text-secondary)', opacity: .5 }}>{L('Sin notas', 'No notes')}</span>}
                   </div>
                 )}
               </div>
@@ -1351,16 +1448,16 @@ function ContactSidebar({
               {/* ACTIVITY timeline */}
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <span style={S.sectionLabel}>Actividad</span>
+                  <span style={S.sectionLabel}>{L('Actividad', 'Activity')}</span>
                   <button onClick={() => setShowActivityForm(!showActivityForm)}
                     style={{ padding: '4px 10px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Plus size={12} /> Añadir
+                    <Plus size={12} /> {L('Añadir', 'Add')}
                   </button>
                 </div>
                 {showActivityForm && (
                   <form onSubmit={handleAddActivity} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
                     <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                      {ACTIVITY_TYPES.map(at => (
+                      {ACTIVITY_TYPES_L.map(at => (
                         <button key={at.key} type="button" onClick={() => setNewActivity(p => ({ ...p, type: at.key }))}
                           style={{
                             display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 5, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
@@ -1372,27 +1469,27 @@ function ContactSidebar({
                       ))}
                     </div>
                     <textarea value={newActivity.description} onChange={e => setNewActivity(p => ({ ...p, description: e.target.value }))}
-                      placeholder="Descripción..." rows={2}
+                      placeholder={L('Descripción...', 'Description...')} rows={2}
                       style={{ ...S.input, resize: 'vertical', fontFamily: 'inherit', fontSize: 12, marginBottom: 6 }} />
                     {['meeting', 'call'].includes(newActivity.type) && (
                       <input type="datetime-local" value={newActivity.scheduledAt || ''} onChange={e => setNewActivity(p => ({ ...p, scheduledAt: e.target.value }))}
                         style={{ ...S.input, fontSize: 12, marginBottom: 6, colorScheme: 'dark' }} />
                     )}
                     <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                      <button type="button" onClick={() => setShowActivityForm(false)} style={{ ...S.btnGhost, fontSize: 11 }}>Cancelar</button>
-                      <button type="submit" style={{ padding: '5px 12px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>Guardar</button>
+                      <button type="button" onClick={() => setShowActivityForm(false)} style={{ ...S.btnGhost, fontSize: 11 }}>{L('Cancelar', 'Cancel')}</button>
+                      <button type="submit" style={{ padding: '5px 12px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>{L('Guardar', 'Save')}</button>
                     </div>
                   </form>
                 )}
                 {activitiesLoading ? (
-                  <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-secondary)', fontSize: 12 }}>Cargando...</div>
+                  <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-secondary)', fontSize: 12 }}>{L('Cargando...', 'Loading...')}</div>
                 ) : activities.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: 24, color: 'var(--text-secondary)', fontSize: 12, opacity: .5 }}>Sin actividades</div>
+                  <div style={{ textAlign: 'center', padding: 24, color: 'var(--text-secondary)', fontSize: 12, opacity: .5 }}>{L('Sin actividades', 'No activity')}</div>
                 ) : (
                   <div style={{ position: 'relative', paddingLeft: 20 }}>
                     <div style={{ position: 'absolute', left: 6, top: 4, bottom: 4, width: 1, background: 'var(--border)' }} />
                     {activities.map((act, idx) => {
-                      const at = ACTIVITY_TYPES.find(a => a.key === act.type) || ACTIVITY_TYPES[3]
+                      const at = ACTIVITY_TYPES_L.find(a => a.key === act.type) || ACTIVITY_TYPES_L[3]
                       return (
                         <div key={act.id || idx} style={{ position: 'relative', marginBottom: 12, paddingBottom: 12, borderBottom: idx < activities.length - 1 ? '1px solid rgba(255,255,255,.03)' : 'none' }}>
                           <div style={{ position: 'absolute', left: -17, top: 3, width: 12, height: 12, borderRadius: '50%', background: 'var(--bg)', border: '2px solid var(--orange)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1403,11 +1500,11 @@ function ContactSidebar({
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
                                 <at.icon size={12} style={{ color: 'var(--orange)' }} />
                                 <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text)' }}>{at.label}</span>
-                                <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{fmtDateTime(act.created_at)}</span>
+                                <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{fmtDateTimeL(act.created_at)}</span>
                               </div>
                               <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{act.description}</div>
                             </div>
-                            <button onClick={() => { if (confirm('¿Eliminar?')) { deleteCrmActivity(act.id); refreshActivities() } }}
+                            <button onClick={() => { if (confirm(L('¿Eliminar?', 'Delete?'))) { deleteCrmActivity(act.id); refreshActivities() } }}
                               style={{ padding: 4, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', opacity: .4 }}
                               onMouseEnter={e => e.currentTarget.style.opacity = '1'} onMouseLeave={e => e.currentTarget.style.opacity = '.4'}>
                               <Trash2 size={12} />
@@ -1426,17 +1523,17 @@ function ContactSidebar({
           {tab === 'files' && (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <span style={S.sectionLabel}>Archivos</span>
+                <span style={S.sectionLabel}>{L('Archivos', 'Files')}</span>
                 <button onClick={() => fileInputRef.current?.click()}
                   style={{ padding: '6px 12px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Upload size={13} /> Subir
+                  <Upload size={13} /> {L('Subir', 'Upload')}
                 </button>
                 <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={handleFileUpload} />
               </div>
               {(!files || files.length === 0) ? (
                 <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)', opacity: .5, fontSize: 13 }}>
                   <Paperclip size={24} style={{ marginBottom: 8, opacity: .3 }} /><br />
-                  Sin archivos adjuntos
+                  {L('Sin archivos adjuntos', 'No attached files')}
                 </div>
               ) : (
                 <div style={{ display: 'grid', gap: 6 }}>
@@ -1447,7 +1544,7 @@ function ContactSidebar({
                         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</div>
                         <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{f.type} {f.size ? `- ${(f.size / 1024).toFixed(1)}KB` : ''}</div>
                       </div>
-                      <button onClick={() => { if (confirm('¿Eliminar archivo?')) { deleteCrmFile(f.id); refreshFiles() } }}
+                      <button onClick={() => { if (confirm(L('¿Eliminar archivo?', 'Delete file?'))) { deleteCrmFile(f.id); refreshFiles() } }}
                         style={{ padding: 4, background: 'transparent', border: 'none', cursor: 'pointer', color: '#EF4444' }}>
                         <Trash2 size={13} />
                       </button>
@@ -1494,7 +1591,8 @@ function CustomFieldInput({ field, value, onChange }) {
 // ═════════════════════════════════════════════════════════════════════════════════
 // PIPELINE EDITOR MODAL (multi-pipeline)
 // ═════════════════════════════════════════════════════════════════════════════════
-function PipelineEditorModal({ pipelines, activePipeline, onClose, onSavePipeline, onDeletePipeline }) {
+function PipelineEditorModal({ pipelines, activePipeline, onClose, onSavePipeline, onDeletePipeline, en }) {
+  const L = (es, enText) => en ? enText : es
   const [selectedId, setSelectedId] = useState(activePipeline?.id || null)
   const selected = pipelines.find(p => p.id === selectedId)
   const [name, setName] = useState(selected?.name || '')
@@ -1511,21 +1609,23 @@ function PipelineEditorModal({ pipelines, activePipeline, onClose, onSavePipelin
     if (j < 0 || j >= n.length) return
     ;[n[idx], n[j]] = [n[j], n[idx]]; setStages(n)
   }
-  const addStage = () => setStages(prev => [...prev, { key: `stage_${Date.now()}`, label: 'Nueva Etapa', color: '#6B7280' }])
+  const addStage = () => setStages(prev => [...prev, { key: `stage_${Date.now()}`, label: L('Nueva Etapa', 'New Stage'), color: '#6B7280' }])
   const removeStage = (idx) => { if (stages.length > 2) setStages(prev => prev.filter((_, i) => i !== idx)) }
 
   const handleSave = () => {
+    const cleanStages = stages.map(({ position, ...rest }) => rest)
     if (creating) {
-      onSavePipeline(null, { name: name || 'Nuevo Pipeline', stages })
+      onSavePipeline(null, { name: name || L('Nuevo Pipeline', 'New Pipeline'), stages: cleanStages })
       setCreating(false)
     } else if (selected) {
-      onSavePipeline(selected.id, { name, stages })
+      onSavePipeline(selected.id, { name, stages: cleanStages })
     }
+    onClose()
   }
 
   const startNew = () => {
     setCreating(true); setSelectedId(null)
-    setName('Nuevo Pipeline')
+    setName(L('Nuevo Pipeline', 'New Pipeline'))
     setStages(DEFAULT_STATUSES.map((s, i) => ({ ...s, position: i })))
   }
 
@@ -1556,13 +1656,13 @@ function PipelineEditorModal({ pipelines, activePipeline, onClose, onSavePipelin
             ))}
             <button onClick={startNew}
               style={{ width: 'calc(100% - 16px)', margin: '8px 8px', padding: '6px', display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center', background: 'transparent', border: '1px dashed var(--border)', borderRadius: 6, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 11 }}>
-              <Plus size={12} /> Nuevo
+              <Plus size={12} /> {L('Nuevo', 'New')}
             </button>
           </div>
           {/* Editor */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px' }}>
             <div style={{ marginBottom: 12 }}>
-              <label style={S.label}>Nombre</label>
+              <label style={S.label}>{L('Nombre', 'Name')}</label>
               <input value={name} onChange={e => setName(e.target.value)} style={S.input} />
             </div>
             {stages.map((stage, idx) => (
@@ -1590,7 +1690,7 @@ function PipelineEditorModal({ pipelines, activePipeline, onClose, onSavePipelin
             ))}
             <button onClick={addStage}
               style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, padding: '6px 14px', background: 'transparent', border: '1px dashed var(--border)', borderRadius: 6, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 11, width: '100%', justifyContent: 'center' }}>
-              <Plus size={13} /> Añadir etapa
+              <Plus size={13} /> {L('Añadir etapa', 'Add stage')}
             </button>
           </div>
         </div>
@@ -1598,13 +1698,13 @@ function PipelineEditorModal({ pipelines, activePipeline, onClose, onSavePipelin
           {selected && !creating && (
             <button onClick={() => onDeletePipeline(selected.id)}
               style={{ padding: '8px 14px', background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.3)', borderRadius: 6, cursor: 'pointer', color: '#EF4444', fontSize: 12 }}>
-              Eliminar Pipeline
+              {L('Eliminar Pipeline', 'Delete Pipeline')}
             </button>
           )}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            <button onClick={onClose} style={{ ...S.btnGhost, padding: '8px 18px', fontSize: 13 }}>Cancelar</button>
+            <button onClick={onClose} style={{ ...S.btnGhost, padding: '8px 18px', fontSize: 13 }}>{L('Cancelar', 'Cancel')}</button>
             <button onClick={handleSave} className="btn-action" style={{ padding: '8px 18px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Save size={14} /> Guardar
+              <Save size={14} /> {L('Guardar', 'Save')}
             </button>
           </div>
         </div>
@@ -1616,7 +1716,8 @@ function PipelineEditorModal({ pipelines, activePipeline, onClose, onSavePipelin
 // ═════════════════════════════════════════════════════════════════════════════════
 // CUSTOM FIELDS MODAL
 // ═════════════════════════════════════════════════════════════════════════════════
-function CustomFieldsModal({ fields, onClose, onAdd, onUpdate, onDelete, refresh }) {
+function CustomFieldsModal({ fields, onClose, onAdd, onUpdate, onDelete, refresh, en }) {
+  const L = (es, enText) => en ? enText : es
   const [creating, setCreating] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState({ name: '', type: 'text', options: '', position: 0 })
@@ -1653,18 +1754,18 @@ function CustomFieldsModal({ fields, onClose, onAdd, onUpdate, onDelete, refresh
         <div style={S.modalHeader}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Settings size={16} style={{ color: 'var(--orange)' }} />
-            <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)' }}>Campos Personalizados</span>
+            <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)' }}>{L('Campos Personalizados', 'Custom Fields')}</span>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button onClick={startCreate} style={{ padding: '5px 12px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Plus size={13} /> Añadir
+              <Plus size={13} /> {L('Añadir', 'Add')}
             </button>
             <button onClick={onClose} style={{ padding: 4, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><X size={18} /></button>
           </div>
         </div>
         <div style={{ overflowY: 'auto', flex: 1, padding: '12px 20px' }}>
           {sortedFields.length === 0 && !creating && (
-            <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>No hay campos personalizados.</div>
+            <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>{L('No hay campos personalizados.', 'No custom fields.')}</div>
           )}
           {sortedFields.map((f, idx) => {
             const Icon = FIELD_TYPE_ICONS[f.fieldType || f.type] || FileText
@@ -1685,18 +1786,18 @@ function CustomFieldsModal({ fields, onClose, onAdd, onUpdate, onDelete, refresh
                       </div>
                     </div>
                     <button onClick={() => startEdit(f)} style={{ ...S.btnGhost, padding: '4px 8px', fontSize: 11 }}><Edit3 size={12} /></button>
-                    <button onClick={() => { if (confirm('¿Eliminar?')) { onDelete(f.id); refresh() } }}
+                    <button onClick={() => { if (confirm(L('¿Eliminar?', 'Delete?'))) { onDelete(f.id); refresh() } }}
                       style={{ padding: '4px 8px', background: 'transparent', border: '1px solid rgba(239,68,68,.3)', borderRadius: 5, cursor: 'pointer', color: '#EF4444', fontSize: 11 }}><Trash2 size={12} /></button>
                   </div>
                 ) : (
-                  <FieldForm form={form} setForm={setForm} onSave={handleSave} onCancel={() => setEditingId(null)} isEdit />
+                  <FieldForm form={form} setForm={setForm} onSave={handleSave} onCancel={() => setEditingId(null)} isEdit en={en} />
                 )}
               </div>
             )
           })}
           {creating && (
             <div style={{ padding: 12, marginTop: 8, background: 'rgba(255,107,0,.05)', border: '1px solid var(--orange)', borderRadius: 8 }}>
-              <FieldForm form={form} setForm={setForm} onSave={handleSave} onCancel={() => setCreating(false)} />
+              <FieldForm form={form} setForm={setForm} onSave={handleSave} onCancel={() => setCreating(false)} en={en} />
             </div>
           )}
         </div>
@@ -1705,16 +1806,17 @@ function CustomFieldsModal({ fields, onClose, onAdd, onUpdate, onDelete, refresh
   )
 }
 
-function FieldForm({ form, setForm, onSave, onCancel, isEdit }) {
+function FieldForm({ form, setForm, onSave, onCancel, isEdit, en }) {
+  const L = (es, enText) => en ? enText : es
   return (
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
         <div>
-          <label style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: 3 }}>Nombre</label>
+          <label style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: 3 }}>{L('Nombre', 'Name')}</label>
           <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Ej: LinkedIn" style={S.inputSm} />
         </div>
         <div>
-          <label style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: 3 }}>Tipo</label>
+          <label style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: 3 }}>{L('Tipo', 'Type')}</label>
           <select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))} style={S.inputSm}>
             {FIELD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
@@ -1723,13 +1825,13 @@ function FieldForm({ form, setForm, onSave, onCancel, isEdit }) {
       {form.name && <div style={{ marginBottom: 8, fontSize: 10, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>field_key: <span style={{ color: 'var(--orange)' }}>{generateFieldKey(form.name)}</span></div>}
       {form.type === 'select' && (
         <div style={{ marginBottom: 10 }}>
-          <label style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: 3 }}>Opciones (coma)</label>
+          <label style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: 3 }}>{L('Opciones (coma)', 'Options (comma)')}</label>
           <input value={form.options} onChange={e => setForm(p => ({ ...p, options: e.target.value }))} placeholder="A, B, C" style={S.inputSm} />
         </div>
       )}
       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-        <button onClick={onCancel} style={{ ...S.btnGhost, fontSize: 11 }}>Cancelar</button>
-        <button onClick={onSave} style={{ padding: '5px 12px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>{isEdit ? 'Actualizar' : 'Crear'}</button>
+        <button onClick={onCancel} style={{ ...S.btnGhost, fontSize: 11 }}>{L('Cancelar', 'Cancel')}</button>
+        <button onClick={onSave} style={{ padding: '5px 12px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>{isEdit ? L('Actualizar', 'Update') : L('Crear', 'Create')}</button>
       </div>
     </div>
   )
@@ -1738,7 +1840,10 @@ function FieldForm({ form, setForm, onSave, onCancel, isEdit }) {
 // ═════════════════════════════════════════════════════════════════════════════════
 // TASKS VIEW (all tasks across contacts)
 // ═════════════════════════════════════════════════════════════════════════════════
-function TasksView({ tasks, contacts, team, onToggle, onDelete, onAdd, onUpdate, onContactClick }) {
+function TasksView({ tasks, contacts, team, onToggle, onDelete, onAdd, onUpdate, onContactClick, en }) {
+  const L = (es, enText) => en ? enText : es
+  const locale = en ? 'en-US' : 'es-ES'
+  const fmtDateL = (d) => d ? new Date(d).toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
   const [showAdd, setShowAdd] = useState(false)
   const emptyForm = { title: '', contact_id: '', dueDate: '', assignedTo: '', description: '', priority: 'medium' }
   const [form, setForm] = useState(emptyForm)
@@ -1759,49 +1864,49 @@ function TasksView({ tasks, contacts, team, onToggle, onDelete, onAdd, onUpdate,
   const pending = (tasks || []).filter(t => !t.completed).length, completed = (tasks || []).filter(t => t.completed).length
   const handleAdd = async () => { if (!form.title.trim()) return; await onAdd({ ...form, completed: false }); setForm(emptyForm); setShowAdd(false) }
   const prioColor = (p) => p === 'high' ? '#EF4444' : p === 'low' ? '#6B7280' : '#F59E0B'
-  const prioLabel = (p) => p === 'high' ? 'Alta' : p === 'low' ? 'Baja' : 'Media'
+  const prioLabel = (p) => p === 'high' ? L('Alta', 'High') : p === 'low' ? L('Baja', 'Low') : L('Media', 'Medium')
   const fl = { fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: 2 }
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 4 }}>
-          {[{ k: 'all', l: 'Todas' }, { k: 'pending', l: 'Pendientes' }, { k: 'completed', l: 'Completadas' }].map(f => (
+          {[{ k: 'all', l: L('Todas', 'All') }, { k: 'pending', l: L('Pendientes', 'Pending') }, { k: 'completed', l: L('Completadas', 'Completed') }].map(f => (
             <button key={f.k} onClick={() => setFilterStatus(f.k)}
               style={{ padding: '5px 12px', fontSize: 11, fontWeight: 600, borderRadius: 6, border: 'none', cursor: 'pointer', background: filterStatus === f.k ? 'var(--orange)' : 'var(--bg-card)', color: filterStatus === f.k ? '#000' : 'var(--text-secondary)' }}>{f.l}</button>
           ))}
         </div>
-        <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{pending} pendiente{pending !== 1 ? 's' : ''} / {completed} completada{completed !== 1 ? 's' : ''}</span>
+        <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{pending} {L(`pendiente${pending !== 1 ? 's' : ''}`, 'pending')} / {completed} {L(`completada${completed !== 1 ? 's' : ''}`, 'completed')}</span>
         <button onClick={() => setShowAdd(!showAdd)} style={{ marginLeft: 'auto', padding: '6px 14px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Plus size={13} /> Nueva Tarea
+          <Plus size={13} /> {L('Nueva Tarea', 'New Task')}
         </button>
       </div>
       {showAdd && (
         <div style={{ padding: 14, background: 'var(--bg-card)', border: '1px solid var(--orange)', borderRadius: 10, marginBottom: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-            <div style={{ gridColumn: 'span 2' }}><label style={fl}>Título *</label>
-              <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder="Título de la tarea..." style={S.input} /></div>
-            <div><label style={fl}>Contacto</label>
+            <div style={{ gridColumn: 'span 2' }}><label style={fl}>{L('Título *', 'Title *')}</label>
+              <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder={L('Título de la tarea...', 'Task title...')} style={S.input} /></div>
+            <div><label style={fl}>{L('Contacto', 'Contact')}</label>
               <select value={form.contact_id} onChange={e => setForm(p => ({ ...p, contact_id: e.target.value }))} style={S.input}>
-                <option value="">— Ninguno —</option>{contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-            <div><label style={fl}>Fecha límite</label>
+                <option value="">{L('— Ninguno —', '— None —')}</option>{contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+            <div><label style={fl}>{L('Fecha límite', 'Due date')}</label>
               <input type="date" value={form.dueDate} onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))} style={{ ...S.input, colorScheme: 'dark' }} /></div>
-            <div><label style={fl}>Asignar a</label>
+            <div><label style={fl}>{L('Asignar a', 'Assign to')}</label>
               <select value={form.assignedTo} onChange={e => setForm(p => ({ ...p, assignedTo: e.target.value }))} style={S.input}>
                 <option value="">—</option>{team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}</select></div>
-            <div><label style={fl}>Prioridad</label>
+            <div><label style={fl}>{L('Prioridad', 'Priority')}</label>
               <select value={form.priority} onChange={e => setForm(p => ({ ...p, priority: e.target.value }))} style={S.input}>
-                <option value="low">Baja</option><option value="medium">Media</option><option value="high">Alta</option></select></div>
-            <div style={{ gridColumn: 'span 2' }}><label style={fl}>Descripción</label>
-              <input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Notas..." style={S.input} /></div>
+                <option value="low">{L('Baja', 'Low')}</option><option value="medium">{L('Media', 'Medium')}</option><option value="high">{L('Alta', 'High')}</option></select></div>
+            <div style={{ gridColumn: 'span 2' }}><label style={fl}>{L('Descripción', 'Description')}</label>
+              <input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder={L('Notas...', 'Notes...')} style={S.input} /></div>
           </div>
           <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-            <button onClick={() => setShowAdd(false)} style={{ ...S.btnGhost, fontSize: 11 }}>Cancelar</button>
-            <button onClick={handleAdd} style={{ padding: '6px 14px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>Crear</button>
+            <button onClick={() => setShowAdd(false)} style={{ ...S.btnGhost, fontSize: 11 }}>{L('Cancelar', 'Cancel')}</button>
+            <button onClick={handleAdd} style={{ padding: '6px 14px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>{L('Crear', 'Create')}</button>
           </div>
         </div>
       )}
-      {filtered.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)', fontSize: 13 }}>No hay tareas</div>}
+      {filtered.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)', fontSize: 13 }}>{L('No hay tareas', 'No tasks')}</div>}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {filtered.map(t => {
           const ct = contactMap[t.contactId || t.contact_id]
@@ -1819,7 +1924,7 @@ function TasksView({ tasks, contacts, team, onToggle, onDelete, onAdd, onUpdate,
                 <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)', textDecoration: t.completed ? 'line-through' : 'none', opacity: t.completed ? .5 : 1 }}>{t.title}</div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 3, flexWrap: 'wrap', alignItems: 'center' }}>
                   {t.priority && <span style={{ fontSize: 10, color: prioColor(t.priority), fontWeight: 600, display: 'flex', alignItems: 'center', gap: 2 }}><Flag size={9} /> {prioLabel(t.priority)}</span>}
-                  {t.dueDate && <span style={{ fontSize: 10, color: new Date(t.dueDate) < new Date() && !t.completed ? '#EF4444' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 2 }}><Clock size={9} /> {fmtDate(t.dueDate)}</span>}
+                  {t.dueDate && <span style={{ fontSize: 10, color: new Date(t.dueDate) < new Date() && !t.completed ? '#EF4444' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 2 }}><Clock size={9} /> {fmtDateL(t.dueDate)}</span>}
                   {t.assignedTo && <span style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 2 }}><User size={9} /> {t.assignedTo}</span>}
                   {t.description && <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontStyle: 'italic' }}>{t.description.slice(0, 50)}</span>}
                 </div>
@@ -1836,7 +1941,8 @@ function TasksView({ tasks, contacts, team, onToggle, onDelete, onAdd, onUpdate,
 // ═════════════════════════════════════════════════════════════════════════════════
 // NEW CONTACT MODAL
 // ═════════════════════════════════════════════════════════════════════════════════
-function NewContactModal({ customFields, team, statuses, onClose, onSave }) {
+function NewContactModal({ customFields, team, statuses, onClose, onSave, en }) {
+  const L = (es, enText) => en ? enText : es
   const STATUSES = statuses || DEFAULT_STATUSES
   const inputStyle = { width: '100%', padding: '9px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 7, color: 'var(--text)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }
 
@@ -1845,16 +1951,16 @@ function NewContactModal({ customFields, team, statuses, onClose, onSave }) {
       <div onClick={onClose} style={S.overlay} />
       <div style={{ ...S.modal, width: 600 }}>
         <div style={S.modalHeader}>
-          <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)' }}>Nuevo Contacto</span>
+          <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)' }}>{L('Nuevo Contacto', 'New Contact')}</span>
           <button onClick={onClose} style={{ padding: 4, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><X size={18} /></button>
         </div>
         <form onSubmit={onSave} style={{ overflowY: 'auto', flex: 1, padding: '16px 20px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
             {[
-              { name: 'name', label: 'Nombre *', required: true, placeholder: 'Nombre completo' },
-              { name: 'email', label: 'Email', type: 'email', placeholder: 'email@ejemplo.com' },
-              { name: 'phone', label: 'Teléfono', placeholder: '+34 600 000 000' },
-              { name: 'company', label: 'Empresa', placeholder: 'Nombre de empresa' },
+              { name: 'name', label: L('Nombre *', 'Name *'), required: true, placeholder: L('Nombre completo', 'Full name') },
+              { name: 'email', label: 'Email', type: 'email', placeholder: 'email@example.com' },
+              { name: 'phone', label: L('Teléfono', 'Phone'), placeholder: '+1 555 000 000' },
+              { name: 'company', label: L('Empresa', 'Company'), placeholder: L('Nombre de empresa', 'Company name') },
             ].map(f => (
               <div key={f.name}>
                 <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, display: 'block' }}>{f.label}</label>
@@ -1862,31 +1968,31 @@ function NewContactModal({ customFields, team, statuses, onClose, onSave }) {
               </div>
             ))}
             <div>
-              <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, display: 'block' }}>Estado</label>
+              <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, display: 'block' }}>{L('Estado', 'Status')}</label>
               <select name="status" style={inputStyle}>{STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}</select>
             </div>
             <div>
-              <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, display: 'block' }}>Valor</label>
+              <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, display: 'block' }}>{L('Valor', 'Value')}</label>
               <input name="dealValue" type="number" placeholder="0" style={inputStyle} />
             </div>
             <div>
-              <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, display: 'block' }}>Asignado a</label>
+              <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, display: 'block' }}>{L('Asignado a', 'Assigned to')}</label>
               <select name="assigned_to" style={inputStyle}>
                 <option value="">—</option>{team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
               </select>
             </div>
             <div>
-              <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, display: 'block' }}>Fuente</label>
+              <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, display: 'block' }}>{L('Fuente', 'Source')}</label>
               <select name="source" style={inputStyle}>
                 <option value="">—</option>{SOURCE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             {[
-              { name: 'address', label: 'Dirección', placeholder: 'Dirección' },
-              { name: 'whatsapp', label: 'WhatsApp', placeholder: '+34...' },
+              { name: 'address', label: L('Dirección', 'Address'), placeholder: L('Dirección', 'Address') },
+              { name: 'whatsapp', label: 'WhatsApp', placeholder: '+1...' },
               { name: 'zoom_link', label: 'Zoom', placeholder: 'https://zoom.us/...' },
               { name: 'website', label: 'Website', placeholder: 'https://...' },
-              { name: 'instagram', label: 'Instagram', placeholder: '@usuario' },
+              { name: 'instagram', label: 'Instagram', placeholder: L('@usuario', '@username') },
             ].map(f => (
               <div key={f.name}>
                 <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, display: 'block' }}>{f.label}</label>
@@ -1896,15 +2002,15 @@ function NewContactModal({ customFields, team, statuses, onClose, onSave }) {
           </div>
           <div style={{ marginBottom: 12 }}>
             <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, display: 'block' }}>Tags</label>
-            <input name="tags" placeholder="vip, seguimiento" style={inputStyle} />
+            <input name="tags" placeholder={L('vip, seguimiento', 'vip, follow-up')} style={inputStyle} />
           </div>
           <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, display: 'block' }}>Notas</label>
-            <textarea name="notes" rows={3} placeholder="Notas..." style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} />
+            <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, display: 'block' }}>{L('Notas', 'Notes')}</label>
+            <textarea name="notes" rows={3} placeholder={L('Notas...', 'Notes...')} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} />
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-            <button type="button" onClick={onClose} style={{ ...S.btnGhost, padding: '9px 20px', fontSize: 13 }}>Cancelar</button>
-            <button type="submit" className="btn-action" style={{ padding: '9px 20px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}><Save size={14} /> Guardar</button>
+            <button type="button" onClick={onClose} style={{ ...S.btnGhost, padding: '9px 20px', fontSize: 13 }}>{L('Cancelar', 'Cancel')}</button>
+            <button type="submit" className="btn-action" style={{ padding: '9px 20px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}><Save size={14} /> {L('Guardar', 'Save')}</button>
           </div>
         </form>
       </div>

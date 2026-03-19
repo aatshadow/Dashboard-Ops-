@@ -2,9 +2,7 @@ import { useState, useMemo, useEffect, useCallback, Fragment } from 'react'
 import { useClient } from '../contexts/ClientContext'
 import { Calendar, Plus, X, ChevronLeft, ChevronRight, BarChart3, Clock, Flag, Edit3, Trash2, Save } from 'lucide-react'
 
-const VIEWS = ['Calendario', 'Gantt', 'Dashboard']
 const COLORS = ['#EF4444', '#F59E0B', '#3B82F6', '#10B981', '#8B5CF6', '#EC4899', '#F97316', '#06B6D4']
-const fmtDate = d => d ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) : ''
 
 function loadEvents(clientId) {
   try { return JSON.parse(localStorage.getItem(`bw_planning_events_${clientId}`)) || [] }
@@ -17,8 +15,17 @@ function saveEvents(clientId, events) {
 const EMPTY_FORM = { title: '', description: '', startDate: '', endDate: '', color: '#3B82F6', category: '' }
 
 export default function PlanningPage() {
-  const { clientId } = useClient()
-  const [view, setView] = useState('Calendario')
+  const { clientId, clientSlug } = useClient()
+  const en = clientSlug === 'black-wolf'
+  const L = (es, enText) => en ? enText : es
+  const locale = en ? 'en-US' : 'es-ES'
+  const fmtDate = d => d ? new Date(d).toLocaleDateString(locale, { day: '2-digit', month: 'short' }) : ''
+  const VIEWS = [
+    { key: 'calendar', label: L('Calendario', 'Calendar') },
+    { key: 'gantt', label: 'Gantt' },
+    { key: 'dashboard', label: 'Dashboard' },
+  ]
+  const [view, setView] = useState('calendar')
   const [events, setEvents] = useState(() => loadEvents(clientId))
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState(null)
@@ -38,7 +45,7 @@ export default function PlanningPage() {
     }
     setShowForm(false)
   }
-  const handleDelete = (id) => { if (confirm('Eliminar evento?')) setEvents(prev => prev.filter(e => e.id !== id)) }
+  const handleDelete = (id) => { if (confirm(L('Eliminar evento?', 'Delete event?'))) setEvents(prev => prev.filter(e => e.id !== id)) }
 
   // Calendar helpers
   const calDays = useMemo(() => {
@@ -74,11 +81,11 @@ export default function PlanningPage() {
     const now = new Date(), weekEnd = new Date(now); weekEnd.setDate(weekEnd.getDate() + 7)
     const upcoming = events.filter(e => { const s = new Date(e.startDate); return s >= now && s <= weekEnd })
     const overdue = events.filter(e => new Date(e.endDate) < now)
-    const cats = {}; events.forEach(e => { const c = e.category || 'Sin categoria'; cats[c] = (cats[c] || 0) + 1 })
+    const cats = {}; events.forEach(e => { const c = e.category || L('Sin categoria', 'No category'); cats[c] = (cats[c] || 0) + 1 })
     return { total: events.length, upcoming: upcoming.length, overdue: overdue.length, cats }
   }, [events])
 
-  const monthLabel = calMonth.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
+  const monthLabel = calMonth.toLocaleDateString(locale, { month: 'long', year: 'numeric' })
   const prevMonth = () => setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1))
   const nextMonth = () => setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1))
 
@@ -115,26 +122,26 @@ export default function PlanningPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <span style={S.title}>Planning</span>
           <div style={S.tabs}>
-            {VIEWS.map(v => <button key={v} onClick={() => setView(v)} style={S.tab(view === v)}>{v}</button>)}
+            {VIEWS.map(v => <button key={v.key} onClick={() => setView(v.key)} style={S.tab(view === v.key)}>{v.label}</button>)}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {(view === 'Calendario' || view === 'Gantt') && (
+          {(view === 'calendar' || view === 'gantt') && (
             <div style={S.nav}>
               <button onClick={prevMonth} style={S.navBtn}><ChevronLeft size={14} /></button>
               <span style={S.monthLabel}>{monthLabel}</span>
               <button onClick={nextMonth} style={S.navBtn}><ChevronRight size={14} /></button>
             </div>
           )}
-          <button onClick={openAdd} style={S.addBtn}><Plus size={14} /> Evento</button>
+          <button onClick={openAdd} style={S.addBtn}><Plus size={14} /> {L('Evento', 'Event')}</button>
         </div>
       </div>
 
       <div style={{ flex: 1, overflow: 'auto' }}>
         {/* CALENDAR VIEW */}
-        {view === 'Calendario' && (
+        {view === 'calendar' && (
           <div style={S.grid}>
-            {['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'].map(d => <div key={d} style={S.dayHeader}>{d}</div>)}
+            {(en ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] : ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom']).map(d => <div key={d} style={S.dayHeader}>{d}</div>)}
             {calDays.map((day, i) => {
               const ds = day.toISOString().slice(0, 10)
               const isMonth = day.getMonth() === calMonth.getMonth()
@@ -153,11 +160,11 @@ export default function PlanningPage() {
         )}
 
         {/* GANTT VIEW */}
-        {view === 'Gantt' && (
+        {view === 'gantt' && (
           <div style={{ overflow: 'auto' }}>
             <div style={{ display: 'grid', gridTemplateColumns: `180px repeat(${ganttRange.length}, minmax(28px, 1fr))`, fontSize: 10, minWidth: ganttRange.length * 28 + 180 }}>
               {/* Header */}
-              <div style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--text-secondary)', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', position: 'sticky', left: 0, zIndex: 2 }}>Evento</div>
+              <div style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--text-secondary)', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', position: 'sticky', left: 0, zIndex: 2 }}>{L('Evento', 'Event')}</div>
               {ganttRange.map((d, i) => {
                 const ds = d.toISOString().slice(0, 10)
                 return <div key={i} style={{ padding: '8px 2px', textAlign: 'center', fontWeight: ds === today ? 800 : 500, color: ds === today ? 'var(--orange)' : 'var(--text-secondary)', background: ds === today ? 'rgba(255,107,0,.08)' : 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>{d.getDate()}</div>
@@ -165,7 +172,7 @@ export default function PlanningPage() {
               {/* Rows */}
               {events.length === 0 && (
                 <>
-                  <div style={{ padding: 20, gridColumn: `1 / -1`, textAlign: 'center', color: 'var(--text-secondary)' }}>No hay eventos</div>
+                  <div style={{ padding: 20, gridColumn: `1 / -1`, textAlign: 'center', color: 'var(--text-secondary)' }}>{L('No hay eventos', 'No events')}</div>
                 </>
               )}
               {events.map(ev => {
@@ -198,16 +205,16 @@ export default function PlanningPage() {
         )}
 
         {/* DASHBOARD VIEW */}
-        {view === 'Dashboard' && (
+        {view === 'dashboard' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
-              <div style={S.statCard}><div style={S.statNum}>{stats.total}</div><div style={S.statLabel}>Total Eventos</div></div>
-              <div style={S.statCard}><div style={{ ...S.statNum, color: '#3B82F6' }}>{stats.upcoming}</div><div style={S.statLabel}>Esta Semana</div></div>
-              <div style={S.statCard}><div style={{ ...S.statNum, color: '#EF4444' }}>{stats.overdue}</div><div style={S.statLabel}>Vencidos</div></div>
+              <div style={S.statCard}><div style={S.statNum}>{stats.total}</div><div style={S.statLabel}>{L('Total Eventos', 'Total Events')}</div></div>
+              <div style={S.statCard}><div style={{ ...S.statNum, color: '#3B82F6' }}>{stats.upcoming}</div><div style={S.statLabel}>{L('Esta Semana', 'This Week')}</div></div>
+              <div style={S.statCard}><div style={{ ...S.statNum, color: '#EF4444' }}>{stats.overdue}</div><div style={S.statLabel}>{L('Vencidos', 'Overdue')}</div></div>
             </div>
             {Object.keys(stats.cats).length > 0 && (
               <div style={S.card}>
-                <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', marginBottom: 10 }}>Por Categoria</div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', marginBottom: 10 }}>{L('Por Categoria', 'By Category')}</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {Object.entries(stats.cats).map(([cat, count]) => (
                     <span key={cat} style={{ padding: '4px 12px', background: 'var(--bg)', borderRadius: 6, fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>{cat}: {count}</span>
@@ -216,8 +223,8 @@ export default function PlanningPage() {
               </div>
             )}
             <div style={S.card}>
-              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', marginBottom: 10 }}>Todos los Eventos</div>
-              {events.length === 0 && <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>No hay eventos creados</div>}
+              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', marginBottom: 10 }}>{L('Todos los Eventos', 'All Events')}</div>
+              {events.length === 0 && <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{L('No hay eventos creados', 'No events created')}</div>}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {[...events].sort((a, b) => a.startDate.localeCompare(b.startDate)).map(ev => (
                   <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
@@ -242,34 +249,34 @@ export default function PlanningPage() {
           <div onClick={() => setShowForm(false)} style={S.overlay} />
           <div style={S.modal}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)' }}>{editId ? 'Editar Evento' : 'Nuevo Evento'}</span>
+              <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)' }}>{editId ? L('Editar Evento', 'Edit Event') : L('Nuevo Evento', 'New Event')}</span>
               <button onClick={() => setShowForm(false)} style={{ padding: 4, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><X size={18} /></button>
             </div>
             <div style={{ display: 'grid', gap: 12 }}>
               <div>
-                <label style={S.label}>Titulo *</label>
-                <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder="Nombre del evento" style={S.input} />
+                <label style={S.label}>{L('Titulo *', 'Title *')}</label>
+                <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder={L('Nombre del evento', 'Event name')} style={S.input} />
               </div>
               <div>
-                <label style={S.label}>Descripcion</label>
-                <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} rows={2} placeholder="Detalles..." style={{ ...S.input, resize: 'vertical', fontFamily: 'inherit' }} />
+                <label style={S.label}>{L('Descripcion', 'Description')}</label>
+                <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} rows={2} placeholder={L('Detalles...', 'Details...')} style={{ ...S.input, resize: 'vertical', fontFamily: 'inherit' }} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label style={S.label}>Fecha inicio *</label>
+                  <label style={S.label}>{L('Fecha inicio *', 'Start date *')}</label>
                   <input type="datetime-local" value={form.startDate} onChange={e => setForm(p => ({ ...p, startDate: e.target.value }))} style={{ ...S.input, colorScheme: 'dark' }} />
                 </div>
                 <div>
-                  <label style={S.label}>Fecha fin *</label>
+                  <label style={S.label}>{L('Fecha fin *', 'End date *')}</label>
                   <input type="datetime-local" value={form.endDate} onChange={e => setForm(p => ({ ...p, endDate: e.target.value }))} style={{ ...S.input, colorScheme: 'dark' }} />
                 </div>
               </div>
               <div>
-                <label style={S.label}>Categoria</label>
-                <input value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} placeholder="ej: Marketing, Producto, Sprint" style={S.input} />
+                <label style={S.label}>{L('Categoria', 'Category')}</label>
+                <input value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} placeholder={L('ej: Marketing, Producto, Sprint', 'e.g. Marketing, Product, Sprint')} style={S.input} />
               </div>
               <div>
-                <label style={S.label}>Color</label>
+                <label style={S.label}>{L('Color', 'Color')}</label>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {COLORS.map(c => (
                     <button key={c} onClick={() => setForm(p => ({ ...p, color: c }))} style={{ width: 28, height: 28, borderRadius: '50%', background: c, border: form.color === c ? '3px solid var(--text)' : '2px solid transparent', cursor: 'pointer', transition: 'all .15s' }} />
@@ -277,9 +284,9 @@ export default function PlanningPage() {
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
-                {editId && <button onClick={() => { handleDelete(editId); setShowForm(false) }} style={{ padding: '8px 18px', background: 'transparent', border: '1px solid #EF4444', borderRadius: 7, cursor: 'pointer', color: '#EF4444', fontSize: 13, marginRight: 'auto' }}>Eliminar</button>}
-                <button onClick={() => setShowForm(false)} style={{ padding: '8px 18px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 7, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 13 }}>Cancelar</button>
-                <button onClick={handleSave} style={{ padding: '8px 18px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 7, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}><Save size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />{editId ? 'Guardar' : 'Crear'}</button>
+                {editId && <button onClick={() => { handleDelete(editId); setShowForm(false) }} style={{ padding: '8px 18px', background: 'transparent', border: '1px solid #EF4444', borderRadius: 7, cursor: 'pointer', color: '#EF4444', fontSize: 13, marginRight: 'auto' }}>{L('Eliminar', 'Delete')}</button>}
+                <button onClick={() => setShowForm(false)} style={{ padding: '8px 18px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 7, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 13 }}>{L('Cancelar', 'Cancel')}</button>
+                <button onClick={handleSave} style={{ padding: '8px 18px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 7, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}><Save size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />{editId ? L('Guardar', 'Save') : L('Crear', 'Create')}</button>
               </div>
             </div>
           </div>
