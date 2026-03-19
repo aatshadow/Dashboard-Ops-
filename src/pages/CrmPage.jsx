@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useClientData } from '../hooks/useClientData'
 import { useAsync } from '../hooks/useAsync'
 import {
@@ -7,7 +8,7 @@ import {
   Clock, MessageSquare, Video, FileText, Trash2, Edit3,
   Filter, LayoutGrid, List, Eye, Save, Globe, Hash, CheckSquare, Link, MailIcon,
   Palette, ArrowUp, ArrowDown, Upload, Paperclip, MapPin, ExternalLink,
-  Check, Square,
+  Check, Square, Flag,
 } from 'lucide-react'
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
@@ -83,7 +84,10 @@ const generateFieldKey = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g, '_'
 // ─── Filter matching ────────────────────────────────────────────────────────────
 function matchesFilter(contact, filter) {
   const { field, op, value } = filter
-  const cv = String(contact[field] || '')
+  const raw = field?.startsWith('cf_')
+    ? (contact.customFields?.[field.slice(3)] || '')
+    : (contact[field] || '')
+  const cv = String(raw)
   switch (op) {
     case 'equals': return cv === value
     case 'not_equals': return cv !== value
@@ -168,8 +172,13 @@ export default function CrmPage() {
   const STATUSES = useMemo(() => activePipeline?.stages || DEFAULT_STATUSES, [activePipeline])
   const STATUS_MAP = useMemo(() => Object.fromEntries(STATUSES.map(s => [s.key, s])), [STATUSES])
 
+  // ─── URL params (for sidebar navigation to tasks view) ────────────────────
+  const [searchParams] = useSearchParams()
+  const urlView = searchParams.get('view')
+
   // ─── UI State ─────────────────────────────────────────────────────────────
-  const [view, setView] = useState('kanban') // kanban | list | calendar
+  const [view, setView] = useState(urlView || 'kanban') // kanban | list | calendar | tasks
+  useEffect(() => { if (urlView && ['kanban', 'list', 'calendar', 'tasks'].includes(urlView)) setView(urlView) }, [urlView])
   const [search, setSearch] = useState('')
   const [activeViewId, setActiveViewId] = useState(null)
   const [showNewContact, setShowNewContact] = useState(false)
@@ -180,6 +189,21 @@ export default function CrmPage() {
   const [sortDir, setSortDir] = useState('desc')
   const [draggedId, setDraggedId] = useState(null)
   const [showPipelineDropdown, setShowPipelineDropdown] = useState(false)
+  const [listVisibleFields, setListVisibleFields] = useState(['name', 'email', 'phone', 'status', 'dealValue'])
+  const [showListSettings, setShowListSettings] = useState(false)
+
+  // ─── All Tasks (for tasks view) ────────────────────────────────────────────
+  const [allTasks, , refreshAllTasks] = useAsync(getCrmTasks, [])
+
+  // ─── Custom fields as filter fields ────────────────────────────────────────
+  const CF_TYPE_MAP = { text: 'text', number: 'number', date: 'text', select: 'select', checkbox: 'text', url: 'text', email: 'text', phone: 'text', currency: 'number' }
+  const allFilterFields = useMemo(() => [
+    ...FILTER_FIELDS,
+    ...(customFields || []).map(f => ({
+      key: `cf_${f.field_key || f.id}`, label: f.name, type: CF_TYPE_MAP[f.type] || 'text',
+      cfOptions: f.options,
+    })),
+  ], [customFields])
 
   // ─── Advanced Filters ─────────────────────────────────────────────────────
   const [filters, setFilters] = useState([]) // [{field, op, value}]
@@ -419,7 +443,8 @@ export default function CrmPage() {
             { key: 'kanban', label: 'Kanban', Icon: LayoutGrid },
             { key: 'list', label: 'Lista', Icon: List },
             { key: 'calendar', label: 'Calendario', Icon: Calendar },
-          ].map(v => (
+            { key: 'tasks', label: 'Tareas', Icon: CheckSquare },
+          ].map((v, vi) => (
             <button
               key={v.key}
               onClick={() => setView(v.key)}
@@ -427,7 +452,7 @@ export default function CrmPage() {
                 display: 'flex', alignItems: 'center', gap: 5, padding: '8px 12px',
                 background: view === v.key ? 'var(--orange)' : 'var(--bg-card)',
                 color: view === v.key ? '#000' : 'var(--text-secondary)',
-                border: 'none', borderLeft: v.key !== 'kanban' ? '1px solid var(--border)' : 'none',
+                border: 'none', borderLeft: vi > 0 ? '1px solid var(--border)' : 'none',
                 cursor: 'pointer', fontSize: 13, fontWeight: 600, transition: 'all .2s',
               }}
             >
@@ -549,12 +574,12 @@ export default function CrmPage() {
           {/* ─── Advanced Filters ──────────────────────────────────────────── */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
             {filters.map((f, idx) => {
-              const ff = FILTER_FIELDS.find(x => x.key === f.field)
+              const ff = allFilterFields.find(x => x.key === f.field)
               return (
                 <div key={idx} style={S.pill}>
                   <select value={f.field} onChange={e => updateFilter(idx, { field: e.target.value })}
                     style={{ background: 'transparent', border: 'none', color: 'var(--orange)', fontSize: 11, fontWeight: 600, outline: 'none' }}>
-                    {FILTER_FIELDS.map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
+                    {allFilterFields.map(x => <option key={x.key} value={x.key}>{x.label}</option>)}
                   </select>
                   <select value={f.op} onChange={e => updateFilter(idx, { op: e.target.value })}
                     style={{ background: 'transparent', border: 'none', color: 'var(--orange)', fontSize: 10, outline: 'none' }}>
@@ -568,6 +593,7 @@ export default function CrmPage() {
                         {f.field === 'status' && STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
                         {f.field === 'assigned_to' && team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
                         {f.field === 'source' && SOURCE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                        {ff?.cfOptions && ff.cfOptions.map(o => <option key={o} value={o}>{o}</option>)}
                       </select>
                     ) : (
                       <input value={f.value || ''} onChange={e => updateFilter(idx, { value: e.target.value })}
@@ -589,7 +615,7 @@ export default function CrmPage() {
                   background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8,
                   boxShadow: '0 8px 24px rgba(0,0,0,.4)', zIndex: 50, maxHeight: 200, overflowY: 'auto',
                 }}>
-                  {FILTER_FIELDS.map(f => (
+                  {allFilterFields.map(f => (
                     <div key={f.key} onClick={() => addFilter(f.key)}
                       style={{ padding: '7px 14px', fontSize: 12, cursor: 'pointer', color: 'var(--text)' }}
                       onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,.04)'}
@@ -645,58 +671,106 @@ export default function CrmPage() {
             </div>
           )}
 
-          {/* ─── List View ────────────────────────────────────────────────── */}
-          {view === 'list' && (
-            <div className="data-table"><div className="table-wrapper"><table>
-              <thead><tr>
-                {[
-                  { key: 'name', label: 'Nombre' }, { key: 'email', label: 'Email' },
-                  { key: 'phone', label: 'Teléfono' }, { key: 'company', label: 'Empresa' },
-                  { key: 'status', label: 'Estado' }, { key: 'dealValue', label: 'Valor' },
-                  { key: 'assigned_to', label: 'Asignado' }, { key: 'source', label: 'Fuente' },
-                  { key: 'created_at', label: 'Creado' },
-                ].map(col => (
-                  <th key={col.key} onClick={() => handleSort(col.key)} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
-                    {col.label}{sortCol === col.key && <span style={{ marginLeft: 4, fontSize: 10 }}>{sortDir === 'asc' ? '▲' : '▼'}</span>}
-                  </th>
-                ))}
-              </tr></thead>
-              <tbody>
+          {/* ─── List View (Card/Bubble Style) ─────────────────────────── */}
+          {view === 'list' && (() => {
+            const LIST_COLS = [
+              { key: 'name', label: 'Nombre' }, { key: 'email', label: 'Email' },
+              { key: 'phone', label: 'Teléfono' }, { key: 'company', label: 'Empresa' },
+              { key: 'status', label: 'Estado' }, { key: 'dealValue', label: 'Valor' },
+              { key: 'assigned_to', label: 'Asignado' }, { key: 'source', label: 'Fuente' },
+              { key: 'tags', label: 'Tags' }, { key: 'created_at', label: 'Creado' },
+            ]
+            const visCols = LIST_COLS.filter(c => listVisibleFields.includes(c.key))
+            const renderField = (c, key) => {
+              if (key === 'status') return (
+                <select value={c.status} onClick={e => e.stopPropagation()} onChange={e => handleStatusChange(c.id, e.target.value)}
+                  style={{ background: `${STATUS_MAP[c.status]?.color || '#666'}22`, color: STATUS_MAP[c.status]?.color || '#999', border: `1px solid ${STATUS_MAP[c.status]?.color || '#666'}44`, borderRadius: 6, padding: '2px 6px', fontSize: 10, fontWeight: 600, cursor: 'pointer', outline: 'none' }}>
+                  {STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                </select>
+              )
+              if (key === 'dealValue') return <span style={{ fontWeight: 700, color: 'var(--orange)', fontSize: 12 }}>{fmt(c.dealValue)}</span>
+              if (key === 'created_at') return <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{fmtDate(c.created_at)}</span>
+              return <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{c[key] || '—'}</span>
+            }
+            return (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    {visCols.filter(c => c.key !== 'name').map(col => (
+                      <span key={col.key} onClick={() => handleSort(col.key)} style={{ fontSize: 10, color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px' }}>
+                        {col.label}{sortCol === col.key && <span style={{ marginLeft: 2 }}>{sortDir === 'asc' ? '▲' : '▼'}</span>}
+                      </span>
+                    ))}
+                  </div>
+                  <div style={{ position: 'relative' }}>
+                    <button onClick={() => setShowListSettings(!showListSettings)} style={{ ...S.btnGhost, padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+                      <Settings size={12} /> Columnas
+                    </button>
+                    {showListSettings && (
+                      <>
+                        <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setShowListSettings(false)} />
+                        <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, minWidth: 180, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,.4)', zIndex: 50, padding: '6px 0' }}>
+                          {LIST_COLS.map(col => (
+                            <label key={col.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', fontSize: 12, cursor: 'pointer', color: 'var(--text)' }}>
+                              <input type="checkbox" checked={listVisibleFields.includes(col.key)}
+                                onChange={() => setListVisibleFields(prev => prev.includes(col.key) ? prev.filter(k => k !== col.key) : [...prev, col.key])}
+                                style={{ accentColor: 'var(--orange)' }} />
+                              {col.label}
+                            </label>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
                 {sortedContacts.length === 0 && (
-                  <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>No hay contactos</td></tr>
+                  <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>No hay contactos</div>
                 )}
-                {sortedContacts.map(c => (
-                  <tr key={c.id} onClick={() => openContact(c)} style={{ cursor: 'pointer', transition: 'background .15s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,.04)'}
-                    onMouseLeave={e => e.currentTarget.style.background = ''}>
-                    <td style={{ fontWeight: 600 }}>{c.name || '—'}</td>
-                    <td style={{ fontSize: 12 }}>{c.email || '—'}</td>
-                    <td style={{ fontSize: 12 }}>{c.phone || '—'}</td>
-                    <td>{c.company || '—'}</td>
-                    <td>
-                      <select value={c.status} onClick={e => e.stopPropagation()} onChange={e => handleStatusChange(c.id, e.target.value)}
-                        style={{
-                          background: `${STATUS_MAP[c.status]?.color || '#666'}22`, color: STATUS_MAP[c.status]?.color || '#999',
-                          border: `1px solid ${STATUS_MAP[c.status]?.color || '#666'}44`, borderRadius: 6, padding: '3px 8px', fontSize: 11, fontWeight: 600, cursor: 'pointer', outline: 'none',
-                        }}>
-                        {STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-                      </select>
-                    </td>
-                    <td style={{ fontWeight: 600, color: 'var(--orange)' }}>{fmt(c.dealValue)}</td>
-                    <td style={{ fontSize: 12 }}>{c.assigned_to || '—'}</td>
-                    <td style={{ fontSize: 12 }}>{c.source || '—'}</td>
-                    <td style={{ fontSize: 12 }}>{fmtDate(c.created_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table></div></div>
-          )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {sortedContacts.map(c => (
+                    <div key={c.id} onClick={() => openContact(c)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 13, cursor: 'pointer', transition: 'all .15s' }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--orange)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(255,107,0,.08)' }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}>
+                      <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(255,107,0,.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14, color: 'var(--orange)', flexShrink: 0 }}>
+                        {(c.name || '?')[0].toUpperCase()}
+                      </div>
+                      <div style={{ flex: '0 0 auto', minWidth: 120 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>{c.name || 'Sin nombre'}</div>
+                        {listVisibleFields.includes('company') && c.company && <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{c.company}</div>}
+                      </div>
+                      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', minWidth: 0 }}>
+                        {visCols.filter(col => !['name', 'company'].includes(col.key)).map(col => (
+                          <div key={col.key} style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
+                            <span style={{ fontSize: 9, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.3px' }}>{col.label}</span>
+                            {renderField(c, col.key)}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
 
           {/* ─── Calendar View ────────────────────────────────────────────── */}
           {view === 'calendar' && (
             <CalendarView
               contacts={filteredContacts}
               getCrmActivities={getCrmActivities}
+              onContactClick={openContact}
+            />
+          )}
+
+          {/* ─── Tasks View ───────────────────────────────────────────────── */}
+          {view === 'tasks' && (
+            <TasksView
+              tasks={allTasks || []} contacts={contacts} team={team}
+              onToggle={async (t) => { await updateCrmTask(t.id, { completed: !t.completed }); refreshAllTasks() }}
+              onDelete={async (t) => { if (confirm('¿Eliminar tarea?')) { await deleteCrmTask(t.id); refreshAllTasks() } }}
+              onAdd={async (data) => { await addCrmTask(data); refreshAllTasks() }}
+              onUpdate={async (id, data) => { await updateCrmTask(id, data); refreshAllTasks() }}
               onContactClick={openContact}
             />
           )}
@@ -964,6 +1038,8 @@ function ContactSidebar({
     useCallback(() => getCrmTasks(contact.id), [contact.id]), []
   )
   const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [newTaskExpanded, setNewTaskExpanded] = useState(false)
+  const [newTaskDetails, setNewTaskDetails] = useState({ dueDate: '', assignedTo: '', description: '', priority: 'medium' })
 
   // Files
   const [files, , refreshFiles] = useAsync(
@@ -1009,8 +1085,16 @@ function ContactSidebar({
 
   const handleAddTask = async () => {
     if (!newTaskTitle.trim()) return
-    await addCrmTask({ contact_id: contact.id, title: newTaskTitle, completed: false })
+    await addCrmTask({
+      contact_id: contact.id, title: newTaskTitle, completed: false,
+      dueDate: newTaskDetails.dueDate || undefined,
+      assignedTo: newTaskDetails.assignedTo || undefined,
+      description: newTaskDetails.description || undefined,
+      priority: newTaskDetails.priority || 'medium',
+    })
     refreshTasks(); setNewTaskTitle('')
+    setNewTaskDetails({ dueDate: '', assignedTo: '', description: '', priority: 'medium' })
+    setNewTaskExpanded(false)
   }
 
   const handleToggleTask = async (task) => {
@@ -1207,24 +1291,72 @@ function ContactSidebar({
               {/* TASKS section */}
               <div style={{ marginBottom: 24 }}>
                 <div style={S.sectionLabel}>Tareas</div>
-                {(tasks || []).map(t => (
-                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
-                    <button onClick={() => handleToggleTask(t)}
-                      style={{ padding: 0, background: 'transparent', border: 'none', cursor: 'pointer', color: t.completed ? 'var(--orange)' : 'var(--text-secondary)' }}>
-                      {t.completed ? <Check size={16} /> : <Square size={16} />}
+                {(tasks || []).map(t => {
+                  const prioColor = t.priority === 'high' ? '#EF4444' : t.priority === 'low' ? '#6B7280' : '#F59E0B'
+                  return (
+                    <div key={t.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <button onClick={() => handleToggleTask(t)}
+                          style={{ padding: 0, background: 'transparent', border: 'none', cursor: 'pointer', color: t.completed ? 'var(--orange)' : 'var(--text-secondary)', flexShrink: 0 }}>
+                          {t.completed ? <Check size={16} /> : <Square size={16} />}
+                        </button>
+                        <span style={{ fontSize: 12, color: 'var(--text)', textDecoration: t.completed ? 'line-through' : 'none', opacity: t.completed ? .5 : 1, flex: 1 }}>{t.title}</span>
+                        {t.priority && <Flag size={10} style={{ color: prioColor, flexShrink: 0 }} />}
+                        <button onClick={() => { if (confirm('¿Eliminar tarea?')) { deleteCrmTask(t.id); refreshTasks() } }}
+                          style={{ padding: 2, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', opacity: .4 }}><Trash2 size={11} /></button>
+                      </div>
+                      {(t.dueDate || t.assignedTo || t.description) && (
+                        <div style={{ marginLeft: 24, marginTop: 3, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                          {t.dueDate && <span style={{ fontSize: 10, color: new Date(t.dueDate) < new Date() && !t.completed ? '#EF4444' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 2 }}><Clock size={9} /> {fmtDate(t.dueDate)}</span>}
+                          {t.assignedTo && <span style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 2 }}><User size={9} /> {t.assignedTo}</span>}
+                          {t.description && <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontStyle: 'italic' }}>{t.description.slice(0, 40)}{t.description.length > 40 ? '...' : ''}</span>}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} placeholder="Nueva tarea..."
+                      onKeyDown={e => e.key === 'Enter' && !newTaskExpanded && handleAddTask()}
+                      style={{ ...S.input, flex: 1, fontSize: 12, padding: '6px 8px' }} />
+                    <button onClick={() => setNewTaskExpanded(!newTaskExpanded)} title="Más opciones"
+                      style={{ padding: '6px 8px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 11 }}>
+                      <ChevronDown size={12} style={{ transform: newTaskExpanded ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
                     </button>
-                    <span style={{ fontSize: 12, color: 'var(--text)', textDecoration: t.completed ? 'line-through' : 'none', opacity: t.completed ? .5 : 1, flex: 1 }}>{t.title}</span>
-                    <button onClick={() => { if (confirm('¿Eliminar tarea?')) { deleteCrmTask(t.id); refreshTasks() } }}
-                      style={{ padding: 2, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', opacity: .4 }}><Trash2 size={11} /></button>
+                    <button onClick={handleAddTask} style={{ padding: '6px 10px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>
+                      <Plus size={12} />
+                    </button>
                   </div>
-                ))}
-                <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                  <input value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} placeholder="Nueva tarea..."
-                    onKeyDown={e => e.key === 'Enter' && handleAddTask()}
-                    style={{ ...S.input, flex: 1, fontSize: 12, padding: '6px 8px' }} />
-                  <button onClick={handleAddTask} style={{ padding: '6px 10px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>
-                    <Plus size={12} />
-                  </button>
+                  {newTaskExpanded && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 6, padding: 8, background: 'var(--bg)', borderRadius: 6, border: '1px solid var(--border)' }}>
+                      <div>
+                        <label style={{ fontSize: 9, color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: 2 }}>Fecha límite</label>
+                        <input type="date" value={newTaskDetails.dueDate} onChange={e => setNewTaskDetails(p => ({ ...p, dueDate: e.target.value }))}
+                          style={{ ...S.inputSm, colorScheme: 'dark' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 9, color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: 2 }}>Asignar a</label>
+                        <select value={newTaskDetails.assignedTo} onChange={e => setNewTaskDetails(p => ({ ...p, assignedTo: e.target.value }))} style={S.inputSm}>
+                          <option value="">—</option>
+                          {team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 9, color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: 2 }}>Prioridad</label>
+                        <select value={newTaskDetails.priority} onChange={e => setNewTaskDetails(p => ({ ...p, priority: e.target.value }))} style={S.inputSm}>
+                          <option value="low">Baja</option>
+                          <option value="medium">Media</option>
+                          <option value="high">Alta</option>
+                        </select>
+                      </div>
+                      <div style={{ gridColumn: 'span 2' }}>
+                        <label style={{ fontSize: 9, color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: 2 }}>Descripción</label>
+                        <input value={newTaskDetails.description} onChange={e => setNewTaskDetails(p => ({ ...p, description: e.target.value }))}
+                          placeholder="Detalles..." style={S.inputSm} />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1630,6 +1762,100 @@ function FieldForm({ form, setForm, onSave, onCancel, isEdit }) {
       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
         <button onClick={onCancel} style={{ ...S.btnGhost, fontSize: 11 }}>Cancelar</button>
         <button onClick={onSave} style={{ padding: '5px 12px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>{isEdit ? 'Actualizar' : 'Crear'}</button>
+      </div>
+    </div>
+  )
+}
+
+// ═════════════════════════════════════════════════════════════════════════════════
+// TASKS VIEW (all tasks across contacts)
+// ═════════════════════════════════════════════════════════════════════════════════
+function TasksView({ tasks, contacts, team, onToggle, onDelete, onAdd, onUpdate, onContactClick }) {
+  const [showAdd, setShowAdd] = useState(false)
+  const emptyForm = { title: '', contact_id: '', dueDate: '', assignedTo: '', description: '', priority: 'medium' }
+  const [form, setForm] = useState(emptyForm)
+  const [filterStatus, setFilterStatus] = useState('all')
+  const contactMap = useMemo(() => Object.fromEntries((contacts || []).map(c => [c.id, c])), [contacts])
+  const filtered = useMemo(() => {
+    let list = [...(tasks || [])]
+    if (filterStatus === 'pending') list = list.filter(t => !t.completed)
+    else if (filterStatus === 'completed') list = list.filter(t => t.completed)
+    return list.sort((a, b) => {
+      if (a.completed !== b.completed) return a.completed ? 1 : -1
+      const pa = { high: 0, medium: 1, low: 2 }
+      if ((pa[a.priority] ?? 1) !== (pa[b.priority] ?? 1)) return (pa[a.priority] ?? 1) - (pa[b.priority] ?? 1)
+      if (a.dueDate && b.dueDate) return new Date(a.dueDate) - new Date(b.dueDate)
+      return a.dueDate ? -1 : b.dueDate ? 1 : 0
+    })
+  }, [tasks, filterStatus])
+  const pending = (tasks || []).filter(t => !t.completed).length, completed = (tasks || []).filter(t => t.completed).length
+  const handleAdd = async () => { if (!form.title.trim()) return; await onAdd({ ...form, completed: false }); setForm(emptyForm); setShowAdd(false) }
+  const prioColor = (p) => p === 'high' ? '#EF4444' : p === 'low' ? '#6B7280' : '#F59E0B'
+  const prioLabel = (p) => p === 'high' ? 'Alta' : p === 'low' ? 'Baja' : 'Media'
+  const fl = { fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: 2 }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {[{ k: 'all', l: 'Todas' }, { k: 'pending', l: 'Pendientes' }, { k: 'completed', l: 'Completadas' }].map(f => (
+            <button key={f.k} onClick={() => setFilterStatus(f.k)}
+              style={{ padding: '5px 12px', fontSize: 11, fontWeight: 600, borderRadius: 6, border: 'none', cursor: 'pointer', background: filterStatus === f.k ? 'var(--orange)' : 'var(--bg-card)', color: filterStatus === f.k ? '#000' : 'var(--text-secondary)' }}>{f.l}</button>
+          ))}
+        </div>
+        <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{pending} pendiente{pending !== 1 ? 's' : ''} / {completed} completada{completed !== 1 ? 's' : ''}</span>
+        <button onClick={() => setShowAdd(!showAdd)} style={{ marginLeft: 'auto', padding: '6px 14px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Plus size={13} /> Nueva Tarea
+        </button>
+      </div>
+      {showAdd && (
+        <div style={{ padding: 14, background: 'var(--bg-card)', border: '1px solid var(--orange)', borderRadius: 10, marginBottom: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+            <div style={{ gridColumn: 'span 2' }}><label style={fl}>Título *</label>
+              <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder="Título de la tarea..." style={S.input} /></div>
+            <div><label style={fl}>Contacto</label>
+              <select value={form.contact_id} onChange={e => setForm(p => ({ ...p, contact_id: e.target.value }))} style={S.input}>
+                <option value="">— Ninguno —</option>{contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+            <div><label style={fl}>Fecha límite</label>
+              <input type="date" value={form.dueDate} onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))} style={{ ...S.input, colorScheme: 'dark' }} /></div>
+            <div><label style={fl}>Asignar a</label>
+              <select value={form.assignedTo} onChange={e => setForm(p => ({ ...p, assignedTo: e.target.value }))} style={S.input}>
+                <option value="">—</option>{team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}</select></div>
+            <div><label style={fl}>Prioridad</label>
+              <select value={form.priority} onChange={e => setForm(p => ({ ...p, priority: e.target.value }))} style={S.input}>
+                <option value="low">Baja</option><option value="medium">Media</option><option value="high">Alta</option></select></div>
+            <div style={{ gridColumn: 'span 2' }}><label style={fl}>Descripción</label>
+              <input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Notas..." style={S.input} /></div>
+          </div>
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+            <button onClick={() => setShowAdd(false)} style={{ ...S.btnGhost, fontSize: 11 }}>Cancelar</button>
+            <button onClick={handleAdd} style={{ padding: '6px 14px', background: 'var(--orange)', color: '#000', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>Crear</button>
+          </div>
+        </div>
+      )}
+      {filtered.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)', fontSize: 13 }}>No hay tareas</div>}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {filtered.map(t => {
+          const ct = contactMap[t.contact_id]
+          return (
+            <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, transition: 'all .15s' }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(255,107,0,.3)'} onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
+              <button onClick={() => onToggle(t)} style={{ padding: 0, background: 'transparent', border: 'none', cursor: 'pointer', color: t.completed ? 'var(--orange)' : 'var(--text-secondary)', flexShrink: 0 }}>
+                {t.completed ? <Check size={18} /> : <Square size={18} />}</button>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)', textDecoration: t.completed ? 'line-through' : 'none', opacity: t.completed ? .5 : 1 }}>{t.title}</div>
+                <div style={{ display: 'flex', gap: 10, marginTop: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {t.priority && <span style={{ fontSize: 10, color: prioColor(t.priority), fontWeight: 600, display: 'flex', alignItems: 'center', gap: 2 }}><Flag size={9} /> {prioLabel(t.priority)}</span>}
+                  {t.dueDate && <span style={{ fontSize: 10, color: new Date(t.dueDate) < new Date() && !t.completed ? '#EF4444' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 2 }}><Clock size={9} /> {fmtDate(t.dueDate)}</span>}
+                  {t.assignedTo && <span style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 2 }}><User size={9} /> {t.assignedTo}</span>}
+                  {t.description && <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontStyle: 'italic' }}>{t.description.slice(0, 50)}</span>}
+                </div>
+              </div>
+              {ct && <button onClick={() => onContactClick(ct)} style={{ padding: '3px 8px', background: 'rgba(255,107,0,.08)', border: '1px solid rgba(255,107,0,.2)', borderRadius: 6, cursor: 'pointer', color: 'var(--orange)', fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap' }}>{ct.name}</button>}
+              <button onClick={() => onDelete(t)} style={{ padding: 3, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', opacity: .4, flexShrink: 0 }}><Trash2 size={13} /></button>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

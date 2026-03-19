@@ -56,6 +56,7 @@ function buildNavItems(prefix) {
       icon: '📇',
       children: [
         { to: `${prefix}/crm`, label: 'Pipeline', icon: '📊' },
+        { to: `${prefix}/crm?view=tasks`, label: 'Tareas', icon: '✅' },
       ]
     },
     {
