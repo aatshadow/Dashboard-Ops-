@@ -162,10 +162,6 @@ const SA_COMMISSIONS_MAP = {
 const CRM_CONTACTS_MAP = {
   clientId: 'client_id',
   dealValue: 'deal_value',
-  assignedTo: 'assigned_to',
-  assignedCloser: 'assigned_closer',
-  assignedSetter: 'assigned_setter',
-  assignedColdCaller: 'assigned_cold_caller',
   customFields: 'custom_fields',
   lastActivityAt: 'last_activity_at',
   updatedAt: 'updated_at',
