@@ -132,6 +132,21 @@ CREATE TABLE IF NOT EXISTS chat_broadcasts (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- EMAIL CONFIG (stores Resend API key, sender info per client)
+CREATE TABLE IF NOT EXISTS email_config (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id UUID NOT NULL UNIQUE,
+  provider TEXT DEFAULT 'resend',
+  api_key TEXT DEFAULT '',
+  from_name TEXT DEFAULT '',
+  from_email TEXT DEFAULT '',
+  reply_to TEXT DEFAULT '',
+  domain TEXT DEFAULT '',
+  verified BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- RLS policies (allow all for authenticated/service role)
 ALTER TABLE email_lists ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_subscribers ENABLE ROW LEVEL SECURITY;
@@ -141,8 +156,10 @@ ALTER TABLE chat_flows ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_contacts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE email_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_broadcasts ENABLE ROW LEVEL SECURITY;
 
+CREATE POLICY "Allow all" ON email_config FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all" ON email_lists FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all" ON email_subscribers FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all" ON email_templates FOR ALL USING (true) WITH CHECK (true);

@@ -120,6 +120,11 @@ export function useClientData() {
     // CRM Pipeline delete
     deleteCrmPipeline: useCallback((id) => data.deleteCrmPipeline(id, clientId), [clientId]),
 
+    // Email Config
+    getEmailConfig: useCallback(() => data.getEmailConfig(clientId), [clientId]),
+    saveEmailConfig: useCallback((config) => data.saveEmailConfig(config, clientId), [clientId]),
+    sendEmailCampaign: useCallback((campaignId) => data.sendEmailCampaign(campaignId, clientId), [clientId]),
+
     // Email Marketing
     getEmailLists: useCallback(() => data.getEmailLists(clientId), [clientId]),
     addEmailList: useCallback((list) => data.addEmailList(list, clientId), [clientId]),

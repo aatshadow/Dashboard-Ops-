@@ -1,13 +1,14 @@
 import { useState, useMemo } from 'react'
 import { useClientData } from '../hooks/useClientData'
 import { useAsync } from '../hooks/useAsync'
-import { Mail, Users, FileText, Send, Plus, Trash2, Edit3, Eye, ChevronRight, BarChart3, Search, Tag, X, Copy, ArrowLeft } from 'lucide-react'
+import { Mail, Users, FileText, Send, Plus, Trash2, Edit3, Eye, ChevronRight, BarChart3, Search, Tag, X, Copy, ArrowLeft, Settings, Check, AlertCircle, Loader } from 'lucide-react'
 
 const TABS = [
   { id: 'campaigns', label: 'Campanas', icon: Send },
   { id: 'lists', label: 'Listas', icon: Users },
   { id: 'templates', label: 'Plantillas', icon: FileText },
   { id: 'subscribers', label: 'Suscriptores', icon: Mail },
+  { id: 'config', label: 'Configuracion', icon: Settings },
 ]
 
 const STATUS_COLORS = {
@@ -218,17 +219,25 @@ function TemplateForm({ template, onSave, onCancel }) {
 }
 
 export default function EmailMarketingPage() {
-  const { getEmailLists, addEmailList, updateEmailList, deleteEmailList, getEmailSubscribers, addEmailSubscriber, deleteEmailSubscriber, getEmailTemplates, addEmailTemplate, updateEmailTemplate, deleteEmailTemplate, getEmailCampaigns, addEmailCampaign, updateEmailCampaign, deleteEmailCampaign } = useClientData()
+  const { getEmailLists, addEmailList, updateEmailList, deleteEmailList, getEmailSubscribers, addEmailSubscriber, deleteEmailSubscriber, getEmailTemplates, addEmailTemplate, updateEmailTemplate, deleteEmailTemplate, getEmailCampaigns, addEmailCampaign, updateEmailCampaign, deleteEmailCampaign, getEmailConfig, saveEmailConfig, sendEmailCampaign } = useClientData()
 
   const [lists, listsLoading, refreshLists] = useAsync(getEmailLists, [])
   const [subscribers, subsLoading, refreshSubs] = useAsync(getEmailSubscribers, [])
   const [templates, tplLoading, refreshTpls] = useAsync(getEmailTemplates, [])
   const [campaigns, campLoading, refreshCamps] = useAsync(getEmailCampaigns, [])
+  const [emailConfig, configLoading, refreshConfig] = useAsync(getEmailConfig, null)
 
   const [tab, setTab] = useState('campaigns')
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editItem, setEditItem] = useState(null)
+  const [sending, setSending] = useState(null)
+  const [sendResult, setSendResult] = useState(null)
+
+  // Config form
+  const [configForm, setConfigForm] = useState(null)
+  const [configSaving, setConfigSaving] = useState(false)
+  const [configSaved, setConfigSaved] = useState(false)
 
   // List form
   const [listForm, setListForm] = useState({ name: '', description: '' })
@@ -239,7 +248,7 @@ export default function EmailMarketingPage() {
   const [showSubForm, setShowSubForm] = useState(false)
   const [selectedListId, setSelectedListId] = useState('')
 
-  const loading = listsLoading || subsLoading || tplLoading || campLoading
+  const loading = listsLoading || subsLoading || tplLoading || campLoading || configLoading
 
   // Stats
   const totalSubs = subscribers.filter(s => s.status === 'subscribed').length
@@ -299,6 +308,39 @@ export default function EmailMarketingPage() {
     setSubForm({ email: '', name: '', listId: '', status: 'subscribed' })
   }
 
+  const handleSendCampaign = async (campaignId) => {
+    if (!emailConfig?.apiKey) {
+      alert('Primero configura tu API Key de Resend en la pestana de Configuracion')
+      setTab('config')
+      return
+    }
+    if (!confirm('¿Enviar esta campana a todos los suscriptores de la lista?')) return
+    setSending(campaignId)
+    setSendResult(null)
+    try {
+      const result = await sendEmailCampaign(campaignId)
+      setSendResult({ success: true, ...result })
+      refreshCamps()
+    } catch (e) {
+      setSendResult({ success: false, error: e.message })
+    }
+    setSending(null)
+  }
+
+  const handleSaveConfig = async (e) => {
+    e.preventDefault()
+    setConfigSaving(true)
+    try {
+      await saveEmailConfig(configForm)
+      refreshConfig()
+      setConfigSaved(true)
+      setTimeout(() => setConfigSaved(false), 3000)
+    } catch (e) {
+      alert('Error: ' + e.message)
+    }
+    setConfigSaving(false)
+  }
+
   if (loading) return <div className="dashboard"><div style={{ textAlign: 'center', padding: 60, color: 'var(--text-secondary)' }}>Cargando...</div></div>
 
   return (
@@ -320,6 +362,25 @@ export default function EmailMarketingPage() {
           </button>
         ))}
       </div>
+
+      {/* Send result notification */}
+      {sendResult && (
+        <div style={{ padding: '12px 20px', borderRadius: 10, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10, background: sendResult.success ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)', border: `1px solid ${sendResult.success ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}` }}>
+          {sendResult.success ? <Check size={16} style={{ color: '#22c55e' }} /> : <AlertCircle size={16} style={{ color: '#ef4444' }} />}
+          <span style={{ color: sendResult.success ? '#22c55e' : '#ef4444', fontSize: 13, fontWeight: 600 }}>
+            {sendResult.success ? `Campana enviada: ${sendResult.sent} emails enviados${sendResult.failed ? `, ${sendResult.failed} fallidos` : ''}` : `Error: ${sendResult.error}`}
+          </span>
+          <button onClick={() => setSendResult(null)} style={{ marginLeft: 'auto', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><X size={14} /></button>
+        </div>
+      )}
+
+      {/* Config warning */}
+      {!emailConfig?.apiKey && tab !== 'config' && (
+        <div onClick={() => setTab('config')} style={{ padding: '12px 20px', borderRadius: 10, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.3)', cursor: 'pointer' }}>
+          <AlertCircle size={16} style={{ color: '#fbbf24' }} />
+          <span style={{ color: '#fbbf24', fontSize: 13, fontWeight: 600 }}>Configura tu API Key de Resend para poder enviar emails. Click aqui.</span>
+        </div>
+      )}
 
       {/* CAMPAIGNS TAB */}
       {tab === 'campaigns' && !showForm && (
@@ -351,6 +412,12 @@ export default function EmailMarketingPage() {
                     <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Abiertos</div>
                   </div>
                   <div style={{ display: 'flex', gap: 4 }}>
+                    {c.status === 'draft' && (
+                      <button onClick={() => handleSendCampaign(c.id)} disabled={sending === c.id}
+                        style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: 'rgba(34,197,94,0.15)', cursor: sending === c.id ? 'wait' : 'pointer', color: '#22c55e', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        {sending === c.id ? <Loader size={12} className="spin" /> : <Send size={12} />} Enviar
+                      </button>
+                    )}
                     <button onClick={() => { setEditItem(c); setShowForm(true) }} style={{ padding: 8, borderRadius: 6, border: 'none', background: 'rgba(255,255,255,0.05)', cursor: 'pointer', color: 'var(--text-secondary)' }}><Edit3 size={14} /></button>
                     <button onClick={async () => { await deleteEmailCampaign(c.id); refreshCamps() }} style={{ padding: 8, borderRadius: 6, border: 'none', background: 'rgba(239,68,68,0.1)', cursor: 'pointer', color: '#ef4444' }}><Trash2 size={14} /></button>
                   </div>
@@ -543,6 +610,124 @@ export default function EmailMarketingPage() {
           </div>
         </>
       )}
+
+      {/* CONFIG TAB */}
+      {tab === 'config' && (() => {
+        const cf = configForm || emailConfig || { provider: 'resend', apiKey: '', fromName: '', fromEmail: '', replyTo: '', domain: '' }
+        if (!configForm && emailConfig) setTimeout(() => setConfigForm({ ...emailConfig }), 0)
+        if (!configForm && !emailConfig) setTimeout(() => setConfigForm({ provider: 'resend', apiKey: '', fromName: '', fromEmail: '', replyTo: '', domain: '' }), 0)
+        return (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ color: 'var(--text)', margin: 0, fontSize: 18 }}>Configuracion de Email</h3>
+              {configSaved && <span style={{ color: '#22c55e', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}><Check size={14} /> Guardado</span>}
+            </div>
+
+            <form onSubmit={handleSaveConfig}>
+              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 24 }}>
+                {/* Provider */}
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Proveedor de email</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>Resend ofrece 3.000 emails gratis al mes. Despues cuesta $0.001 por email.</div>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: 'rgba(255,107,0,0.08)', borderRadius: 8, border: '1px solid rgba(255,107,0,0.2)' }}>
+                    <Mail size={16} style={{ color: 'var(--orange)' }} />
+                    <span style={{ fontWeight: 600, color: 'var(--orange)', fontSize: 14 }}>Resend</span>
+                    <Check size={14} style={{ color: '#22c55e' }} />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  {/* API Key */}
+                  <div style={{ gridColumn: '1/-1' }}>
+                    <label style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>API Key de Resend *</label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="password"
+                        value={cf.apiKey || ''}
+                        onChange={e => setConfigForm({ ...cf, apiKey: e.target.value })}
+                        placeholder="re_xxxxxxxxxxxx"
+                        required
+                        style={{ width: '100%', padding: '10px 14px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 14, fontFamily: 'monospace' }}
+                      />
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>Consigue tu API Key en resend.com/api-keys</div>
+                  </div>
+
+                  {/* From Name */}
+                  <div>
+                    <label style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>Nombre del remitente</label>
+                    <input
+                      value={cf.fromName || ''}
+                      onChange={e => setConfigForm({ ...cf, fromName: e.target.value })}
+                      placeholder="Tu empresa o nombre"
+                      style={{ width: '100%', padding: '10px 14px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 14 }}
+                    />
+                  </div>
+
+                  {/* From Email */}
+                  <div>
+                    <label style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>Email del remitente *</label>
+                    <input
+                      type="email"
+                      value={cf.fromEmail || ''}
+                      onChange={e => setConfigForm({ ...cf, fromEmail: e.target.value })}
+                      placeholder="newsletter@tudominio.com"
+                      required
+                      style={{ width: '100%', padding: '10px 14px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 14 }}
+                    />
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>Usa onboarding@resend.dev para probar sin dominio verificado</div>
+                  </div>
+
+                  {/* Reply To */}
+                  <div>
+                    <label style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>Responder a (Reply-To)</label>
+                    <input
+                      type="email"
+                      value={cf.replyTo || ''}
+                      onChange={e => setConfigForm({ ...cf, replyTo: e.target.value })}
+                      placeholder="soporte@tuempresa.com"
+                      style={{ width: '100%', padding: '10px 14px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 14 }}
+                    />
+                  </div>
+
+                  {/* Domain */}
+                  <div>
+                    <label style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>Dominio</label>
+                    <input
+                      value={cf.domain || ''}
+                      onChange={e => setConfigForm({ ...cf, domain: e.target.value })}
+                      placeholder="tuempresa.com"
+                      style={{ width: '100%', padding: '10px 14px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 14 }}
+                    />
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>Verifica tu dominio en Resend para mejor entregabilidad</div>
+                  </div>
+                </div>
+
+                {/* DNS Info */}
+                <div style={{ marginTop: 24, padding: 16, background: 'rgba(59,130,246,0.08)', borderRadius: 10, border: '1px solid rgba(59,130,246,0.2)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#60a5fa', marginBottom: 8 }}>Configuracion DNS (para dominio propio)</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
+                    Para enviar desde tu propio dominio, anade estos registros DNS:<br />
+                    1. Ve a <strong>resend.com/domains</strong> y anade tu dominio<br />
+                    2. Resend te dara registros <strong>SPF, DKIM y DMARC</strong><br />
+                    3. Anadeselos en tu proveedor de DNS (Cloudflare, GoDaddy, etc.)<br />
+                    4. Espera a que se verifiquen (puede tardar hasta 48h)<br />
+                    <br />
+                    Mientras tanto puedes usar <strong>onboarding@resend.dev</strong> como remitente de prueba.
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
+                  <button type="submit" disabled={configSaving} className="btn-action" style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: configSaving ? 0.6 : 1 }}>
+                    {configSaving ? <Loader size={14} className="spin" /> : <Check size={14} />}
+                    {configSaving ? 'Guardando...' : 'Guardar configuracion'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </>
+        )
+      })()}
     </div>
   )
 }

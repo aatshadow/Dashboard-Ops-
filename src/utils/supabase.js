@@ -216,6 +216,15 @@ const CRM_PIPELINES_MAP = {
   isDefault: 'is_default',
 }
 
+const EMAIL_CONFIG_MAP = {
+  clientId: 'client_id',
+  apiKey: 'api_key',
+  fromName: 'from_name',
+  fromEmail: 'from_email',
+  replyTo: 'reply_to',
+  updatedAt: 'updated_at',
+}
+
 const EMAIL_LISTS_MAP = {
   clientId: 'client_id',
 }
@@ -332,6 +341,7 @@ const TABLE_MAPS = {
   crm_pipelines: CRM_PIPELINES_MAP,
   crm_files: CRM_FILES_MAP,
   crm_tasks: CRM_TASKS_MAP,
+  email_config: EMAIL_CONFIG_MAP,
   email_lists: EMAIL_LISTS_MAP,
   email_subscribers: EMAIL_SUBSCRIBERS_MAP,
   email_templates: EMAIL_TEMPLATES_MAP,
@@ -368,6 +378,7 @@ const VALID_COLUMNS = {
   crm_pipelines: new Set(['client_id', 'name', 'stages', 'is_default']),
   crm_files: new Set(['client_id', 'contact_id', 'file_name', 'file_url', 'file_size', 'file_type', 'uploaded_by']),
   crm_tasks: new Set(['client_id', 'contact_id', 'title', 'description', 'due_date', 'assigned_to', 'completed', 'completed_at', 'priority']),
+  email_config: new Set(['client_id', 'provider', 'api_key', 'from_name', 'from_email', 'reply_to', 'domain', 'verified', 'updated_at']),
   email_lists: new Set(['client_id', 'name', 'description']),
   email_subscribers: new Set(['client_id', 'list_id', 'email', 'name', 'status', 'tags', 'custom_data', 'subscribed_at', 'unsubscribed_at']),
   email_templates: new Set(['client_id', 'name', 'subject', 'html_content', 'json_content', 'category', 'updated_at']),
