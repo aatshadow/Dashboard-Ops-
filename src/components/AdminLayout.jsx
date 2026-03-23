@@ -47,6 +47,13 @@ export default function AdminLayout({ children, user, onLogout }) {
           <span className="admin-nav-icon">🛡️</span>
           <span>Sistema de SOC</span>
         </a>
+        <NavLink
+          to="/admin/ai-agents"
+          className={({ isActive }) => `admin-nav-item ${isActive ? 'admin-nav-item--active' : ''}`}
+        >
+          <span className="admin-nav-icon">🤖</span>
+          <span>AI Agents</span>
+        </NavLink>
       </nav>
 
       <div className="admin-sidebar-footer">

@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import AdminLayout from '../../components/AdminLayout'
 import AdminDashboard from './AdminDashboard'
 import AdminConsole from './AdminConsole'
+import AIAgentsPage from './AIAgentsPage'
 
 export default function AdminApp() {
   const [user, setUser] = useState(() => localStorage.getItem('bw_superadmin') || null)
@@ -28,6 +29,7 @@ export default function AdminApp() {
       <Routes>
         <Route index element={<AdminDashboard />} />
         <Route path="consola" element={<AdminConsole />} />
+        <Route path="ai-agents" element={<AIAgentsPage />} />
         <Route path="*" element={<Navigate to="/admin" replace />} />
       </Routes>
     </AdminLayout>
