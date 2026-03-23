@@ -39,15 +39,6 @@ export default function AdminLayout({ children, user, onLogout }) {
           </NavLink>
         ))}
         <a
-          href="https://apartments-wool-brings-pine.trycloudflare.com/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="admin-nav-item"
-        >
-          <span className="admin-nav-icon">📋</span>
-          <span>Taskflow</span>
-        </a>
-        <a
           href="https://soc.blackwolfsec.io/"
           target="_blank"
           rel="noopener noreferrer"
@@ -55,15 +46,6 @@ export default function AdminLayout({ children, user, onLogout }) {
         >
           <span className="admin-nav-icon">🛡️</span>
           <span>Sistema de SOC</span>
-        </a>
-        <a
-          href="https://crm.blackwolfsec.io"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="admin-nav-item"
-        >
-          <span className="admin-nav-icon">📇</span>
-          <span>CRM</span>
         </a>
       </nav>
 

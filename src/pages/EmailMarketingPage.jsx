@@ -251,7 +251,8 @@ export default function EmailMarketingPage() {
   }, [crmContacts])
 
   const getImportableCrm = (listId) => {
-    const existingEmails = new Set(subscribers.filter(s => s.listId === listId).map(s => s.email.toLowerCase()))
+    const subs = listId && listId !== '__all__' ? subscribers.filter(s => s.listId === listId) : subscribers
+    const existingEmails = new Set(subs.map(s => s.email.toLowerCase()))
     return crmWithEmail.filter(c => !existingEmails.has(c.email.toLowerCase()))
   }
 
@@ -261,9 +262,10 @@ export default function EmailMarketingPage() {
     const toImport = crmWithEmail.filter(c => selectedIds.includes(c.id))
     if (toImport.length === 0) return
 
+    const targetListId = importListId === '__all__' ? (selectedListId || '') : importListId
     setImporting(true)
     for (const c of toImport) {
-      await addEmailSubscriber({ email: c.email, name: c.name || '', listId: importListId, status: 'subscribed' })
+      await addEmailSubscriber({ email: c.email, name: c.name || '', listId: targetListId, status: 'subscribed' })
     }
     setImporting(false)
     setImportListId(null)
@@ -648,6 +650,10 @@ export default function EmailMarketingPage() {
                 <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..." style={{ padding: '8px 12px 8px 30px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 13 }} />
               </div>
+              <button onClick={() => { setImportListId(selectedListId || '__all__'); setImportSelected({}) }}
+                style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', color: 'var(--orange)', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Users size={14} /> Importar CRM
+              </button>
               <button onClick={() => setShowSubForm(true)} className="btn-action" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> Anadir</button>
             </div>
           </div>
