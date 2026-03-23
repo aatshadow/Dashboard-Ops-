@@ -9,45 +9,54 @@ export default async function handler(req, res) {
 
   try {
     const { campaignId, clientSlug } = req.body
+    if (!campaignId || !clientSlug) {
+      return res.status(400).json({ error: 'campaignId and clientSlug are required' })
+    }
+
     const clientId = await resolveClientId(clientSlug)
-    if (!clientId) return res.status(400).json({ error: 'clientSlug is required' })
+    if (!clientId) return res.status(400).json({ error: 'Client not found for slug: ' + clientSlug })
 
     // Get email config
-    const { data: config } = await supabase
+    const { data: configs, error: configErr } = await supabase
       .from('email_config')
       .select('*')
       .eq('client_id', clientId)
-      .limit(1)
-      .single()
 
+    if (configErr) return res.status(500).json({ error: 'DB config error: ' + configErr.message })
+
+    const config = configs && configs[0]
     if (!config || !config.api_key) {
       return res.status(400).json({ error: 'Configura tu API Key de Resend primero' })
     }
 
     // Get campaign
-    const { data: campaign } = await supabase
+    const { data: campaigns, error: campErr } = await supabase
       .from('email_campaigns')
       .select('*')
       .eq('id', campaignId)
-      .single()
 
-    if (!campaign) return res.status(404).json({ error: 'Campaña no encontrada' })
+    if (campErr) return res.status(500).json({ error: 'DB campaign error: ' + campErr.message })
+
+    const campaign = campaigns && campaigns[0]
+    if (!campaign) return res.status(404).json({ error: 'Campaña no encontrada, id=' + campaignId + ', clientId=' + clientId })
 
     // Get subscribers
     let subs = []
     if (campaign.list_id) {
-      const { data } = await supabase
+      const { data, error: subErr } = await supabase
         .from('email_subscribers')
         .select('*')
         .eq('list_id', campaign.list_id)
         .eq('status', 'subscribed')
+      if (subErr) return res.status(500).json({ error: 'DB subscribers error: ' + subErr.message })
       subs = data || []
     } else {
-      const { data } = await supabase
+      const { data, error: subErr } = await supabase
         .from('email_subscribers')
         .select('*')
         .eq('client_id', clientId)
         .eq('status', 'subscribed')
+      if (subErr) return res.status(500).json({ error: 'DB subscribers error: ' + subErr.message })
       subs = data || []
     }
 
@@ -57,42 +66,41 @@ export default async function handler(req, res) {
 
     const fromEmail = campaign.from_email || config.from_email || 'onboarding@resend.dev'
     const fromName = campaign.from_name || config.from_name || 'Newsletter'
+    const htmlContent = campaign.html_content || '<p>Sin contenido</p>'
 
     let sent = 0
     let failed = 0
+    let lastError = null
 
-    // Send in batches of 50
-    for (let i = 0; i < subs.length; i += 50) {
-      const batch = subs.slice(i, i + 50)
-      const emails = batch.map(sub => ({
-        from: `${fromName} <${fromEmail}>`,
-        to: [sub.email],
-        subject: campaign.subject || '(Sin asunto)',
-        html: (campaign.html_content || '')
-          .replace(/\{\{name\}\}/g, sub.name || 'Suscriptor')
-          .replace(/\{\{email\}\}/g, sub.email),
-      }))
-
+    // Send individually (batch endpoint needs array, single is more reliable)
+    for (const sub of subs) {
       try {
-        const response = await fetch('https://api.resend.com/emails/batch', {
+        const response = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${config.api_key}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(emails),
+          body: JSON.stringify({
+            from: `${fromName} <${fromEmail}>`,
+            to: [sub.email],
+            subject: campaign.subject || '(Sin asunto)',
+            html: htmlContent
+              .replace(/\{\{name\}\}/g, sub.name || 'Suscriptor')
+              .replace(/\{\{email\}\}/g, sub.email),
+          }),
         })
 
         if (response.ok) {
-          sent += batch.length
+          sent++
         } else {
           const err = await response.json()
-          console.error('Resend error:', err)
-          failed += batch.length
+          lastError = err.message || JSON.stringify(err)
+          failed++
         }
       } catch (e) {
-        console.error('Send error:', e)
-        failed += batch.length
+        lastError = e.message
+        failed++
       }
     }
 
@@ -104,9 +112,10 @@ export default async function handler(req, res) {
       updated_at: new Date().toISOString(),
     }).eq('id', campaignId)
 
-    return res.status(200).json({ sent, failed, total: subs.length })
+    const result = { sent, failed, total: subs.length }
+    if (lastError) result.lastError = lastError
+    return res.status(200).json(result)
   } catch (e) {
-    console.error('Send campaign error:', e)
-    return res.status(500).json({ error: e.message })
+    return res.status(500).json({ error: e.message, stack: e.stack })
   }
 }
