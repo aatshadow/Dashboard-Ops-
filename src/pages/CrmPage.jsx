@@ -72,10 +72,18 @@ const FILTER_OPS = [
 
 const emptyContact = {
   name: '', email: '', phone: '', company: '', status: 'lead',
-  dealValue: '', assigned_closer: '', assigned_setter: '', assigned_cold_caller: '',
+  assigned_closer: '', assigned_setter: '', assigned_cold_caller: '',
   source: '', tags: '', notes: '',
-  address: '', whatsapp: '', zoom_link: '', website: '', instagram: '',
-  pipelineId: '', customFields: {},
+  address: '', whatsapp: '', zoom_link: '', website: '', instagram: '', country: '',
+  pipelineId: '', customFields: '',
+  // Lead profile
+  producto_interes: '', capital_disponible: '', situacion_actual: '',
+  exp_amazon: '', decisor_confirmado: '', fecha_llamada: '',
+  // UTMs & Attribution
+  utm_source: '', utm_medium: '', utm_campaign: '', utm_content: '',
+  triager: '', gestor_asignado: '',
+  // Payment
+  deal_value: '', product: '', payment_type: '', payment_method: '',
 }
 
 // ─── Utility ────────────────────────────────────────────────────────────────────
@@ -924,6 +932,7 @@ export default function CrmPage() {
         <ContactSidebar
           contact={selectedContact} customFields={customFields} team={team}
           statuses={STATUSES} statusMap={STATUS_MAP} pipelines={pipelines || []}
+          products={products || []} paymentFees={paymentFees || []}
           onClose={closeContact} onUpdate={handleUpdateContact} onDelete={handleDeleteContact}
           onStatusChange={handleStatusChange}
           getCrmActivities={getCrmActivities} addCrmActivity={addCrmActivity} deleteCrmActivity={deleteCrmActivity}
@@ -1187,7 +1196,8 @@ function CalendarView({ contacts, getCrmActivities, onContactClick, en }) {
 // CONTACT SIDEBAR (with tabs: Details / Files)
 // ═════════════════════════════════════════════════════════════════════════════════
 function ContactSidebar({
-  contact, customFields, team, statuses, statusMap, pipelines, onClose, onUpdate, onDelete, onStatusChange,
+  contact, customFields, team, statuses, statusMap, pipelines, products, paymentFees,
+  onClose, onUpdate, onDelete, onStatusChange,
   getCrmActivities, addCrmActivity, deleteCrmActivity,
   getCrmFiles, addCrmFile, deleteCrmFile,
   en,
@@ -1229,14 +1239,33 @@ function ContactSidebar({
   const startEditing = () => {
     setEditForm({
       name: contact.name || '', email: contact.email || '', phone: contact.phone || '',
-      company: contact.company || '', dealValue: contact.dealValue || '',
+      company: contact.company || '', dealValue: contact.dealValue || contact.deal_value || '',
       assigned_closer: contact.assigned_closer || '', assigned_setter: contact.assigned_setter || '',
       assigned_cold_caller: contact.assigned_cold_caller || '', source: contact.source || '',
       tags: contact.tags || '', address: contact.address || '',
       whatsapp: contact.whatsapp || '', zoom_link: contact.zoom_link || '',
       website: contact.website || '', instagram: contact.instagram || '',
+      country: contact.country || '',
       pipelineId: contact.pipelineId || '',
       customFields: contact.customFields || {},
+      // Lead profile
+      producto_interes: contact.producto_interes || '',
+      capital_disponible: contact.capital_disponible || '',
+      situacion_actual: contact.situacion_actual || '',
+      exp_amazon: contact.exp_amazon || '',
+      decisor_confirmado: contact.decisor_confirmado || '',
+      fecha_llamada: contact.fecha_llamada || '',
+      // UTMs & Attribution
+      utm_source: contact.utm_source || '',
+      utm_medium: contact.utm_medium || '',
+      utm_campaign: contact.utm_campaign || '',
+      utm_content: contact.utm_content || '',
+      triager: contact.triager || '',
+      gestor_asignado: contact.gestor_asignado || '',
+      // Payment
+      product: contact.product || '',
+      payment_type: contact.payment_type || '',
+      payment_method: contact.payment_method || '',
     })
     setEditing(true)
   }
@@ -1382,43 +1411,89 @@ function ContactSidebar({
                 </select>
               </div>
 
-              {/* ABOUT section */}
+              {/* SECTIONS - Read-only / Edit mode */}
               {!editing ? (
-                <div style={{ marginBottom: 24 }}>
-                  <div style={S.sectionLabel}>{L('Información', 'Information')}</div>
-                  <div style={{ display: 'grid', gap: 2 }}>
-                    <LinkRow icon={<Mail size={13} />} label="Email" value={contact.email} href={contact.email ? `mailto:${contact.email}` : null} />
-                    <LinkRow icon={<Phone size={13} />} label={L('Teléfono', 'Phone')} value={contact.phone} />
-                    <LinkRow icon={<Building2 size={13} />} label={L('Empresa', 'Company')} value={contact.company} />
-                    <LinkRow icon={<DollarSign size={13} />} label={L('Valor', 'Value')} value={fmtL(contact.dealValue)} />
-                    <LinkRow icon={<User size={13} />} label="Closer" value={contact.assigned_closer} />
-                    <LinkRow icon={<User size={13} />} label="Setter" value={contact.assigned_setter} />
-                    <LinkRow icon={<User size={13} />} label="Cold Caller" value={contact.assigned_cold_caller} />
-                    <LinkRow icon={<Globe size={13} />} label={L('Fuente', 'Source')} value={contact.source} />
-                    <LinkRow icon={<MapPin size={13} />} label={L('Dirección', 'Address')} value={contact.address} />
-                    <LinkRow icon={<MessageSquare size={13} />} label="WhatsApp" value={contact.whatsapp}
-                      href={contact.whatsapp ? `https://wa.me/${contact.whatsapp.replace(/[^0-9]/g, '')}` : null} />
-                    <LinkRow icon={<Video size={13} />} label="Zoom" value={contact.zoom_link ? L('Enlace', 'Link') : ''}
-                      href={contact.zoom_link} />
-                    <LinkRow icon={<Globe size={13} />} label="Website" value={contact.website ? L('Visitar', 'Visit') : ''}
-                      href={contact.website} />
-                    <LinkRow icon={<Globe size={13} />} label="Instagram" value={contact.instagram ? `@${contact.instagram.replace(/^@/, '')}` : ''}
-                      href={contact.instagram ? `https://instagram.com/${contact.instagram.replace(/^@/, '')}` : null} />
-                    <LinkRow icon={<Calendar size={13} />} label={L('Creado', 'Created')} value={fmtDateL(contact.created_at)} />
-                  </div>
-                  {contact.tags && (
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 0' }}>
-                      <Tag size={13} style={{ color: 'var(--text-secondary)', marginTop: 2 }} />
-                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                        {(Array.isArray(contact.tags) ? contact.tags : (contact.tags || '').split(',')).map(t => String(t).trim()).filter(Boolean).map(t => (
-                          <span key={t} style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, background: 'rgba(255,107,0,.12)', color: 'var(--orange)', fontWeight: 600 }}>{t}</span>
-                        ))}
-                      </div>
+                <>
+                  {/* Datos del Cliente */}
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={S.sectionLabel}>{L('Datos del Cliente', 'Client Data')}</div>
+                    <div style={{ display: 'grid', gap: 2 }}>
+                      <LinkRow icon={<Mail size={13} />} label="Email" value={contact.email} href={contact.email ? `mailto:${contact.email}` : null} />
+                      <LinkRow icon={<Phone size={13} />} label={L('Teléfono', 'Phone')} value={contact.phone} />
+                      <LinkRow icon={<Building2 size={13} />} label={L('Empresa', 'Company')} value={contact.company} />
+                      <LinkRow icon={<MapPin size={13} />} label={L('País', 'Country')} value={contact.country} />
+                      <LinkRow icon={<MapPin size={13} />} label={L('Dirección', 'Address')} value={contact.address} />
+                      <LinkRow icon={<MessageSquare size={13} />} label="WhatsApp" value={contact.whatsapp}
+                        href={contact.whatsapp ? `https://wa.me/${contact.whatsapp.replace(/[^0-9]/g, '')}` : null} />
+                      <LinkRow icon={<Globe size={13} />} label="Instagram" value={contact.instagram ? `@${contact.instagram.replace(/^@/, '')}` : ''}
+                        href={contact.instagram ? `https://instagram.com/${contact.instagram.replace(/^@/, '')}` : null} />
+                      <LinkRow icon={<Globe size={13} />} label="Website" value={contact.website ? L('Visitar', 'Visit') : ''} href={contact.website} />
+                      <LinkRow icon={<Video size={13} />} label="Zoom" value={contact.zoom_link ? L('Enlace', 'Link') : ''} href={contact.zoom_link} />
+                      <LinkRow icon={<Globe size={13} />} label={L('Fuente', 'Source')} value={contact.source} />
+                      <LinkRow icon={<Calendar size={13} />} label={L('Creado', 'Created')} value={fmtDateL(contact.created_at)} />
                     </div>
-                  )}
+                    {contact.tags && (
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 0' }}>
+                        <Tag size={13} style={{ color: 'var(--text-secondary)', marginTop: 2 }} />
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          {(Array.isArray(contact.tags) ? contact.tags : (contact.tags || '').split(',')).map(t => String(t).trim()).filter(Boolean).map(t => (
+                            <span key={t} style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, background: 'rgba(255,107,0,.12)', color: 'var(--orange)', fontWeight: 600 }}>{t}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Equipo Asignado */}
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={S.sectionLabel}>{L('Equipo Asignado', 'Assigned Team')}</div>
+                    <div style={{ display: 'grid', gap: 2 }}>
+                      <LinkRow icon={<User size={13} />} label="Closer" value={contact.assigned_closer} />
+                      <LinkRow icon={<User size={13} />} label="Setter" value={contact.assigned_setter} />
+                      <LinkRow icon={<User size={13} />} label="Cold Caller" value={contact.assigned_cold_caller} />
+                      <LinkRow icon={<User size={13} />} label="Triager" value={contact.triager} />
+                      <LinkRow icon={<User size={13} />} label={L('Gestor', 'Manager')} value={contact.gestor_asignado} />
+                    </div>
+                  </div>
+
+                  {/* Perfil del Lead */}
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={S.sectionLabel}>{L('Perfil del Lead', 'Lead Profile')}</div>
+                    <div style={{ display: 'grid', gap: 2 }}>
+                      <LinkRow icon={<FileText size={13} />} label={L('Situación', 'Situation')} value={contact.situacion_actual} />
+                      <LinkRow icon={<DollarSign size={13} />} label={L('Capital', 'Capital')} value={contact.capital_disponible} />
+                      <LinkRow icon={<FileText size={13} />} label="Exp Amazon" value={contact.exp_amazon} />
+                      <LinkRow icon={<Check size={13} />} label={L('Decisor', 'Decider')} value={contact.decisor_confirmado} />
+                      <LinkRow icon={<FileText size={13} />} label={L('Producto Interés', 'Product Interest')} value={contact.producto_interes} />
+                      <LinkRow icon={<Calendar size={13} />} label={L('Fecha Llamada', 'Call Date')} value={fmtDateL(contact.fecha_llamada)} />
+                    </div>
+                  </div>
+
+                  {/* UTMs & Atribución */}
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={S.sectionLabel}>UTMs & {L('Atribución', 'Attribution')}</div>
+                    <div style={{ display: 'grid', gap: 2 }}>
+                      <LinkRow icon={<Globe size={13} />} label="UTM Source" value={contact.utm_source} />
+                      <LinkRow icon={<Globe size={13} />} label="UTM Medium" value={contact.utm_medium} />
+                      <LinkRow icon={<Globe size={13} />} label="UTM Campaign" value={contact.utm_campaign} />
+                      <LinkRow icon={<Globe size={13} />} label="UTM Content" value={contact.utm_content} />
+                    </div>
+                  </div>
+
+                  {/* Pago */}
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={S.sectionLabel}>{L('Pago', 'Payment')}</div>
+                    <div style={{ display: 'grid', gap: 2 }}>
+                      <LinkRow icon={<DollarSign size={13} />} label={L('Valor', 'Value')} value={fmtL(contact.dealValue || contact.deal_value)} />
+                      <LinkRow icon={<FileText size={13} />} label={L('Producto', 'Product')} value={contact.product} />
+                      <LinkRow icon={<FileText size={13} />} label={L('Tipo Pago', 'Pay Type')} value={contact.payment_type} />
+                      <LinkRow icon={<FileText size={13} />} label={L('Método', 'Method')} value={contact.payment_method} />
+                    </div>
+                  </div>
+
                   {/* Custom fields display */}
                   {customFields.length > 0 && contact.customFields && Object.keys(contact.customFields).length > 0 && (
-                    <div style={{ marginTop: 12 }}>
+                    <div style={{ marginBottom: 20 }}>
                       <div style={S.sectionLabel}>{L('Campos Personalizados', 'Custom Fields')}</div>
                       {customFields.map(f => {
                         const val = contact.customFields?.[f.fieldKey || f.field_key || f.id || f.name]
@@ -1432,20 +1507,21 @@ function ContactSidebar({
                       })}
                     </div>
                   )}
-                </div>
+                </>
               ) : (
-                /* Edit Form */
+                /* Edit Form - Organized by sections */
                 <div style={{ marginBottom: 24 }}>
-                  <div style={S.sectionLabel}>{L('Editar Información', 'Edit Information')}</div>
-                  <div style={{ display: 'grid', gap: 8 }}>
+                  {/* Datos del Cliente */}
+                  <div style={{ ...S.sectionLabel, color: 'var(--orange)' }}>{L('Datos del Cliente', 'Client Data')}</div>
+                  <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
                     {[
                       { label: L('Nombre', 'Name'), key: 'name' }, { label: 'Email', key: 'email', type: 'email' },
                       { label: L('Teléfono', 'Phone'), key: 'phone' }, { label: L('Empresa', 'Company'), key: 'company' },
-                      { label: L('Valor del Trato', 'Deal Value'), key: 'dealValue', type: 'number' },
+                      { label: L('País', 'Country'), key: 'country' },
                       { label: L('Dirección', 'Address'), key: 'address' }, { label: 'WhatsApp', key: 'whatsapp' },
-                      { label: 'Zoom Link', key: 'zoom_link', type: 'url' },
-                      { label: 'Website', key: 'website', type: 'url' },
                       { label: 'Instagram', key: 'instagram' },
+                      { label: 'Website', key: 'website', type: 'url' },
+                      { label: 'Zoom Link', key: 'zoom_link', type: 'url' },
                       { label: 'Tags', key: 'tags' },
                     ].map(f => (
                       <div key={f.key}>
@@ -1453,27 +1529,6 @@ function ContactSidebar({
                         <input type={f.type || 'text'} value={editForm[f.key] || ''} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))} style={S.input} />
                       </div>
                     ))}
-                    <div>
-                      <label style={S.label}>Closer</label>
-                      <select value={editForm.assigned_closer} onChange={e => setEditForm(p => ({ ...p, assigned_closer: e.target.value }))} style={S.input}>
-                        <option value="">{L('— Sin asignar —', '— Unassigned —')}</option>
-                        {team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={S.label}>Setter</label>
-                      <select value={editForm.assigned_setter} onChange={e => setEditForm(p => ({ ...p, assigned_setter: e.target.value }))} style={S.input}>
-                        <option value="">{L('— Sin asignar —', '— Unassigned —')}</option>
-                        {team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={S.label}>Cold Caller</label>
-                      <select value={editForm.assigned_cold_caller} onChange={e => setEditForm(p => ({ ...p, assigned_cold_caller: e.target.value }))} style={S.input}>
-                        <option value="">{L('— Sin asignar —', '— Unassigned —')}</option>
-                        {team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-                      </select>
-                    </div>
                     <div>
                       <label style={S.label}>{L('Fuente', 'Source')}</label>
                       <select value={editForm.source} onChange={e => setEditForm(p => ({ ...p, source: e.target.value }))} style={S.input}>
@@ -1487,11 +1542,105 @@ function ContactSidebar({
                         {(pipelines || []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                     </div>
-                    {customFields.map(f => (
-                      <CustomFieldInput key={f.id || f.name} field={{ ...f, type: f.fieldType || f.type }} value={editForm.customFields?.[f.fieldKey || f.field_key || f.id || f.name] || ''}
-                        onChange={v => setEditForm(p => ({ ...p, customFields: { ...p.customFields, [f.fieldKey || f.field_key || f.id || f.name]: v } }))} />
+                  </div>
+
+                  {/* Equipo Asignado */}
+                  <div style={{ ...S.sectionLabel, color: 'var(--orange)' }}>{L('Equipo Asignado', 'Assigned Team')}</div>
+                  <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
+                    {[
+                      { label: 'Closer', key: 'assigned_closer' },
+                      { label: 'Setter', key: 'assigned_setter' },
+                      { label: 'Cold Caller', key: 'assigned_cold_caller' },
+                      { label: 'Triager', key: 'triager' },
+                      { label: L('Gestor Asignado', 'Assigned Manager'), key: 'gestor_asignado' },
+                    ].map(f => (
+                      <div key={f.key}>
+                        <label style={S.label}>{f.label}</label>
+                        <select value={editForm[f.key] || ''} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))} style={S.input}>
+                          <option value="">{L('— Sin asignar —', '— Unassigned —')}</option>
+                          {team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                        </select>
+                      </div>
                     ))}
                   </div>
+
+                  {/* Perfil del Lead */}
+                  <div style={{ ...S.sectionLabel, color: 'var(--orange)' }}>{L('Perfil del Lead', 'Lead Profile')}</div>
+                  <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
+                    {[
+                      { label: L('Situación Actual', 'Current Situation'), key: 'situacion_actual' },
+                      { label: L('Capital Disponible', 'Available Capital'), key: 'capital_disponible' },
+                      { label: 'Exp Amazon', key: 'exp_amazon' },
+                      { label: L('Producto Interés', 'Product Interest'), key: 'producto_interes' },
+                      { label: L('Fecha Llamada', 'Call Date'), key: 'fecha_llamada', type: 'date' },
+                    ].map(f => (
+                      <div key={f.key}>
+                        <label style={S.label}>{f.label}</label>
+                        <input type={f.type || 'text'} value={editForm[f.key] || ''} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))} style={S.input} />
+                      </div>
+                    ))}
+                    <div>
+                      <label style={S.label}>{L('Decisor Confirmado', 'Decision Maker')}</label>
+                      <select value={editForm.decisor_confirmado || ''} onChange={e => setEditForm(p => ({ ...p, decisor_confirmado: e.target.value }))} style={S.input}>
+                        <option value="">—</option>
+                        <option value="Sí">{L('Sí', 'Yes')}</option>
+                        <option value="No">No</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* UTMs & Atribución */}
+                  <div style={{ ...S.sectionLabel, color: 'var(--orange)' }}>UTMs & {L('Atribución', 'Attribution')}</div>
+                  <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
+                    {[
+                      { label: 'UTM Source', key: 'utm_source' },
+                      { label: 'UTM Medium', key: 'utm_medium' },
+                      { label: 'UTM Campaign', key: 'utm_campaign' },
+                      { label: 'UTM Content', key: 'utm_content' },
+                    ].map(f => (
+                      <div key={f.key}>
+                        <label style={S.label}>{f.label}</label>
+                        <input value={editForm[f.key] || ''} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))} style={S.input} />
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Pago */}
+                  <div style={{ ...S.sectionLabel, color: 'var(--orange)' }}>{L('Pago', 'Payment')}</div>
+                  <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
+                    <div>
+                      <label style={S.label}>{L('Valor del Trato', 'Deal Value')}</label>
+                      <input type="number" value={editForm.dealValue || ''} onChange={e => setEditForm(p => ({ ...p, dealValue: e.target.value }))} style={S.input} />
+                    </div>
+                    <div>
+                      <label style={S.label}>{L('Producto', 'Product')}</label>
+                      <select value={editForm.product || ''} onChange={e => setEditForm(p => ({ ...p, product: e.target.value }))} style={S.input}>
+                        <option value="">—</option>
+                        {(products || []).filter(p => p.active !== false).map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={S.label}>{L('Tipo de Pago', 'Payment Type')}</label>
+                      <select value={editForm.payment_type || ''} onChange={e => setEditForm(p => ({ ...p, payment_type: e.target.value }))} style={S.input}>
+                        <option value="">—</option>
+                        {['Pago único', '2 cuotas', '3 cuotas', '4 cuotas', '5 cuotas', '6 cuotas'].map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={S.label}>{L('Método de Pago', 'Payment Method')}</label>
+                      <select value={editForm.payment_method || ''} onChange={e => setEditForm(p => ({ ...p, payment_method: e.target.value }))} style={S.input}>
+                        <option value="">—</option>
+                        {(paymentFees || []).map(f => <option key={f.method} value={f.method}>{f.method}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Custom Fields */}
+                  {customFields.map(f => (
+                    <CustomFieldInput key={f.id || f.name} field={{ ...f, type: f.fieldType || f.type }} value={editForm.customFields?.[f.fieldKey || f.field_key || f.id || f.name] || ''}
+                      onChange={v => setEditForm(p => ({ ...p, customFields: { ...p.customFields, [f.fieldKey || f.field_key || f.id || f.name]: v } }))} />
+                  ))}
+
                   <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
                     <button onClick={() => setEditing(false)} style={{ ...S.btnGhost, flex: 1, padding: '8px', fontSize: 13 }}>{L('Cancelar', 'Cancel')}</button>
                     <button onClick={saveEdit} className="btn-action" style={{ flex: 1, padding: '8px', fontSize: 13 }}><Save size={13} style={{ marginRight: 4 }} /> {L('Guardar', 'Save')}</button>
@@ -2131,23 +2280,24 @@ function SaleRegistrationModal({ contact, team, products, paymentFees, onClose, 
     clientPhone: contact.phone || '',
     instagram: contact.instagram || '',
     pais: contact.country || '',
-    product: products.find(p => p.active !== false)?.name || '',
-    paymentType: 'Pago único',
-    installmentNumber: 'Pago único',
-    paymentMethod: paymentFees[0]?.method || 'Transferencia',
-    revenue: contact.dealValue || '',
+    product: contact.product || products.find(p => p.active !== false)?.name || '',
+    paymentType: contact.payment_type || 'Pago único',
+    installmentNumber: contact.payment_type && contact.payment_type !== 'Pago único' ? '1/' + parseInt(contact.payment_type) : 'Pago único',
+    paymentMethod: contact.payment_method || paymentFees[0]?.method || 'Transferencia',
+    revenue: contact.dealValue || contact.deal_value || '',
     cashCollected: '',
     closer: contact.assigned_closer || '',
     setter: contact.assigned_setter || '',
-    triager: '',
-    gestorAsignado: '',
-    utmSource: '', utmMedium: '', utmCampaign: '', utmContent: '',
-    productoInteres: '',
-    capitalDisponible: '',
-    situacionActual: '',
-    expAmazon: '',
-    decisorConfirmado: '',
-    fechaLlamada: '',
+    triager: contact.triager || '',
+    gestorAsignado: contact.gestor_asignado || '',
+    utmSource: contact.utm_source || '', utmMedium: contact.utm_medium || '',
+    utmCampaign: contact.utm_campaign || '', utmContent: contact.utm_content || '',
+    productoInteres: contact.producto_interes || '',
+    capitalDisponible: contact.capital_disponible || '',
+    situacionActual: contact.situacion_actual || '',
+    expAmazon: contact.exp_amazon || '',
+    decisorConfirmado: contact.decisor_confirmado || '',
+    fechaLlamada: contact.fecha_llamada || '',
     status: 'Completada',
     notes: '',
   })
