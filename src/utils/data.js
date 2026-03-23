@@ -1124,70 +1124,19 @@ export async function saveEmailConfig(config, clientId) {
 }
 
 export async function sendEmailCampaign(campaignId, clientId) {
-  const [configRes, campaignRes, subsRes] = await Promise.all([
-    supabase.from('email_config').select('*').eq('client_id', clientId).limit(1).single(),
-    supabase.from('email_campaigns').select('*').eq('id', campaignId).single(),
-    null
-  ])
-  const config = configRes.data
-  const campaign = campaignRes.data
-  if (!config || !config.api_key) throw new Error('Configura tu API key de Resend primero')
-  if (!campaign) throw new Error('Campaña no encontrada')
+  // Get client slug for the API call
+  const { data: client } = await supabase.from('clients').select('slug').eq('id', clientId).single()
+  const slug = client?.slug || clientId
 
-  // Get subscribers from the campaign's list
-  let subs = []
-  if (campaign.list_id) {
-    const { data } = await supabase.from('email_subscribers').select('*').eq('list_id', campaign.list_id).eq('status', 'subscribed')
-    subs = data || []
-  } else {
-    const { data } = await supabase.from('email_subscribers').select('*').eq('client_id', clientId).eq('status', 'subscribed')
-    subs = data || []
-  }
+  const res = await fetch('/api/send-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ campaignId, clientSlug: slug }),
+  })
 
-  if (subs.length === 0) throw new Error('No hay suscriptores en la lista seleccionada')
-
-  const fromEmail = campaign.from_email || config.from_email || 'onboarding@resend.dev'
-  const fromName = campaign.from_name || config.from_name || 'Newsletter'
-
-  let sent = 0, failed = 0
-  // Send emails via Resend API (batch of 50)
-  for (let i = 0; i < subs.length; i += 50) {
-    const batch = subs.slice(i, i + 50)
-    const emails = batch.map(sub => ({
-      from: `${fromName} <${fromEmail}>`,
-      to: [sub.email],
-      subject: campaign.subject || '(Sin asunto)',
-      html: (campaign.html_content || '').replace(/\{\{name\}\}/g, sub.name || 'Suscriptor').replace(/\{\{email\}\}/g, sub.email),
-    }))
-
-    try {
-      const res = await fetch('https://api.resend.com/emails/batch', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${config.api_key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(emails),
-      })
-      if (res.ok) {
-        sent += batch.length
-      } else {
-        const err = await res.json()
-        console.error('Resend error:', err)
-        failed += batch.length
-      }
-    } catch (e) {
-      console.error('Send error:', e)
-      failed += batch.length
-    }
-  }
-
-  // Update campaign stats
-  await supabase.from('email_campaigns').update({
-    status: 'sent',
-    sent_at: new Date().toISOString(),
-    total_sent: sent,
-    updated_at: new Date().toISOString(),
-  }).eq('id', campaignId)
-
-  return { sent, failed, total: subs.length }
+  const result = await res.json()
+  if (!res.ok) throw new Error(result.error || 'Error enviando campaña')
+  return result
 }
 
 // ---- EMAIL MARKETING ----
