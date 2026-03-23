@@ -219,13 +219,14 @@ function TemplateForm({ template, onSave, onCancel }) {
 }
 
 export default function EmailMarketingPage() {
-  const { getEmailLists, addEmailList, updateEmailList, deleteEmailList, getEmailSubscribers, addEmailSubscriber, deleteEmailSubscriber, getEmailTemplates, addEmailTemplate, updateEmailTemplate, deleteEmailTemplate, getEmailCampaigns, addEmailCampaign, updateEmailCampaign, deleteEmailCampaign, getEmailConfig, saveEmailConfig, sendEmailCampaign } = useClientData()
+  const { getEmailLists, addEmailList, updateEmailList, deleteEmailList, getEmailSubscribers, addEmailSubscriber, deleteEmailSubscriber, getEmailTemplates, addEmailTemplate, updateEmailTemplate, deleteEmailTemplate, getEmailCampaigns, addEmailCampaign, updateEmailCampaign, deleteEmailCampaign, getEmailConfig, saveEmailConfig, sendEmailCampaign, getCrmContacts } = useClientData()
 
   const [lists, listsLoading, refreshLists] = useAsync(getEmailLists, [])
   const [subscribers, subsLoading, refreshSubs] = useAsync(getEmailSubscribers, [])
   const [templates, tplLoading, refreshTpls] = useAsync(getEmailTemplates, [])
   const [campaigns, campLoading, refreshCamps] = useAsync(getEmailCampaigns, [])
   const [emailConfig, configLoading, refreshConfig] = useAsync(getEmailConfig, null)
+  const [crmContacts, crmLoading] = useAsync(getCrmContacts, [])
 
   const [tab, setTab] = useState('campaigns')
   const [search, setSearch] = useState('')
@@ -238,6 +239,37 @@ export default function EmailMarketingPage() {
   const [configForm, setConfigForm] = useState(null)
   const [configSaving, setConfigSaving] = useState(false)
   const [configSaved, setConfigSaved] = useState(false)
+
+  // CRM import
+  const [importListId, setImportListId] = useState(null)
+  const [importSelected, setImportSelected] = useState({})
+  const [importing, setImporting] = useState(false)
+
+  // CRM contacts with email that are not already subscribers in a given list
+  const crmWithEmail = useMemo(() => {
+    return crmContacts.filter(c => c.email)
+  }, [crmContacts])
+
+  const getImportableCrm = (listId) => {
+    const existingEmails = new Set(subscribers.filter(s => s.listId === listId).map(s => s.email.toLowerCase()))
+    return crmWithEmail.filter(c => !existingEmails.has(c.email.toLowerCase()))
+  }
+
+  const handleImportCrm = async () => {
+    if (!importListId) return
+    const selectedIds = Object.entries(importSelected).filter(([, v]) => v).map(([k]) => k)
+    const toImport = crmWithEmail.filter(c => selectedIds.includes(c.id))
+    if (toImport.length === 0) return
+
+    setImporting(true)
+    for (const c of toImport) {
+      await addEmailSubscriber({ email: c.email, name: c.name || '', listId: importListId, status: 'subscribed' })
+    }
+    setImporting(false)
+    setImportListId(null)
+    setImportSelected({})
+    refreshSubs()
+  }
 
   // List form
   const [listForm, setListForm] = useState({ name: '', description: '' })
@@ -485,11 +517,80 @@ export default function EmailMarketingPage() {
                       <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--orange)' }}>{count}</span>
                       <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>suscriptores</span>
                     </div>
+                    <button onClick={() => { setImportListId(l.id); setImportSelected({}) }}
+                      style={{ marginTop: 8, width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px dashed var(--border)', background: 'transparent', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                      onMouseEnter={e => { e.target.style.borderColor = 'var(--orange)'; e.target.style.color = 'var(--orange)' }}
+                      onMouseLeave={e => { e.target.style.borderColor = 'var(--border)'; e.target.style.color = 'var(--text-secondary)' }}>
+                      <Users size={12} /> Importar desde CRM ({getImportableCrm(l.id).length})
+                    </button>
                   </div>
                 )
               })}
             </div>
           )}
+
+          {/* CRM Import Modal */}
+          {importListId && (() => {
+            const importable = getImportableCrm(importListId)
+            const listName = lists.find(l => l.id === importListId)?.name || ''
+            const allSelected = importable.length > 0 && importable.every(c => importSelected[c.id])
+            const selectedCount = Object.values(importSelected).filter(Boolean).length
+
+            return (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setImportListId(null)}>
+                <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, width: '100%', maxWidth: 560, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                  <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: 'var(--text)', fontSize: 16 }}>Importar contactos del CRM</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>a la lista: <strong>{listName}</strong></div>
+                    </div>
+                    <button onClick={() => setImportListId(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: 4 }}><X size={18} /></button>
+                  </div>
+
+                  <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: 'var(--text-secondary)' }}>
+                      <input type="checkbox" checked={allSelected} onChange={() => {
+                        const next = {}
+                        if (!allSelected) importable.forEach(c => { next[c.id] = true })
+                        setImportSelected(next)
+                      }} style={{ accentColor: 'var(--orange)' }} />
+                      Seleccionar todos ({importable.length})
+                    </label>
+                    <span style={{ fontSize: 12, color: 'var(--orange)', fontWeight: 600 }}>{selectedCount} seleccionados</span>
+                  </div>
+
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '8px 24px' }}>
+                    {importable.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)', fontSize: 13 }}>
+                        Todos los contactos del CRM con email ya estan en esta lista.
+                      </div>
+                    ) : importable.map(c => (
+                      <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={!!importSelected[c.id]} onChange={() => setImportSelected(prev => ({ ...prev, [c.id]: !prev[c.id] }))} style={{ accentColor: 'var(--orange)' }} />
+                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,107,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--orange)' }}>{(c.name || c.email)[0].toUpperCase()}</span>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text)', fontSize: 13 }}>{c.name || '—'}</div>
+                          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{c.email}</div>
+                        </div>
+                        {c.company && <span style={{ fontSize: 11, color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: 4 }}>{c.company}</span>}
+                        {c.status && <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: 'rgba(255,107,0,0.1)', color: 'var(--orange)' }}>{c.status}</span>}
+                      </label>
+                    ))}
+                  </div>
+
+                  <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                    <button onClick={() => setImportListId(null)} style={{ padding: '10px 20px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Cancelar</button>
+                    <button onClick={handleImportCrm} disabled={selectedCount === 0 || importing}
+                      style={{ padding: '10px 20px', borderRadius: 8, border: 'none', background: selectedCount > 0 ? 'var(--orange)' : 'rgba(255,255,255,0.1)', color: selectedCount > 0 ? '#fff' : '#666', cursor: selectedCount > 0 ? 'pointer' : 'default', fontSize: 13, fontWeight: 600 }}>
+                      {importing ? 'Importando...' : `Importar ${selectedCount} contactos`}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
         </>
       )}
 
