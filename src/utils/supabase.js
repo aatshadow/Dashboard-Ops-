@@ -216,6 +216,89 @@ const CRM_PIPELINES_MAP = {
   isDefault: 'is_default',
 }
 
+const EMAIL_LISTS_MAP = {
+  clientId: 'client_id',
+}
+
+const EMAIL_SUBSCRIBERS_MAP = {
+  clientId: 'client_id',
+  listId: 'list_id',
+  customData: 'custom_data',
+  subscribedAt: 'subscribed_at',
+  unsubscribedAt: 'unsubscribed_at',
+}
+
+const EMAIL_TEMPLATES_MAP = {
+  clientId: 'client_id',
+  htmlContent: 'html_content',
+  jsonContent: 'json_content',
+  updatedAt: 'updated_at',
+}
+
+const EMAIL_CAMPAIGNS_MAP = {
+  clientId: 'client_id',
+  fromName: 'from_name',
+  fromEmail: 'from_email',
+  replyTo: 'reply_to',
+  listId: 'list_id',
+  templateId: 'template_id',
+  htmlContent: 'html_content',
+  scheduledAt: 'scheduled_at',
+  sentAt: 'sent_at',
+  totalSent: 'total_sent',
+  totalOpened: 'total_opened',
+  totalClicked: 'total_clicked',
+  totalBounced: 'total_bounced',
+  totalUnsubscribed: 'total_unsubscribed',
+  updatedAt: 'updated_at',
+}
+
+const CHAT_FLOWS_MAP = {
+  clientId: 'client_id',
+  triggerType: 'trigger_type',
+  triggerValue: 'trigger_value',
+  updatedAt: 'updated_at',
+}
+
+const CHAT_CONTACTS_MAP = {
+  clientId: 'client_id',
+  platformId: 'platform_id',
+  avatarUrl: 'avatar_url',
+  customData: 'custom_data',
+  lastInteraction: 'last_interaction',
+}
+
+const CHAT_CONVERSATIONS_MAP = {
+  clientId: 'client_id',
+  contactId: 'contact_id',
+  flowId: 'flow_id',
+  assignedTo: 'assigned_to',
+  lastMessage: 'last_message',
+  lastMessageAt: 'last_message_at',
+  unreadCount: 'unread_count',
+}
+
+const CHAT_MESSAGES_MAP = {
+  clientId: 'client_id',
+  conversationId: 'conversation_id',
+  senderType: 'sender_type',
+  messageType: 'message_type',
+  mediaUrl: 'media_url',
+}
+
+const CHAT_BROADCASTS_MAP = {
+  clientId: 'client_id',
+  messageContent: 'message_content',
+  messageType: 'message_type',
+  mediaUrl: 'media_url',
+  targetTags: 'target_tags',
+  scheduledAt: 'scheduled_at',
+  sentAt: 'sent_at',
+  totalSent: 'total_sent',
+  totalDelivered: 'total_delivered',
+  totalRead: 'total_read',
+}
+
 const COLD_CALL_REPORTS_MAP = {
   clientId: 'client_id',
   pickUps: 'pick_ups',
@@ -249,6 +332,15 @@ const TABLE_MAPS = {
   crm_pipelines: CRM_PIPELINES_MAP,
   crm_files: CRM_FILES_MAP,
   crm_tasks: CRM_TASKS_MAP,
+  email_lists: EMAIL_LISTS_MAP,
+  email_subscribers: EMAIL_SUBSCRIBERS_MAP,
+  email_templates: EMAIL_TEMPLATES_MAP,
+  email_campaigns: EMAIL_CAMPAIGNS_MAP,
+  chat_flows: CHAT_FLOWS_MAP,
+  chat_contacts: CHAT_CONTACTS_MAP,
+  chat_conversations: CHAT_CONVERSATIONS_MAP,
+  chat_messages: CHAT_MESSAGES_MAP,
+  chat_broadcasts: CHAT_BROADCASTS_MAP,
 }
 
 // Valid DB columns per table (prevents unknown fields from causing insert errors)
@@ -276,6 +368,15 @@ const VALID_COLUMNS = {
   crm_pipelines: new Set(['client_id', 'name', 'stages', 'is_default']),
   crm_files: new Set(['client_id', 'contact_id', 'file_name', 'file_url', 'file_size', 'file_type', 'uploaded_by']),
   crm_tasks: new Set(['client_id', 'contact_id', 'title', 'description', 'due_date', 'assigned_to', 'completed', 'completed_at', 'priority']),
+  email_lists: new Set(['client_id', 'name', 'description']),
+  email_subscribers: new Set(['client_id', 'list_id', 'email', 'name', 'status', 'tags', 'custom_data', 'subscribed_at', 'unsubscribed_at']),
+  email_templates: new Set(['client_id', 'name', 'subject', 'html_content', 'json_content', 'category', 'updated_at']),
+  email_campaigns: new Set(['client_id', 'name', 'subject', 'from_name', 'from_email', 'reply_to', 'list_id', 'template_id', 'html_content', 'status', 'scheduled_at', 'sent_at', 'total_sent', 'total_opened', 'total_clicked', 'total_bounced', 'total_unsubscribed', 'updated_at']),
+  chat_flows: new Set(['client_id', 'name', 'description', 'trigger_type', 'trigger_value', 'channel', 'active', 'nodes', 'updated_at']),
+  chat_contacts: new Set(['client_id', 'platform_id', 'platform', 'name', 'username', 'email', 'phone', 'avatar_url', 'tags', 'custom_data', 'last_interaction', 'subscribed']),
+  chat_conversations: new Set(['client_id', 'contact_id', 'flow_id', 'channel', 'status', 'assigned_to', 'last_message', 'last_message_at', 'unread_count']),
+  chat_messages: new Set(['client_id', 'conversation_id', 'sender_type', 'content', 'message_type', 'media_url', 'metadata']),
+  chat_broadcasts: new Set(['client_id', 'name', 'channel', 'message_content', 'message_type', 'media_url', 'target_tags', 'status', 'scheduled_at', 'sent_at', 'total_sent', 'total_delivered', 'total_read']),
 }
 
 function buildReverse(map) {

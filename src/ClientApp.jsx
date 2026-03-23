@@ -30,6 +30,8 @@ import CeoRoadmap from './pages/ceo-mind/CeoRoadmap'
 import CeoFinanzas from './pages/ceo-mind/CeoFinanzas'
 import TaskManagementPage from './pages/TaskManagementPage'
 import PlanningPage from './pages/PlanningPage'
+import EmailMarketingPage from './pages/EmailMarketingPage'
+import ChatBotPage from './pages/ChatBotPage'
 
 export default function ClientApp() {
   const { clientSlug } = useParams()
@@ -183,6 +185,8 @@ export default function ClientApp() {
             <Route path="crm" element={<CrmPage />} />
             <Route path="task-management" element={<TaskManagementPage />} />
             <Route path="planning" element={<PlanningPage />} />
+            <Route path="email-marketing" element={isDirectorOrCeo ? <EmailMarketingPage /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
+            <Route path="chatbot" element={isDirectorOrCeo ? <ChatBotPage /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
             {/* CEO Mind — CEO only */}
             <Route path="ceo" element={isCeo ? <CeoOverview /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />
             <Route path="ceo/equipo" element={isCeo ? <CeoEquipo /> : <Navigate to={`/${clientSlug}/ventas`} replace />} />

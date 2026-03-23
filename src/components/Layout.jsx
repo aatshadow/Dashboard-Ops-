@@ -53,6 +53,20 @@ function buildNavItems(prefix, slug) {
       ]
     },
     {
+      label: 'Email Marketing',
+      icon: '📧',
+      children: [
+        { to: `${prefix}/email-marketing`, label: en ? 'Campaigns' : 'Campanas', icon: '📧' },
+      ]
+    },
+    {
+      label: 'ChatBot',
+      icon: '🤖',
+      children: [
+        { to: `${prefix}/chatbot`, label: en ? 'Automation' : 'Automatizacion', icon: '🤖' },
+      ]
+    },
+    {
       label: 'CRM',
       icon: '📇',
       children: [

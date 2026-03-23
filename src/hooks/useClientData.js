@@ -119,5 +119,49 @@ export function useClientData() {
 
     // CRM Pipeline delete
     deleteCrmPipeline: useCallback((id) => data.deleteCrmPipeline(id, clientId), [clientId]),
+
+    // Email Marketing
+    getEmailLists: useCallback(() => data.getEmailLists(clientId), [clientId]),
+    addEmailList: useCallback((list) => data.addEmailList(list, clientId), [clientId]),
+    updateEmailList: useCallback((id, updates) => data.updateEmailList(id, updates, clientId), [clientId]),
+    deleteEmailList: useCallback((id) => data.deleteEmailList(id), [clientId]),
+
+    getEmailSubscribers: useCallback((listId) => data.getEmailSubscribers(clientId, listId), [clientId]),
+    addEmailSubscriber: useCallback((sub) => data.addEmailSubscriber(sub, clientId), [clientId]),
+    updateEmailSubscriber: useCallback((id, updates) => data.updateEmailSubscriber(id, updates), [clientId]),
+    deleteEmailSubscriber: useCallback((id) => data.deleteEmailSubscriber(id), [clientId]),
+
+    getEmailTemplates: useCallback(() => data.getEmailTemplates(clientId), [clientId]),
+    addEmailTemplate: useCallback((tpl) => data.addEmailTemplate(tpl, clientId), [clientId]),
+    updateEmailTemplate: useCallback((id, updates) => data.updateEmailTemplate(id, updates), [clientId]),
+    deleteEmailTemplate: useCallback((id) => data.deleteEmailTemplate(id), [clientId]),
+
+    getEmailCampaigns: useCallback(() => data.getEmailCampaigns(clientId), [clientId]),
+    addEmailCampaign: useCallback((campaign) => data.addEmailCampaign(campaign, clientId), [clientId]),
+    updateEmailCampaign: useCallback((id, updates) => data.updateEmailCampaign(id, updates), [clientId]),
+    deleteEmailCampaign: useCallback((id) => data.deleteEmailCampaign(id), [clientId]),
+
+    // Chatbot / ManyChat
+    getChatFlows: useCallback(() => data.getChatFlows(clientId), [clientId]),
+    addChatFlow: useCallback((flow) => data.addChatFlow(flow, clientId), [clientId]),
+    updateChatFlow: useCallback((id, updates) => data.updateChatFlow(id, updates), [clientId]),
+    deleteChatFlow: useCallback((id) => data.deleteChatFlow(id), [clientId]),
+
+    getChatContacts: useCallback(() => data.getChatContacts(clientId), [clientId]),
+    addChatContact: useCallback((contact) => data.addChatContact(contact, clientId), [clientId]),
+    updateChatContact: useCallback((id, updates) => data.updateChatContact(id, updates), [clientId]),
+    deleteChatContact: useCallback((id) => data.deleteChatContact(id), [clientId]),
+
+    getChatConversations: useCallback(() => data.getChatConversations(clientId), [clientId]),
+    addChatConversation: useCallback((conv) => data.addChatConversation(conv, clientId), [clientId]),
+    updateChatConversation: useCallback((id, updates) => data.updateChatConversation(id, updates), [clientId]),
+
+    getChatMessages: useCallback((convId) => data.getChatMessages(clientId, convId), [clientId]),
+    addChatMessage: useCallback((msg) => data.addChatMessage(msg, clientId), [clientId]),
+
+    getChatBroadcasts: useCallback(() => data.getChatBroadcasts(clientId), [clientId]),
+    addChatBroadcast: useCallback((broadcast) => data.addChatBroadcast(broadcast, clientId), [clientId]),
+    updateChatBroadcast: useCallback((id, updates) => data.updateChatBroadcast(id, updates), [clientId]),
+    deleteChatBroadcast: useCallback((id) => data.deleteChatBroadcast(id), [clientId]),
   }
 }

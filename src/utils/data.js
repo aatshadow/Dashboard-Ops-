@@ -1101,6 +1101,190 @@ export async function deleteCrmTask(id, clientId) {
   if (error) throw error
 }
 
+// ---- EMAIL MARKETING ----
+export async function getEmailLists(clientId) {
+  const { data, error } = await supabase.from('email_lists').select('*').eq('client_id', clientId).order('created_at', { ascending: false })
+  if (error) return []
+  return data.map(row => toApp(row, 'email_lists'))
+}
+export async function addEmailList(list, clientId) {
+  const db = toDb(list, 'email_lists'); delete db.id; db.client_id = clientId
+  const { data, error } = await supabase.from('email_lists').insert(db).select().single()
+  if (error) throw error
+  return toApp(data, 'email_lists')
+}
+export async function updateEmailList(id, updates, clientId) {
+  const db = toDb(updates, 'email_lists'); delete db.id; delete db.client_id
+  const { error } = await supabase.from('email_lists').update(db).eq('id', id)
+  if (error) throw error
+}
+export async function deleteEmailList(id) {
+  const { error } = await supabase.from('email_lists').delete().eq('id', id)
+  if (error) throw error
+}
+
+export async function getEmailSubscribers(clientId, listId) {
+  let query = supabase.from('email_subscribers').select('*').eq('client_id', clientId)
+  if (listId) query = query.eq('list_id', listId)
+  query = query.order('created_at', { ascending: false })
+  const { data, error } = await query
+  if (error) return []
+  return data.map(row => toApp(row, 'email_subscribers'))
+}
+export async function addEmailSubscriber(sub, clientId) {
+  const db = toDb(sub, 'email_subscribers'); delete db.id; db.client_id = clientId
+  const { data, error } = await supabase.from('email_subscribers').insert(db).select().single()
+  if (error) throw error
+  return toApp(data, 'email_subscribers')
+}
+export async function updateEmailSubscriber(id, updates) {
+  const db = toDb(updates, 'email_subscribers'); delete db.id; delete db.client_id
+  const { error } = await supabase.from('email_subscribers').update(db).eq('id', id)
+  if (error) throw error
+}
+export async function deleteEmailSubscriber(id) {
+  const { error } = await supabase.from('email_subscribers').delete().eq('id', id)
+  if (error) throw error
+}
+
+export async function getEmailTemplates(clientId) {
+  const { data, error } = await supabase.from('email_templates').select('*').eq('client_id', clientId).order('created_at', { ascending: false })
+  if (error) return []
+  return data.map(row => toApp(row, 'email_templates'))
+}
+export async function addEmailTemplate(tpl, clientId) {
+  const db = toDb(tpl, 'email_templates'); delete db.id; db.client_id = clientId
+  const { data, error } = await supabase.from('email_templates').insert(db).select().single()
+  if (error) throw error
+  return toApp(data, 'email_templates')
+}
+export async function updateEmailTemplate(id, updates) {
+  const db = toDb(updates, 'email_templates'); delete db.id; delete db.client_id; db.updated_at = new Date().toISOString()
+  const { error } = await supabase.from('email_templates').update(db).eq('id', id)
+  if (error) throw error
+}
+export async function deleteEmailTemplate(id) {
+  const { error } = await supabase.from('email_templates').delete().eq('id', id)
+  if (error) throw error
+}
+
+export async function getEmailCampaigns(clientId) {
+  const { data, error } = await supabase.from('email_campaigns').select('*').eq('client_id', clientId).order('created_at', { ascending: false })
+  if (error) return []
+  return data.map(row => toApp(row, 'email_campaigns'))
+}
+export async function addEmailCampaign(campaign, clientId) {
+  const db = toDb(campaign, 'email_campaigns'); delete db.id; db.client_id = clientId
+  const { data, error } = await supabase.from('email_campaigns').insert(db).select().single()
+  if (error) throw error
+  return toApp(data, 'email_campaigns')
+}
+export async function updateEmailCampaign(id, updates) {
+  const db = toDb(updates, 'email_campaigns'); delete db.id; delete db.client_id; db.updated_at = new Date().toISOString()
+  const { error } = await supabase.from('email_campaigns').update(db).eq('id', id)
+  if (error) throw error
+}
+export async function deleteEmailCampaign(id) {
+  const { error } = await supabase.from('email_campaigns').delete().eq('id', id)
+  if (error) throw error
+}
+
+// ---- CHATBOT / MANYCHAT ----
+export async function getChatFlows(clientId) {
+  const { data, error } = await supabase.from('chat_flows').select('*').eq('client_id', clientId).order('created_at', { ascending: false })
+  if (error) return []
+  return data.map(row => toApp(row, 'chat_flows'))
+}
+export async function addChatFlow(flow, clientId) {
+  const db = toDb(flow, 'chat_flows'); delete db.id; db.client_id = clientId
+  const { data, error } = await supabase.from('chat_flows').insert(db).select().single()
+  if (error) throw error
+  return toApp(data, 'chat_flows')
+}
+export async function updateChatFlow(id, updates) {
+  const db = toDb(updates, 'chat_flows'); delete db.id; delete db.client_id; db.updated_at = new Date().toISOString()
+  const { error } = await supabase.from('chat_flows').update(db).eq('id', id)
+  if (error) throw error
+}
+export async function deleteChatFlow(id) {
+  const { error } = await supabase.from('chat_flows').delete().eq('id', id)
+  if (error) throw error
+}
+
+export async function getChatContacts(clientId) {
+  const { data, error } = await supabase.from('chat_contacts').select('*').eq('client_id', clientId).order('last_interaction', { ascending: false })
+  if (error) return []
+  return data.map(row => toApp(row, 'chat_contacts'))
+}
+export async function addChatContact(contact, clientId) {
+  const db = toDb(contact, 'chat_contacts'); delete db.id; db.client_id = clientId
+  const { data, error } = await supabase.from('chat_contacts').insert(db).select().single()
+  if (error) throw error
+  return toApp(data, 'chat_contacts')
+}
+export async function updateChatContact(id, updates) {
+  const db = toDb(updates, 'chat_contacts'); delete db.id; delete db.client_id
+  const { error } = await supabase.from('chat_contacts').update(db).eq('id', id)
+  if (error) throw error
+}
+export async function deleteChatContact(id) {
+  const { error } = await supabase.from('chat_contacts').delete().eq('id', id)
+  if (error) throw error
+}
+
+export async function getChatConversations(clientId) {
+  const { data, error } = await supabase.from('chat_conversations').select('*').eq('client_id', clientId).order('last_message_at', { ascending: false })
+  if (error) return []
+  return data.map(row => toApp(row, 'chat_conversations'))
+}
+export async function addChatConversation(conv, clientId) {
+  const db = toDb(conv, 'chat_conversations'); delete db.id; db.client_id = clientId
+  const { data, error } = await supabase.from('chat_conversations').insert(db).select().single()
+  if (error) throw error
+  return toApp(data, 'chat_conversations')
+}
+export async function updateChatConversation(id, updates) {
+  const db = toDb(updates, 'chat_conversations'); delete db.id; delete db.client_id
+  const { error } = await supabase.from('chat_conversations').update(db).eq('id', id)
+  if (error) throw error
+}
+
+export async function getChatMessages(clientId, conversationId) {
+  let query = supabase.from('chat_messages').select('*').eq('client_id', clientId)
+  if (conversationId) query = query.eq('conversation_id', conversationId)
+  query = query.order('created_at', { ascending: true })
+  const { data, error } = await query
+  if (error) return []
+  return data.map(row => toApp(row, 'chat_messages'))
+}
+export async function addChatMessage(msg, clientId) {
+  const db = toDb(msg, 'chat_messages'); delete db.id; db.client_id = clientId
+  const { data, error } = await supabase.from('chat_messages').insert(db).select().single()
+  if (error) throw error
+  return toApp(data, 'chat_messages')
+}
+
+export async function getChatBroadcasts(clientId) {
+  const { data, error } = await supabase.from('chat_broadcasts').select('*').eq('client_id', clientId).order('created_at', { ascending: false })
+  if (error) return []
+  return data.map(row => toApp(row, 'chat_broadcasts'))
+}
+export async function addChatBroadcast(broadcast, clientId) {
+  const db = toDb(broadcast, 'chat_broadcasts'); delete db.id; db.client_id = clientId
+  const { data, error } = await supabase.from('chat_broadcasts').insert(db).select().single()
+  if (error) throw error
+  return toApp(data, 'chat_broadcasts')
+}
+export async function updateChatBroadcast(id, updates) {
+  const db = toDb(updates, 'chat_broadcasts'); delete db.id; delete db.client_id
+  const { error } = await supabase.from('chat_broadcasts').update(db).eq('id', id)
+  if (error) throw error
+}
+export async function deleteChatBroadcast(id) {
+  const { error } = await supabase.from('chat_broadcasts').delete().eq('id', id)
+  if (error) throw error
+}
+
 export async function getAdminDashboardData() {
   const now = new Date()
   const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
