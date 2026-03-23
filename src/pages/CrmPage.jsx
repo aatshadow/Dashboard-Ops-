@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useClient } from '../contexts/ClientContext'
 import { useClientData } from '../hooks/useClientData'
 import { useAsync } from '../hooks/useAsync'
+import ImportModal from '../components/ImportModal'
 import {
   Search, Plus, Settings, X, ChevronDown, ChevronLeft, ChevronRight,
   Phone, Mail, Building2, User, Tag, Calendar, DollarSign,
@@ -198,6 +199,7 @@ export default function CrmPage() {
     getCrmFiles, addCrmFile, deleteCrmFile,
     getCrmTasks, addCrmTask, updateCrmTask, deleteCrmTask,
     getTeam, addSale, getProducts, getPaymentFees,
+    addCrmContacts, bulkUpdateCrmContacts,
   } = useClientData()
 
   // Translated constants
@@ -285,6 +287,10 @@ export default function CrmPage() {
   const [listVisibleFields, setListVisibleFields] = useState(['name', 'email', 'phone', 'status', 'dealValue'])
   const [showListSettings, setShowListSettings] = useState(false)
   const [saleModalContact, setSaleModalContact] = useState(null) // contact to register sale for
+  const [showImport, setShowImport] = useState(false)
+  const [bulkSelected, setBulkSelected] = useState(new Set()) // selected contact IDs for bulk ops
+  const [showBulkEdit, setShowBulkEdit] = useState(false)
+  const [bulkForm, setBulkForm] = useState({})
 
   // ─── All Tasks (for tasks view) ────────────────────────────────────────────
   const [allTasks, , refreshAllTasks] = useAsync(getCrmTasks, [])
@@ -420,6 +426,49 @@ export default function CrmPage() {
     await deleteCrmContact(selectedContact.id)
     refreshContacts()
     closeContact()
+  }
+
+  // ─── Import & Bulk handlers ─────────────────────────────────────────────
+  const handleImportCrm = async (rows) => {
+    const contacts = rows.map(r => ({
+      ...r,
+      status: r.status || 'lead',
+      pipelineId: activePipeline?.id || '',
+    }))
+    await addCrmContacts(contacts)
+    refreshContacts()
+  }
+
+  const toggleBulkSelect = (id) => {
+    setBulkSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+  const selectAllFiltered = () => {
+    if (bulkSelected.size === sortedContacts.length) setBulkSelected(new Set())
+    else setBulkSelected(new Set(sortedContacts.map(c => c.id)))
+  }
+  const handleBulkEdit = async () => {
+    if (bulkSelected.size === 0) return
+    const updates = {}
+    Object.entries(bulkForm).forEach(([k, v]) => { if (v !== '') updates[k] = v })
+    if (Object.keys(updates).length === 0) return
+    try {
+      await bulkUpdateCrmContacts([...bulkSelected], updates)
+      refreshContacts()
+      setBulkSelected(new Set())
+      setShowBulkEdit(false)
+      setBulkForm({})
+    } catch (err) { console.error('Bulk update error:', err) }
+  }
+  const handleBulkDelete = async () => {
+    if (bulkSelected.size === 0) return
+    if (!confirm(L(`¿Eliminar ${bulkSelected.size} contactos?`, `Delete ${bulkSelected.size} contacts?`))) return
+    for (const id of bulkSelected) await deleteCrmContact(id)
+    refreshContacts()
+    setBulkSelected(new Set())
   }
 
   const handleStatusChange = async (contactId, newStatus) => {
@@ -588,6 +637,11 @@ export default function CrmPage() {
         </div>
 
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <button onClick={() => setShowImport(true)}
+            style={{ ...S.btnGhost, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px' }}
+            title={L('Importar CSV/Excel', 'Import CSV/Excel')}>
+            <Upload size={15} /> {L('Importar', 'Import')}
+          </button>
           <button onClick={() => setShowCustomFields(true)}
             style={{ ...S.btnGhost, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px' }}
             title={L('Campos Personalizados', 'Custom Fields')}>
@@ -598,6 +652,108 @@ export default function CrmPage() {
           </button>
         </div>
       </div>
+
+      {/* ─── Bulk Actions Bar ──────────────────────────────────────────── */}
+      {bulkSelected.size > 0 && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',
+          background: 'rgba(255,107,0,.08)', border: '1px solid rgba(255,107,0,.2)',
+          borderRadius: 8, marginTop: 8,
+        }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--orange)' }}>
+            {bulkSelected.size} {L('seleccionados', 'selected')}
+          </span>
+          <button onClick={() => setShowBulkEdit(true)}
+            style={{ ...S.btnGhost, display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, borderColor: 'var(--orange)', color: 'var(--orange)' }}>
+            <Edit3 size={13} /> {L('Editar en masa', 'Bulk Edit')}
+          </button>
+          <button onClick={handleBulkDelete}
+            style={{ ...S.btnGhost, display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, borderColor: '#EF4444', color: '#EF4444' }}>
+            <Trash2 size={13} /> {L('Eliminar', 'Delete')}
+          </button>
+          <button onClick={() => setBulkSelected(new Set())}
+            style={{ ...S.btnGhost, fontSize: 12 }}>
+            {L('Deseleccionar', 'Deselect All')}
+          </button>
+        </div>
+      )}
+
+      {/* ─── Bulk Edit Modal ──────────────────────────────────────────── */}
+      {showBulkEdit && (
+        <>
+          <div onClick={() => setShowBulkEdit(false)} style={S.overlay} />
+          <div style={{ ...S.modal, width: 480 }}>
+            <div style={S.modalHeader}>
+              <div style={{ fontWeight: 800, fontSize: 16, color: 'var(--text)' }}>
+                {L('Editar en masa', 'Bulk Edit')} — {bulkSelected.size} {L('contactos', 'contacts')}
+              </div>
+              <button onClick={() => setShowBulkEdit(false)} style={{ padding: 4, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><X size={18} /></button>
+            </div>
+            <div style={{ padding: '16px 20px', overflowY: 'auto', maxHeight: '60vh' }}>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
+                {L('Solo los campos con valor se actualizarán. Deja vacío para no cambiar.', 'Only fields with a value will be updated. Leave empty to skip.')}
+              </p>
+              <div style={{ display: 'grid', gap: 10 }}>
+                <div>
+                  <label style={S.label}>{L('Estado', 'Status')}</label>
+                  <select value={bulkForm.status || ''} onChange={e => setBulkForm(p => ({ ...p, status: e.target.value }))} style={S.input}>
+                    <option value="">— {L('No cambiar', 'No change')} —</option>
+                    {STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                  </select>
+                </div>
+                {[
+                  { label: 'Closer', key: 'assigned_closer' },
+                  { label: 'Setter', key: 'assigned_setter' },
+                  { label: 'Cold Caller', key: 'assigned_cold_caller' },
+                  { label: 'Triager', key: 'triager' },
+                  { label: L('Gestor Asignado', 'Assigned Manager'), key: 'gestor_asignado' },
+                ].map(f => (
+                  <div key={f.key}>
+                    <label style={S.label}>{f.label}</label>
+                    <select value={bulkForm[f.key] || ''} onChange={e => setBulkForm(p => ({ ...p, [f.key]: e.target.value }))} style={S.input}>
+                      <option value="">— {L('No cambiar', 'No change')} —</option>
+                      {team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                    </select>
+                  </div>
+                ))}
+                <div>
+                  <label style={S.label}>{L('Fuente', 'Source')}</label>
+                  <select value={bulkForm.source || ''} onChange={e => setBulkForm(p => ({ ...p, source: e.target.value }))} style={S.input}>
+                    <option value="">— {L('No cambiar', 'No change')} —</option>
+                    {SOURCE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={S.label}>Pipeline</label>
+                  <select value={bulkForm.pipelineId || ''} onChange={e => setBulkForm(p => ({ ...p, pipelineId: e.target.value }))} style={S.input}>
+                    <option value="">— {L('No cambiar', 'No change')} —</option>
+                    {(pipelines || []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={S.label}>Tags ({L('añadir/reemplazar', 'add/replace')})</label>
+                  <input value={bulkForm.tags || ''} onChange={e => setBulkForm(p => ({ ...p, tags: e.target.value }))} style={S.input} placeholder="vip, follow-up" />
+                </div>
+                {[
+                  { label: L('Producto', 'Product'), key: 'product' },
+                  { label: L('Tipo Pago', 'Payment Type'), key: 'payment_type' },
+                ].map(f => (
+                  <div key={f.key}>
+                    <label style={S.label}>{f.label}</label>
+                    <input value={bulkForm[f.key] || ''} onChange={e => setBulkForm(p => ({ ...p, [f.key]: e.target.value }))} style={S.input} />
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+                <button onClick={() => setShowBulkEdit(false)} style={{ ...S.btnGhost, padding: '9px 20px', fontSize: 13 }}>{L('Cancelar', 'Cancel')}</button>
+                <button onClick={handleBulkEdit} className="btn-action" style={{ padding: '9px 20px', fontSize: 13 }}>
+                  {L('Aplicar cambios', 'Apply Changes')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* ─── Main Layout: Sidebar + Content ──────────────────────────────── */}
       <div style={{ display: 'flex', gap: 0, marginTop: 0 }}>
@@ -810,7 +966,8 @@ export default function CrmPage() {
                       <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 12, opacity: 0.5 }}>{L('Sin contactos', 'No contacts')}</div>
                     )}
                     {col.items.map(c => (
-                      <KanbanCard key={c.id} contact={c} onDragStart={onDragStart} onClick={() => openContact(c)} isDragging={draggedId === c.id} en={en} />
+                      <KanbanCard key={c.id} contact={c} onDragStart={onDragStart} onClick={() => openContact(c)} isDragging={draggedId === c.id} en={en}
+                        selected={bulkSelected.has(c.id)} onToggleSelect={toggleBulkSelect} />
                     ))}
                   </div>
                 </div>
@@ -874,12 +1031,23 @@ export default function CrmPage() {
                 {sortedContacts.length === 0 && (
                   <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>{L('No hay contactos', 'No contacts')}</div>
                 )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, padding: '0 16px' }}>
+                  <span onClick={selectAllFiltered} style={{ cursor: 'pointer', color: bulkSelected.size === sortedContacts.length && sortedContacts.length > 0 ? 'var(--orange)' : 'var(--text-secondary)' }}>
+                    {bulkSelected.size === sortedContacts.length && sortedContacts.length > 0 ? <Check size={14} /> : <Square size={14} />}
+                  </span>
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>
+                    {L('Seleccionar todo', 'Select All')}
+                  </span>
+                </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {sortedContacts.map(c => (
                     <div key={c.id} onClick={() => openContact(c)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 13, cursor: 'pointer', transition: 'all .15s' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 16px', background: bulkSelected.has(c.id) ? 'rgba(255,107,0,.06)' : 'var(--bg-card)', border: `1px solid ${bulkSelected.has(c.id) ? 'rgba(255,107,0,.3)' : 'var(--border)'}`, borderRadius: 13, cursor: 'pointer', transition: 'all .15s' }}
                       onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--orange)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(255,107,0,.08)' }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}>
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = bulkSelected.has(c.id) ? 'rgba(255,107,0,.3)' : 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}>
+                      <span onClick={e => { e.stopPropagation(); toggleBulkSelect(c.id) }} style={{ cursor: 'pointer', color: bulkSelected.has(c.id) ? 'var(--orange)' : 'var(--text-secondary)', flexShrink: 0 }}>
+                        {bulkSelected.has(c.id) ? <Check size={14} /> : <Square size={14} />}
+                      </span>
                       <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(255,107,0,.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14, color: 'var(--orange)', flexShrink: 0 }}>
                         {(c.name || '?')[0].toUpperCase()}
                       </div>
@@ -976,6 +1144,11 @@ export default function CrmPage() {
           onClose={() => setShowNewContact(false)} onSave={handleSaveNewContact} en={en} />
       )}
 
+      {/* ─── Import Modal ──────────────────────────────────────────────── */}
+      {showImport && (
+        <ImportModal type="crm" onImport={handleImportCrm} onClose={() => setShowImport(false)} />
+      )}
+
       {/* ─── Sale Registration Modal ──────────────────────────────────── */}
       {saleModalContact && (
         <SaleRegistrationModal
@@ -1036,7 +1209,7 @@ function SidebarViewItem({ label, icon, active, onClick, onEdit, onDelete, count
 // ═════════════════════════════════════════════════════════════════════════════════
 // KANBAN CARD
 // ═════════════════════════════════════════════════════════════════════════════════
-function KanbanCard({ contact, onDragStart, onClick, isDragging, en }) {
+function KanbanCard({ contact, onDragStart, onClick, isDragging, en, selected, onToggleSelect }) {
   const L = (es, enText) => en ? enText : es
   const fmtL = (v) => { const n = Number(v); if (!n && n !== 0) return '—'; return n.toLocaleString(en ? 'en-US' : 'es-ES', { style: 'currency', currency: en ? 'USD' : 'EUR', minimumFractionDigits: 0 }) }
   const c = contact
@@ -1050,7 +1223,12 @@ function KanbanCard({ contact, onDragStart, onClick, isDragging, en }) {
       }}
       onMouseEnter={e => { if (!isDragging) { e.currentTarget.style.borderColor = 'var(--orange)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(255,107,0,.12)' } }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,.15)' }}>
-      <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', marginBottom: 4 }}>{c.name || L('Sin nombre', 'No name')}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+        <span onClick={e => { e.stopPropagation(); onToggleSelect?.(c.id) }} style={{ cursor: 'pointer', color: selected ? 'var(--orange)' : 'var(--text-secondary)', flexShrink: 0 }}>
+          {selected ? <Check size={14} /> : <Square size={14} />}
+        </span>
+        <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>{c.name || L('Sin nombre', 'No name')}</span>
+      </div>
       {c.company && <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-secondary)', marginBottom: 6 }}><Building2 size={11} /> {c.company}</div>}
       {Number(c.dealValue) > 0 && <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--orange)', marginBottom: 6 }}>{fmtL(c.dealValue)}</div>}
       {(c.assigned_closer || c.assigned_setter || c.assigned_cold_caller) && (

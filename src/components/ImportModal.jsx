@@ -46,6 +46,47 @@ const REPORT_FIELDS = [
   { key: 'closes', label: 'Cierres', type: 'number' },
 ]
 
+const CRM_FIELDS = [
+  // Client data
+  { key: 'name', label: 'Nombre', type: 'string' },
+  { key: 'email', label: 'Email', type: 'string' },
+  { key: 'phone', label: 'Teléfono', type: 'string' },
+  { key: 'company', label: 'Empresa', type: 'string' },
+  { key: 'country', label: 'País', type: 'string' },
+  { key: 'address', label: 'Dirección', type: 'string' },
+  { key: 'whatsapp', label: 'WhatsApp', type: 'string' },
+  { key: 'instagram', label: 'Instagram', type: 'string' },
+  { key: 'website', label: 'Website', type: 'string' },
+  { key: 'source', label: 'Fuente', type: 'string' },
+  { key: 'tags', label: 'Tags', type: 'string' },
+  { key: 'notes', label: 'Notas', type: 'string' },
+  // Team
+  { key: 'assigned_closer', label: 'Closer', type: 'string' },
+  { key: 'assigned_setter', label: 'Setter', type: 'string' },
+  { key: 'assigned_cold_caller', label: 'Cold Caller', type: 'string' },
+  { key: 'triager', label: 'Triager', type: 'string' },
+  { key: 'gestor_asignado', label: 'Gestor asignado', type: 'string' },
+  // Lead profile
+  { key: 'situacion_actual', label: 'Situación actual', type: 'string' },
+  { key: 'capital_disponible', label: 'Capital disponible', type: 'string' },
+  { key: 'exp_amazon', label: 'Exp Amazon', type: 'string' },
+  { key: 'decisor_confirmado', label: 'Decisor confirmado', type: 'string' },
+  { key: 'producto_interes', label: 'Producto interés', type: 'string' },
+  { key: 'fecha_llamada', label: 'Fecha llamada', type: 'string' },
+  // UTMs
+  { key: 'utm_source', label: 'UTM Source', type: 'string' },
+  { key: 'utm_medium', label: 'UTM Medium', type: 'string' },
+  { key: 'utm_campaign', label: 'UTM Campaign', type: 'string' },
+  { key: 'utm_content', label: 'UTM Content', type: 'string' },
+  // Payment
+  { key: 'deal_value', label: 'Valor', type: 'number' },
+  { key: 'product', label: 'Producto', type: 'string' },
+  { key: 'payment_type', label: 'Tipo de pago', type: 'string' },
+  { key: 'payment_method', label: 'Método de pago', type: 'string' },
+  // Status
+  { key: 'status', label: 'Estado', type: 'string' },
+]
+
 function autoMap(fileHeaders, fields) {
   const mapping = {}
   const normalize = s => s.toLowerCase().replace(/[^a-záéíóúñ0-9]/g, '')
@@ -66,7 +107,8 @@ function autoMap(fileHeaders, fields) {
 }
 
 export default function ImportModal({ type, onImport, onClose }) {
-  const fields = type === 'sales' ? SALES_FIELDS : REPORT_FIELDS
+  const fields = type === 'sales' ? SALES_FIELDS : type === 'crm' ? CRM_FIELDS : REPORT_FIELDS
+  const typeLabel = type === 'sales' ? 'Ventas' : type === 'crm' ? 'Leads CRM' : 'Reportes'
   const [step, setStep] = useState('upload') // upload, map, preview
   const [fileData, setFileData] = useState([])
   const [fileHeaders, setFileHeaders] = useState([])
@@ -158,7 +200,7 @@ export default function ImportModal({ type, onImport, onClose }) {
     <div className="import-overlay" onClick={onClose}>
       <div className="import-modal" onClick={e => e.stopPropagation()}>
         <div className="import-header">
-          <h2>Importar {type === 'sales' ? 'Ventas' : 'Reportes'}</h2>
+          <h2>Importar {typeLabel}</h2>
           <button className="import-close" onClick={onClose}>&times;</button>
         </div>
 

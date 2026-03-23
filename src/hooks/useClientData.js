@@ -85,7 +85,9 @@ export function useClientData() {
     // CRM
     getCrmContacts: useCallback(() => data.getCrmContacts(clientId), [clientId]),
     addCrmContact: useCallback((contact) => data.addCrmContact(contact, clientId), [clientId]),
+    addCrmContacts: useCallback((contacts) => data.addCrmContacts(contacts, clientId), [clientId]),
     updateCrmContact: useCallback((id, updates) => data.updateCrmContact(id, updates, clientId), [clientId]),
+    bulkUpdateCrmContacts: useCallback((ids, updates) => data.bulkUpdateCrmContacts(ids, updates, clientId), [clientId]),
     deleteCrmContact: useCallback((id) => data.deleteCrmContact(id, clientId), [clientId]),
 
     getCrmActivities: useCallback((contactId) => data.getCrmActivities(clientId, contactId), [clientId]),

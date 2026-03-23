@@ -856,6 +856,32 @@ export async function addCrmContact(contact, clientId) {
   return toApp(data, 'crm_contacts')
 }
 
+export async function addCrmContacts(contacts, clientId) {
+  const dbContacts = contacts.map(c => {
+    const d = toDb(c, 'crm_contacts')
+    delete d.id
+    d.client_id = clientId
+    return d
+  })
+  const { data, error } = await supabase
+    .from('crm_contacts')
+    .insert(dbContacts)
+    .select()
+  if (error) throw error
+  return data.map(row => toApp(row, 'crm_contacts'))
+}
+
+export async function bulkUpdateCrmContacts(ids, updates, clientId) {
+  const dbUpdates = toDb(updates, 'crm_contacts')
+  delete dbUpdates.id
+  delete dbUpdates.client_id
+  dbUpdates.updated_at = new Date().toISOString()
+  let query = supabase.from('crm_contacts').update(dbUpdates).in('id', ids)
+  if (clientId) query = query.eq('client_id', clientId)
+  const { error } = await query
+  if (error) throw error
+}
+
 export async function updateCrmContact(id, updates, clientId) {
   const dbUpdates = toDb(updates, 'crm_contacts')
   delete dbUpdates.id
