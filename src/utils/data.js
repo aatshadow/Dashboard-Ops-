@@ -1124,18 +1124,57 @@ export async function saveEmailConfig(config, clientId) {
 }
 
 export async function sendEmailCampaign(campaignId, clientId) {
-  // Get client slug for the API call
-  const { data: client } = await supabase.from('clients').select('slug').eq('id', clientId).single()
-  const slug = client?.slug || clientId
+  // Get config
+  const { data: config } = await supabase.from('email_config').select('*').eq('client_id', clientId).limit(1).single()
+  if (!config || !config.api_key) throw new Error('Configura tu API Key de Resend primero')
 
+  // Get campaign
+  const { data: campaign } = await supabase.from('email_campaigns').select('*').eq('id', campaignId).single()
+  if (!campaign) throw new Error('Campaña no encontrada')
+
+  // Get subscribers
+  let subs = []
+  if (campaign.list_id) {
+    const { data } = await supabase.from('email_subscribers').select('*').eq('list_id', campaign.list_id).eq('status', 'subscribed')
+    subs = data || []
+  } else {
+    const { data } = await supabase.from('email_subscribers').select('*').eq('client_id', clientId).eq('status', 'subscribed')
+    subs = data || []
+  }
+  if (subs.length === 0) throw new Error('No hay suscriptores en la lista seleccionada')
+
+  const fromEmail = campaign.from_email || config.from_email || 'onboarding@resend.dev'
+  const fromName = campaign.from_name || config.from_name || 'Newsletter'
+  const htmlContent = campaign.html_content || '<p>Sin contenido</p>'
+
+  // Build email payloads
+  const emails = subs.map(sub => ({
+    from: `${fromName} <${fromEmail}>`,
+    to: [sub.email],
+    subject: campaign.subject || '(Sin asunto)',
+    html: htmlContent
+      .replace(/\{\{name\}\}/g, sub.name || 'Suscriptor')
+      .replace(/\{\{email\}\}/g, sub.email),
+  }))
+
+  // Send via backend proxy (avoids CORS)
   const res = await fetch('/api/send-email', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ campaignId, clientSlug: slug }),
+    body: JSON.stringify({ resendApiKey: config.api_key, emails }),
   })
 
   const result = await res.json()
   if (!res.ok) throw new Error(result.error || 'Error enviando campaña')
+
+  // Update campaign stats
+  await supabase.from('email_campaigns').update({
+    status: 'sent',
+    sent_at: new Date().toISOString(),
+    total_sent: result.sent || 0,
+    updated_at: new Date().toISOString(),
+  }).eq('id', campaignId)
+
   return result
 }
 
