@@ -44,7 +44,9 @@ const STAGE_COLORS = [
 
 const FILTER_FIELDS = [
   { key: 'status', label: 'Estado', type: 'select' },
-  { key: 'assigned_to', label: 'Asignado', type: 'select' },
+  { key: 'assigned_closer', label: 'Closer', type: 'select' },
+  { key: 'assigned_setter', label: 'Setter', type: 'select' },
+  { key: 'assigned_cold_caller', label: 'Cold Caller', type: 'select' },
   { key: 'source', label: 'Fuente', type: 'select' },
   { key: 'company', label: 'Empresa', type: 'text' },
   { key: 'country', label: 'País', type: 'text' },
@@ -70,7 +72,8 @@ const FILTER_OPS = [
 
 const emptyContact = {
   name: '', email: '', phone: '', company: '', status: 'lead',
-  dealValue: '', assigned_to: '', source: '', tags: '', notes: '',
+  dealValue: '', assigned_closer: '', assigned_setter: '', assigned_cold_caller: '',
+  source: '', tags: '', notes: '',
   address: '', whatsapp: '', zoom_link: '', website: '', instagram: '',
   pipelineId: '', customFields: {},
 }
@@ -186,7 +189,7 @@ export default function CrmPage() {
     getCrmPipelines, addCrmPipeline, updateCrmPipeline, deleteCrmPipeline,
     getCrmFiles, addCrmFile, deleteCrmFile,
     getCrmTasks, addCrmTask, updateCrmTask, deleteCrmTask,
-    getTeam,
+    getTeam, addSale, getProducts, getPaymentFees,
   } = useClientData()
 
   // Translated constants
@@ -199,7 +202,9 @@ export default function CrmPage() {
 
   const FILTER_FIELDS_L = en ? [
     { key: 'status', label: 'Status', type: 'select' },
-    { key: 'assigned_to', label: 'Assigned', type: 'select' },
+    { key: 'assigned_closer', label: 'Closer', type: 'select' },
+    { key: 'assigned_setter', label: 'Setter', type: 'select' },
+    { key: 'assigned_cold_caller', label: 'Cold Caller', type: 'select' },
     { key: 'source', label: 'Source', type: 'select' },
     { key: 'company', label: 'Company', type: 'text' },
     { key: 'country', label: 'Country', type: 'text' },
@@ -229,6 +234,8 @@ export default function CrmPage() {
   const [smartViews, , refreshViews] = useAsync(getCrmSmartViews, [])
   const [pipelines, , refreshPipelines] = useAsync(getCrmPipelines, [])
   const [team] = useAsync(getTeam, [])
+  const [products] = useAsync(getProducts, [])
+  const [paymentFees] = useAsync(getPaymentFees, [])
 
   // ─── Pipeline selection ───────────────────────────────────────────────────
   const [activePipelineId, setActivePipelineId] = useState(null)
@@ -269,6 +276,7 @@ export default function CrmPage() {
   const [showPipelineDropdown, setShowPipelineDropdown] = useState(false)
   const [listVisibleFields, setListVisibleFields] = useState(['name', 'email', 'phone', 'status', 'dealValue'])
   const [showListSettings, setShowListSettings] = useState(false)
+  const [saleModalContact, setSaleModalContact] = useState(null) // contact to register sale for
 
   // ─── All Tasks (for tasks view) ────────────────────────────────────────────
   const [allTasks, , refreshAllTasks] = useAsync(getCrmTasks, [])
@@ -291,6 +299,16 @@ export default function CrmPage() {
   const [svCreating, setSvCreating] = useState(false)
   const [svEditing, setSvEditing] = useState(null)
   const [svForm, setSvForm] = useState({ name: '', filters: [] })
+
+  // Clear active view when switching pipelines if view doesn't belong to new pipeline
+  useEffect(() => {
+    if (activeViewId) {
+      const sv = smartViews.find(v => v.id === activeViewId)
+      if (sv?.pipelineId && sv.pipelineId !== activePipeline?.id) {
+        selectSmartView(null)
+      }
+    }
+  }, [activePipeline?.id])
 
   const selectSmartView = (id) => {
     setActiveViewId(id)
@@ -364,7 +382,8 @@ export default function CrmPage() {
       name: fd.get('name'), email: fd.get('email'), phone: fd.get('phone'),
       company: fd.get('company'), status: fd.get('status') || 'lead',
       dealValue: Number(fd.get('dealValue')) || 0,
-      assigned_to: fd.get('assigned_to'), source: fd.get('source'),
+      assigned_closer: fd.get('assigned_closer'), assigned_setter: fd.get('assigned_setter'),
+      assigned_cold_caller: fd.get('assigned_cold_caller'), source: fd.get('source'),
       tags: fd.get('tags'), notes: fd.get('notes'),
       address: fd.get('address'), whatsapp: fd.get('whatsapp'),
       zoom_link: fd.get('zoom_link'), website: fd.get('website'),
@@ -398,7 +417,12 @@ export default function CrmPage() {
   const handleStatusChange = async (contactId, newStatus) => {
     await updateCrmContact(contactId, { status: newStatus })
     refreshContacts()
+    const contact = contacts.find(c => c.id === contactId) || selectedContact
     if (selectedContact?.id === contactId) setSelectedContact(prev => ({ ...prev, status: newStatus }))
+    // Show sale registration popup when status changes to 'won'
+    if (newStatus === 'won' && contact) {
+      setSaleModalContact({ ...contact, status: newStatus })
+    }
   }
 
   // ─── Filter helpers ───────────────────────────────────────────────────────
@@ -422,8 +446,9 @@ export default function CrmPage() {
   const svHandleSave = async () => {
     if (!svForm.name.trim()) return
     try {
-      if (svEditing) await updateCrmSmartView(svEditing, svForm)
-      else await addCrmSmartView(svForm)
+      const payload = { ...svForm, pipelineId: activePipeline?.id || null }
+      if (svEditing) await updateCrmSmartView(svEditing, payload)
+      else await addCrmSmartView(payload)
       refreshViews(); setSvCreating(false); setSvEditing(null)
     } catch (err) { console.error('Error saving smart view:', err) }
   }
@@ -581,12 +606,12 @@ export default function CrmPage() {
           <SidebarViewItem label={L('Todos los contactos', 'All contacts')} icon={<Filter size={13} />}
             active={!activeViewId} onClick={() => selectSmartView(null)} count={contacts.length} />
           <div style={{ height: 1, background: 'var(--border)', margin: '4px 12px' }} />
-          {smartViews.map(v => (
+          {smartViews.filter(v => !v.pipelineId || v.pipelineId === activePipeline?.id).map(v => (
             <SidebarViewItem key={v.id} label={v.name} icon={<Eye size={13} />}
               active={activeViewId === v.id} onClick={() => selectSmartView(v.id)}
               onEdit={() => svStartEdit(v)} onDelete={() => svHandleDelete(v.id)} />
           ))}
-          {smartViews.length === 0 && !svCreating && (
+          {smartViews.filter(v => !v.pipelineId || v.pipelineId === activePipeline?.id).length === 0 && !svCreating && (
             <div style={{ padding: '16px 14px', fontSize: 11, color: 'var(--text-secondary)', opacity: 0.5, textAlign: 'center' }}>
               {L('Sin vistas guardadas', 'No saved views')}
             </div>
@@ -684,7 +709,7 @@ export default function CrmPage() {
                         style={{ background: 'transparent', border: 'none', color: 'var(--orange)', fontSize: 11, outline: 'none', maxWidth: 90 }}>
                         <option value="">--</option>
                         {f.field === 'status' && STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-                        {f.field === 'assigned_to' && team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                        {(f.field === 'assigned_closer' || f.field === 'assigned_setter' || f.field === 'assigned_cold_caller') && team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
                         {f.field === 'source' && SOURCE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                         {ff?.cfOptions && ff.cfOptions.map(o => <option key={o} value={o}>{o}</option>)}
                       </select>
@@ -791,7 +816,8 @@ export default function CrmPage() {
               { key: 'name', label: L('Nombre', 'Name') }, { key: 'email', label: 'Email' },
               { key: 'phone', label: L('Teléfono', 'Phone') }, { key: 'company', label: L('Empresa', 'Company') },
               { key: 'status', label: L('Estado', 'Status') }, { key: 'dealValue', label: L('Valor', 'Value') },
-              { key: 'assigned_to', label: L('Asignado', 'Assigned') }, { key: 'source', label: L('Fuente', 'Source') },
+              { key: 'assigned_closer', label: 'Closer' }, { key: 'assigned_setter', label: 'Setter' },
+              { key: 'assigned_cold_caller', label: 'Cold Caller' }, { key: 'source', label: L('Fuente', 'Source') },
               { key: 'tags', label: 'Tags' }, { key: 'created_at', label: L('Creado', 'Created') },
             ]
             const visCols = LIST_COLS.filter(c => listVisibleFields.includes(c.key))
@@ -917,13 +943,13 @@ export default function CrmPage() {
             try {
               if (id) await updateCrmPipeline(id, data)
               else { const p = await addCrmPipeline(data); setActivePipelineId(p?.id) }
-              refreshPipelines()
+              await refreshPipelines()
             } catch (err) { console.error('Pipeline save error:', err); alert(L('Error al guardar pipeline.', 'Error saving pipeline.')) }
           }}
           onDeletePipeline={async (id) => {
             if (!confirm(L('¿Eliminar este pipeline?', 'Delete this pipeline?'))) return
             await deleteCrmPipeline(id)
-            refreshPipelines()
+            await refreshPipelines()
             if (activePipelineId === id) setActivePipelineId(null)
           }}
         />
@@ -939,6 +965,23 @@ export default function CrmPage() {
       {showNewContact && (
         <NewContactModal customFields={customFields} team={team} statuses={STATUSES}
           onClose={() => setShowNewContact(false)} onSave={handleSaveNewContact} en={en} />
+      )}
+
+      {/* ─── Sale Registration Modal ──────────────────────────────────── */}
+      {saleModalContact && (
+        <SaleRegistrationModal
+          contact={saleModalContact}
+          team={team} products={products || []} paymentFees={paymentFees || []}
+          onClose={() => setSaleModalContact(null)}
+          onSave={async (saleData) => {
+            try {
+              await addSale(saleData)
+              setSaleModalContact(null)
+              refreshContacts()
+            } catch (err) { console.error('Error registering sale:', err); alert(L('Error al registrar venta.', 'Error registering sale.')) }
+          }}
+          en={en}
+        />
       )}
 
       {/* Click away for filter dropdown */}
@@ -1001,7 +1044,13 @@ function KanbanCard({ contact, onDragStart, onClick, isDragging, en }) {
       <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', marginBottom: 4 }}>{c.name || L('Sin nombre', 'No name')}</div>
       {c.company && <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-secondary)', marginBottom: 6 }}><Building2 size={11} /> {c.company}</div>}
       {Number(c.dealValue) > 0 && <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--orange)', marginBottom: 6 }}>{fmtL(c.dealValue)}</div>}
-      {c.assigned_to && <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-secondary)', marginBottom: 6 }}><User size={11} /> {c.assigned_to}</div>}
+      {(c.assigned_closer || c.assigned_setter || c.assigned_cold_caller) && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11, color: 'var(--text-secondary)', marginBottom: 6 }}>
+          {c.assigned_closer && <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><User size={11} /> <span style={{ opacity: .6 }}>C:</span> {c.assigned_closer}</div>}
+          {c.assigned_setter && <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><User size={11} /> <span style={{ opacity: .6 }}>S:</span> {c.assigned_setter}</div>}
+          {c.assigned_cold_caller && <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><User size={11} /> <span style={{ opacity: .6 }}>CC:</span> {c.assigned_cold_caller}</div>}
+        </div>
+      )}
       {tags.length > 0 && (
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           {tags.slice(0, 3).map(t => (
@@ -1181,7 +1230,8 @@ function ContactSidebar({
     setEditForm({
       name: contact.name || '', email: contact.email || '', phone: contact.phone || '',
       company: contact.company || '', dealValue: contact.dealValue || '',
-      assigned_to: contact.assigned_to || '', source: contact.source || '',
+      assigned_closer: contact.assigned_closer || '', assigned_setter: contact.assigned_setter || '',
+      assigned_cold_caller: contact.assigned_cold_caller || '', source: contact.source || '',
       tags: contact.tags || '', address: contact.address || '',
       whatsapp: contact.whatsapp || '', zoom_link: contact.zoom_link || '',
       website: contact.website || '', instagram: contact.instagram || '',
@@ -1194,6 +1244,14 @@ function ContactSidebar({
   const saveEdit = async () => {
     await onUpdate({ ...editForm, dealValue: Number(editForm.dealValue) || 0 })
     setEditing(false)
+  }
+
+  // Auto-save when closing sidebar if in edit mode
+  const handleClose = async () => {
+    if (editing) {
+      await onUpdate({ ...editForm, dealValue: Number(editForm.dealValue) || 0 })
+    }
+    onClose()
   }
 
   const handleAddActivity = async (e) => {
@@ -1239,7 +1297,7 @@ function ContactSidebar({
 
   return (
     <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 999 }} />
+      <div onClick={handleClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 999 }} />
       <div style={{
         position: 'fixed', top: 0, right: 0, bottom: 0, width: 500, maxWidth: '100vw',
         background: 'var(--bg)', borderLeft: '1px solid var(--border)', zIndex: 1000,
@@ -1272,7 +1330,7 @@ function ContactSidebar({
           <div style={{ display: 'flex', gap: 6 }}>
             {!editing && <button onClick={startEditing} style={{ ...S.btnGhost, display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}><Edit3 size={13} /> {L('Editar', 'Edit')}</button>}
             <button onClick={onDelete} style={{ padding: '6px 10px', background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.3)', borderRadius: 6, cursor: 'pointer', color: '#EF4444', display: 'flex', alignItems: 'center', fontSize: 12 }}><Trash2 size={13} /></button>
-            <button onClick={onClose} style={{ padding: '6px', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><X size={18} /></button>
+            <button onClick={handleClose} style={{ padding: '6px', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><X size={18} /></button>
           </div>
         </div>
 
@@ -1333,7 +1391,9 @@ function ContactSidebar({
                     <LinkRow icon={<Phone size={13} />} label={L('Teléfono', 'Phone')} value={contact.phone} />
                     <LinkRow icon={<Building2 size={13} />} label={L('Empresa', 'Company')} value={contact.company} />
                     <LinkRow icon={<DollarSign size={13} />} label={L('Valor', 'Value')} value={fmtL(contact.dealValue)} />
-                    <LinkRow icon={<User size={13} />} label={L('Asignado', 'Assigned')} value={contact.assigned_to} />
+                    <LinkRow icon={<User size={13} />} label="Closer" value={contact.assigned_closer} />
+                    <LinkRow icon={<User size={13} />} label="Setter" value={contact.assigned_setter} />
+                    <LinkRow icon={<User size={13} />} label="Cold Caller" value={contact.assigned_cold_caller} />
                     <LinkRow icon={<Globe size={13} />} label={L('Fuente', 'Source')} value={contact.source} />
                     <LinkRow icon={<MapPin size={13} />} label={L('Dirección', 'Address')} value={contact.address} />
                     <LinkRow icon={<MessageSquare size={13} />} label="WhatsApp" value={contact.whatsapp}
@@ -1394,8 +1454,22 @@ function ContactSidebar({
                       </div>
                     ))}
                     <div>
-                      <label style={S.label}>{L('Asignado a', 'Assigned to')}</label>
-                      <select value={editForm.assigned_to} onChange={e => setEditForm(p => ({ ...p, assigned_to: e.target.value }))} style={S.input}>
+                      <label style={S.label}>Closer</label>
+                      <select value={editForm.assigned_closer} onChange={e => setEditForm(p => ({ ...p, assigned_closer: e.target.value }))} style={S.input}>
+                        <option value="">{L('— Sin asignar —', '— Unassigned —')}</option>
+                        {team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={S.label}>Setter</label>
+                      <select value={editForm.assigned_setter} onChange={e => setEditForm(p => ({ ...p, assigned_setter: e.target.value }))} style={S.input}>
+                        <option value="">{L('— Sin asignar —', '— Unassigned —')}</option>
+                        {team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={S.label}>Cold Caller</label>
+                      <select value={editForm.assigned_cold_caller} onChange={e => setEditForm(p => ({ ...p, assigned_cold_caller: e.target.value }))} style={S.input}>
                         <option value="">{L('— Sin asignar —', '— Unassigned —')}</option>
                         {team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
                       </select>
@@ -1980,8 +2054,20 @@ function NewContactModal({ customFields, team, statuses, onClose, onSave, en }) 
               <input name="dealValue" type="number" placeholder="0" style={inputStyle} />
             </div>
             <div>
-              <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, display: 'block' }}>{L('Asignado a', 'Assigned to')}</label>
-              <select name="assigned_to" style={inputStyle}>
+              <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, display: 'block' }}>Closer</label>
+              <select name="assigned_closer" style={inputStyle}>
+                <option value="">—</option>{team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, display: 'block' }}>Setter</label>
+              <select name="assigned_setter" style={inputStyle}>
+                <option value="">—</option>{team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, display: 'block' }}>Cold Caller</label>
+              <select name="assigned_cold_caller" style={inputStyle}>
                 <option value="">—</option>{team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
               </select>
             </div>
@@ -2015,6 +2101,273 @@ function NewContactModal({ customFields, team, statuses, onClose, onSave, en }) 
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid var(--border)' }}>
             <button type="button" onClick={onClose} style={{ ...S.btnGhost, padding: '9px 20px', fontSize: 13 }}>{L('Cancelar', 'Cancel')}</button>
             <button type="submit" className="btn-action" style={{ padding: '9px 20px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}><Save size={14} /> {L('Guardar', 'Save')}</button>
+          </div>
+        </form>
+      </div>
+    </>
+  )
+}
+
+// ═════════════════════════════════════════════════════════════════════════════════
+// SALE REGISTRATION MODAL (triggered when lead status → won)
+// ═════════════════════════════════════════════════════════════════════════════════
+function SaleRegistrationModal({ contact, team, products, paymentFees, onClose, onSave, en }) {
+  const L = (es, enText) => en ? enText : es
+  const closers = team.filter(m => (m.role || '').includes('closer'))
+  const setters = team.filter(m => (m.role || '').includes('setter'))
+  const today = new Date().toISOString().slice(0, 10)
+
+  const PAYMENT_TYPES = ['Pago único', '2 cuotas', '3 cuotas', '4 cuotas', '5 cuotas', '6 cuotas']
+  const getInstallments = (pt) => {
+    if (pt === 'Pago único') return ['Pago único']
+    const n = parseInt(pt)
+    return Array.from({ length: n }, (_, i) => `${i + 1}/${n}`)
+  }
+
+  const [form, setForm] = useState({
+    date: today,
+    clientName: contact.name || '',
+    clientEmail: contact.email || '',
+    clientPhone: contact.phone || '',
+    instagram: contact.instagram || '',
+    pais: contact.country || '',
+    product: products.find(p => p.active !== false)?.name || '',
+    paymentType: 'Pago único',
+    installmentNumber: 'Pago único',
+    paymentMethod: paymentFees[0]?.method || 'Transferencia',
+    revenue: contact.dealValue || '',
+    cashCollected: '',
+    closer: contact.assigned_closer || '',
+    setter: contact.assigned_setter || '',
+    triager: '',
+    gestorAsignado: '',
+    utmSource: '', utmMedium: '', utmCampaign: '', utmContent: '',
+    productoInteres: '',
+    capitalDisponible: '',
+    situacionActual: '',
+    expAmazon: '',
+    decisorConfirmado: '',
+    fechaLlamada: '',
+    status: 'Completada',
+    notes: '',
+  })
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    if (!form.clientName || !form.revenue || !form.closer) {
+      alert(L('Nombre, Revenue y Closer son obligatorios.', 'Name, Revenue and Closer are required.'))
+      return
+    }
+    onSave({
+      ...form,
+      revenue: +form.revenue,
+      cashCollected: +(form.cashCollected || form.revenue),
+      source: 'close_crm',
+      closeActivityId: contact.id,
+    })
+  }
+
+  const inputStyle = {
+    width: '100%', padding: '8px 10px', background: 'var(--bg)',
+    border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)',
+    fontSize: 13, outline: 'none', boxSizing: 'border-box',
+  }
+
+  const currentFee = paymentFees.find(f => f.method === form.paymentMethod)
+  const feeRate = currentFee ? (currentFee.feeRate || 0) : 0
+  const grossCash = +(form.cashCollected || form.revenue) || 0
+  const netCash = Math.round(grossCash * (1 - feeRate) * 100) / 100
+
+  return (
+    <>
+      <div onClick={onClose} style={S.overlay} />
+      <div style={{ ...S.modal, width: 640 }}>
+        <div style={S.modalHeader}>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 16, color: 'var(--text)' }}>
+              {L('Registrar Venta', 'Register Sale')}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+              {contact.name} — {L('Lead marcado como Ganado', 'Lead marked as Won')}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ padding: 4, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSubmit} style={{ overflowY: 'auto', flex: 1, padding: '16px 20px', maxHeight: '70vh' }}>
+          {/* Section 1: Sale Info */}
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--orange)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>
+            {L('Datos de la Venta', 'Sale Data')}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+            <div>
+              <label style={S.label}>{L('Fecha', 'Date')}</label>
+              <input type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} style={inputStyle} />
+            </div>
+            <div>
+              <label style={S.label}>{L('Estado', 'Status')}</label>
+              <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))} style={inputStyle}>
+                <option value="Completada">{L('Completada', 'Completed')}</option>
+                <option value="Pendiente">{L('Pendiente', 'Pending')}</option>
+              </select>
+            </div>
+            <div>
+              <label style={S.label}>Closer *</label>
+              <select value={form.closer} onChange={e => setForm(p => ({ ...p, closer: e.target.value }))} style={inputStyle}>
+                <option value="">—</option>
+                {closers.length > 0 ? closers.map(m => <option key={m.id} value={m.name}>{m.name}</option>) :
+                  team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={S.label}>Setter</label>
+              <select value={form.setter} onChange={e => setForm(p => ({ ...p, setter: e.target.value }))} style={inputStyle}>
+                <option value="">—</option>
+                {setters.length > 0 ? setters.map(m => <option key={m.id} value={m.name}>{m.name}</option>) :
+                  team.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Section 2: Client Data */}
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--orange)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>
+            {L('Datos del Cliente', 'Client Data')}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+            {[
+              { key: 'clientName', label: L('Nombre *', 'Name *'), required: true },
+              { key: 'clientEmail', label: 'Email', type: 'email' },
+              { key: 'clientPhone', label: L('Teléfono', 'Phone') },
+              { key: 'instagram', label: 'Instagram' },
+              { key: 'pais', label: L('País', 'Country') },
+              { key: 'fechaLlamada', label: L('Fecha Llamada', 'Call Date'), type: 'date' },
+            ].map(f => (
+              <div key={f.key}>
+                <label style={S.label}>{f.label}</label>
+                <input type={f.type || 'text'} value={form[f.key]} required={f.required}
+                  onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} style={inputStyle} />
+              </div>
+            ))}
+          </div>
+
+          {/* Section 3: Lead Profile */}
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--orange)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>
+            {L('Perfil del Lead', 'Lead Profile')}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+            <div>
+              <label style={S.label}>{L('Situación Actual', 'Current Situation')}</label>
+              <input value={form.situacionActual} onChange={e => setForm(p => ({ ...p, situacionActual: e.target.value }))} style={inputStyle} />
+            </div>
+            <div>
+              <label style={S.label}>{L('Capital Disponible', 'Available Capital')}</label>
+              <input value={form.capitalDisponible} onChange={e => setForm(p => ({ ...p, capitalDisponible: e.target.value }))} style={inputStyle} />
+            </div>
+            <div>
+              <label style={S.label}>Exp Amazon</label>
+              <input value={form.expAmazon} onChange={e => setForm(p => ({ ...p, expAmazon: e.target.value }))} style={inputStyle} />
+            </div>
+            <div>
+              <label style={S.label}>{L('Decisor Confirmado', 'Decision Maker')}</label>
+              <select value={form.decisorConfirmado} onChange={e => setForm(p => ({ ...p, decisorConfirmado: e.target.value }))} style={inputStyle}>
+                <option value="">—</option>
+                <option value="Sí">{L('Sí', 'Yes')}</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={S.label}>{L('Producto Interés', 'Product Interest')}</label>
+              <input value={form.productoInteres} onChange={e => setForm(p => ({ ...p, productoInteres: e.target.value }))} style={inputStyle} />
+            </div>
+          </div>
+
+          {/* Section 4: UTMs */}
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--orange)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>
+            UTMs & {L('Atribución', 'Attribution')}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+            {[
+              { key: 'utmSource', label: 'UTM Source' },
+              { key: 'utmMedium', label: 'UTM Medium' },
+              { key: 'utmCampaign', label: 'UTM Campaign' },
+              { key: 'utmContent', label: 'UTM Content' },
+              { key: 'triager', label: 'Triager' },
+              { key: 'gestorAsignado', label: L('Gestor Asignado', 'Assigned Manager') },
+            ].map(f => (
+              <div key={f.key}>
+                <label style={S.label}>{f.label}</label>
+                <input value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} style={inputStyle} />
+              </div>
+            ))}
+          </div>
+
+          {/* Section 5: Payment */}
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--orange)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>
+            {L('Pago', 'Payment')}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+            <div>
+              <label style={S.label}>{L('Producto', 'Product')}</label>
+              <select value={form.product} onChange={e => setForm(p => ({ ...p, product: e.target.value }))} style={inputStyle}>
+                {products.filter(p => p.active !== false).map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={S.label}>{L('Tipo de Pago', 'Payment Type')}</label>
+              <select value={form.paymentType} onChange={e => {
+                const inst = getInstallments(e.target.value)
+                setForm(p => ({ ...p, paymentType: e.target.value, installmentNumber: inst[0] }))
+              }} style={inputStyle}>
+                {PAYMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={S.label}>{L('Nº Cuota', 'Installment #')}</label>
+              <select value={form.installmentNumber} onChange={e => setForm(p => ({ ...p, installmentNumber: e.target.value }))} style={inputStyle}>
+                {getInstallments(form.paymentType).map(i => <option key={i} value={i}>{i}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={S.label}>{L('Método de Pago', 'Payment Method')}</label>
+              <select value={form.paymentMethod} onChange={e => setForm(p => ({ ...p, paymentMethod: e.target.value }))} style={inputStyle}>
+                {paymentFees.map(f => <option key={f.method} value={f.method}>{f.method} ({((f.feeRate || 0) * 100).toFixed(1)}%)</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={S.label}>Revenue * ({L('total del deal', 'total deal value')})</label>
+              <input type="number" value={form.revenue} required
+                onChange={e => setForm(p => ({ ...p, revenue: e.target.value }))} style={inputStyle} />
+            </div>
+            <div>
+              <label style={S.label}>Cash Collected</label>
+              <input type="number" value={form.cashCollected} placeholder={form.revenue || '0'}
+                onChange={e => setForm(p => ({ ...p, cashCollected: e.target.value }))} style={inputStyle} />
+            </div>
+          </div>
+          {/* Fee preview */}
+          {grossCash > 0 && (
+            <div style={{ padding: '8px 12px', background: 'rgba(255,107,0,.06)', border: '1px solid rgba(255,107,0,.15)', borderRadius: 8, marginBottom: 16, fontSize: 12 }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Fee: </span>
+              <span style={{ color: 'var(--orange)', fontWeight: 700 }}>{(feeRate * 100).toFixed(1)}%</span>
+              <span style={{ color: 'var(--text-secondary)' }}> → Net: </span>
+              <span style={{ color: '#22C55E', fontWeight: 700 }}>{netCash.toLocaleString(en ? 'en-US' : 'es-ES', { style: 'currency', currency: en ? 'USD' : 'EUR', minimumFractionDigits: 0 })}</span>
+            </div>
+          )}
+
+          {/* Notes */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={S.label}>{L('Notas', 'Notes')}</label>
+            <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+              rows={2} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} />
+          </div>
+
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+            <button type="button" onClick={onClose} style={{ ...S.btnGhost, padding: '9px 20px', fontSize: 13 }}>
+              {L('Omitir', 'Skip')}
+            </button>
+            <button type="submit" className="btn-action" style={{ padding: '9px 20px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <DollarSign size={14} /> {L('Registrar Venta', 'Register Sale')}
+            </button>
           </div>
         </form>
       </div>

@@ -54,3 +54,17 @@ CREATE POLICY "Service role full access on crm_tasks" ON crm_tasks
 -- 4. Update crm_activities to support file attachments
 ALTER TABLE crm_activities ADD COLUMN IF NOT EXISTS file_url text DEFAULT '';
 ALTER TABLE crm_activities ADD COLUMN IF NOT EXISTS scheduled_at timestamptz;
+
+-- 5. Insert default pipeline for each client that doesn't have one
+INSERT INTO crm_pipelines (client_id, name, stages, is_default)
+SELECT id, 'Default Pipeline', '[
+  {"key": "lead", "label": "Lead", "color": "#6366F1"},
+  {"key": "contacted", "label": "Contacted", "color": "#F59E0B"},
+  {"key": "qualified", "label": "Qualified", "color": "#3B82F6"},
+  {"key": "proposal", "label": "Proposal", "color": "#8B5CF6"},
+  {"key": "negotiation", "label": "Negotiation", "color": "#EC4899"},
+  {"key": "won", "label": "Won", "color": "#10B981"},
+  {"key": "lost", "label": "Lost", "color": "#EF4444"}
+]'::jsonb, true
+FROM clients
+WHERE id NOT IN (SELECT client_id FROM crm_pipelines);

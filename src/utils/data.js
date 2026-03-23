@@ -66,15 +66,15 @@ export async function updateSale(id, updates, clientId) {
   const dbUpdates = toDb(updates, 'sales')
   delete dbUpdates.id
   delete dbUpdates.client_id
-  const query = supabase.from('sales').update(dbUpdates).eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('sales').update(dbUpdates).eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
 
 export async function deleteSale(id, clientId) {
-  const query = supabase.from('sales').delete().eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('sales').delete().eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
@@ -138,15 +138,15 @@ export async function updateReport(id, updates, clientId) {
   const dbUpdates = toDb(updates, 'reports')
   delete dbUpdates.id
   delete dbUpdates.client_id
-  const query = supabase.from('reports').update(dbUpdates).eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('reports').update(dbUpdates).eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
 
 export async function deleteReport(id, clientId) {
-  const query = supabase.from('reports').delete().eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('reports').delete().eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
@@ -179,15 +179,15 @@ export async function updateMember(id, updates, clientId) {
   const dbUpdates = toDb(updates, 'team')
   delete dbUpdates.id
   delete dbUpdates.client_id
-  const query = supabase.from('team').update(dbUpdates).eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('team').update(dbUpdates).eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
 
 export async function deleteMember(id, clientId) {
-  const query = supabase.from('team').delete().eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('team').delete().eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
@@ -284,15 +284,15 @@ export async function updateProjection(id, updates, clientId) {
   const dbUpdates = toDb(updates, 'projections')
   delete dbUpdates.id
   delete dbUpdates.client_id
-  const query = supabase.from('projections').update(dbUpdates).eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('projections').update(dbUpdates).eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
 
 export async function deleteProjection(id, clientId) {
-  const query = supabase.from('projections').delete().eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('projections').delete().eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
@@ -325,15 +325,15 @@ export async function updateProduct(id, updates, clientId) {
   const dbUpdates = toDb(updates, 'products')
   delete dbUpdates.id
   delete dbUpdates.client_id
-  const query = supabase.from('products').update(dbUpdates).eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('products').update(dbUpdates).eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
 
 export async function deleteProduct(id, clientId) {
-  const query = supabase.from('products').delete().eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('products').delete().eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
@@ -366,15 +366,15 @@ export async function updatePaymentFee(id, updates, clientId) {
   const dbUpdates = toDb(updates, 'payment_fees')
   delete dbUpdates.id
   delete dbUpdates.client_id
-  const query = supabase.from('payment_fees').update(dbUpdates).eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('payment_fees').update(dbUpdates).eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
 
 export async function deletePaymentFee(id, clientId) {
-  const query = supabase.from('payment_fees').delete().eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('payment_fees').delete().eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
@@ -396,8 +396,8 @@ export async function saveN8nConfig(config, clientId) {
   if (config.id) {
     delete dbConfig.id
     delete dbConfig.client_id
-    const query = supabase.from('n8n_config').update(dbConfig).eq('id', config.id)
-    if (clientId) query.eq('client_id', clientId)
+    let query = supabase.from('n8n_config').update(dbConfig).eq('id', config.id)
+    if (clientId) query = query.eq('client_id', clientId)
     const { error } = await query
     if (error) throw error
   } else {
@@ -437,15 +437,15 @@ export async function updateCeoMeeting(id, updates, clientId) {
   const dbUpdates = toDb(updates, 'ceo_meetings')
   delete dbUpdates.id
   delete dbUpdates.client_id
-  const query = supabase.from('ceo_meetings').update(dbUpdates).eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('ceo_meetings').update(dbUpdates).eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
 
 export async function deleteCeoMeeting(id, clientId) {
-  const query = supabase.from('ceo_meetings').delete().eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('ceo_meetings').delete().eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
@@ -478,15 +478,15 @@ export async function updateCeoProject(id, updates, clientId) {
   const dbUpdates = toDb(updates, 'ceo_projects')
   delete dbUpdates.id
   delete dbUpdates.client_id
-  const query = supabase.from('ceo_projects').update(dbUpdates).eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('ceo_projects').update(dbUpdates).eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
 
 export async function deleteCeoProject(id, clientId) {
-  const query = supabase.from('ceo_projects').delete().eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('ceo_projects').delete().eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
@@ -519,15 +519,15 @@ export async function updateCeoIdea(id, updates, clientId) {
   const dbUpdates = toDb(updates, 'ceo_ideas')
   delete dbUpdates.id
   delete dbUpdates.client_id
-  const query = supabase.from('ceo_ideas').update(dbUpdates).eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('ceo_ideas').update(dbUpdates).eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
 
 export async function deleteCeoIdea(id, clientId) {
-  const query = supabase.from('ceo_ideas').delete().eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('ceo_ideas').delete().eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
@@ -652,15 +652,15 @@ export async function updateCeoFinanceEntry(id, updates, clientId) {
   const dbUpdates = toDb(updates, 'ceo_finance_entries')
   delete dbUpdates.id
   delete dbUpdates.client_id
-  const query = supabase.from('ceo_finance_entries').update(dbUpdates).eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('ceo_finance_entries').update(dbUpdates).eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
 
 export async function deleteCeoFinanceEntry(id, clientId) {
-  const query = supabase.from('ceo_finance_entries').delete().eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('ceo_finance_entries').delete().eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
@@ -861,15 +861,15 @@ export async function updateCrmContact(id, updates, clientId) {
   delete dbUpdates.id
   delete dbUpdates.client_id
   dbUpdates.updated_at = new Date().toISOString()
-  const query = supabase.from('crm_contacts').update(dbUpdates).eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('crm_contacts').update(dbUpdates).eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
 
 export async function deleteCrmContact(id, clientId) {
-  const query = supabase.from('crm_contacts').delete().eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('crm_contacts').delete().eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
@@ -902,8 +902,8 @@ export async function addCrmActivity(activity, clientId) {
 }
 
 export async function deleteCrmActivity(id, clientId) {
-  const query = supabase.from('crm_activities').delete().eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('crm_activities').delete().eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
@@ -937,15 +937,15 @@ export async function updateCrmCustomField(id, updates, clientId) {
   const dbUpdates = toDb(updates, 'crm_custom_fields')
   delete dbUpdates.id
   delete dbUpdates.client_id
-  const query = supabase.from('crm_custom_fields').update(dbUpdates).eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('crm_custom_fields').update(dbUpdates).eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
 
 export async function deleteCrmCustomField(id, clientId) {
-  const query = supabase.from('crm_custom_fields').update({ active: false }).eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('crm_custom_fields').update({ active: false }).eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
@@ -978,15 +978,15 @@ export async function updateCrmSmartView(id, updates, clientId) {
   const dbUpdates = toDb(updates, 'crm_smart_views')
   delete dbUpdates.id
   delete dbUpdates.client_id
-  const query = supabase.from('crm_smart_views').update(dbUpdates).eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('crm_smart_views').update(dbUpdates).eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
 
 export async function deleteCrmSmartView(id, clientId) {
-  const query = supabase.from('crm_smart_views').delete().eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('crm_smart_views').delete().eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
@@ -1018,15 +1018,15 @@ export async function updateCrmPipeline(id, updates, clientId) {
   const dbUpdates = toDb(updates, 'crm_pipelines')
   delete dbUpdates.id
   delete dbUpdates.client_id
-  const query = supabase.from('crm_pipelines').update(dbUpdates).eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('crm_pipelines').update(dbUpdates).eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
 
 export async function deleteCrmPipeline(id, clientId) {
-  const query = supabase.from('crm_pipelines').delete().eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('crm_pipelines').delete().eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
@@ -1055,8 +1055,8 @@ export async function addCrmFile(file, clientId) {
 }
 
 export async function deleteCrmFile(id, clientId) {
-  const query = supabase.from('crm_files').delete().eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('crm_files').delete().eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
@@ -1088,15 +1088,15 @@ export async function updateCrmTask(id, updates, clientId) {
   const dbUpdates = toDb(updates, 'crm_tasks')
   delete dbUpdates.id
   delete dbUpdates.client_id
-  const query = supabase.from('crm_tasks').update(dbUpdates).eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('crm_tasks').update(dbUpdates).eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
 
 export async function deleteCrmTask(id, clientId) {
-  const query = supabase.from('crm_tasks').delete().eq('id', id)
-  if (clientId) query.eq('client_id', clientId)
+  let query = supabase.from('crm_tasks').delete().eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
   const { error } = await query
   if (error) throw error
 }
