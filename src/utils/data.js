@@ -1271,6 +1271,114 @@ export async function deleteEmailCampaign(id) {
   if (error) throw error
 }
 
+// ---- MANYCHAT CONFIG ----
+export async function getManychatConfig(clientId) {
+  const { data, error } = await supabase.from('manychat_config').select('*').eq('client_id', clientId).limit(1).single()
+  if (error || !data) return null
+  return toApp(data, 'manychat_config')
+}
+
+export async function saveManychatConfig(config, clientId) {
+  const db = toDb(config, 'manychat_config')
+  delete db.id
+  db.client_id = clientId
+  db.updated_at = new Date().toISOString()
+  const { data: existing } = await supabase.from('manychat_config').select('id').eq('client_id', clientId).limit(1)
+  if (existing && existing.length > 0) {
+    const { error } = await supabase.from('manychat_config').update(db).eq('client_id', clientId)
+    if (error) throw error
+  } else {
+    const { error } = await supabase.from('manychat_config').insert(db)
+    if (error) throw error
+  }
+}
+
+export async function syncManychatSubscribers(clientId) {
+  const { data: config } = await supabase.from('manychat_config').select('*').eq('client_id', clientId).limit(1).single()
+  if (!config || !config.api_key) throw new Error('Configura tu API Key de ManyChat primero')
+
+  // Fetch subscribers from ManyChat API via proxy
+  const res = await fetch('/api/send-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'manychat', apiKey: config.api_key, endpoint: '/fb/subscriber/getSubscribers', method: 'GET' }),
+  })
+  const result = await res.json()
+  if (!res.ok) throw new Error(result.error || 'Error conectando con ManyChat')
+
+  const subscribers = result.data || []
+  let synced = 0
+
+  for (const sub of subscribers) {
+    const contact = {
+      client_id: clientId,
+      platform_id: sub.id || '',
+      platform: 'instagram',
+      name: [sub.first_name, sub.last_name].filter(Boolean).join(' ') || sub.name || '',
+      username: sub.ig_username || '',
+      email: sub.email || '',
+      phone: sub.phone || '',
+      tags: JSON.stringify((sub.tags || []).map(t => t.name || t)),
+      custom_data: JSON.stringify({ manychat_id: sub.id, gender: sub.gender, locale: sub.locale }),
+      last_interaction: sub.last_interaction || new Date().toISOString(),
+      subscribed: sub.status === 'active',
+    }
+
+    // Upsert by platform_id
+    const { data: existing } = await supabase.from('chat_contacts').select('id').eq('client_id', clientId).eq('platform_id', contact.platform_id).limit(1)
+    if (existing && existing.length > 0) {
+      await supabase.from('chat_contacts').update(contact).eq('id', existing[0].id)
+    } else {
+      await supabase.from('chat_contacts').insert(contact)
+    }
+    synced++
+  }
+
+  // Update last_sync
+  await supabase.from('manychat_config').update({ last_sync: new Date().toISOString() }).eq('client_id', clientId)
+
+  return { synced, total: subscribers.length }
+}
+
+export async function syncManychatToCrm(contactIds, clientId) {
+  // Get chat contacts
+  const { data: chatContacts } = await supabase.from('chat_contacts').select('*').eq('client_id', clientId).in('id', contactIds)
+  if (!chatContacts || chatContacts.length === 0) throw new Error('No se encontraron contactos')
+
+  let added = 0
+  for (const cc of chatContacts) {
+    // Check if already in CRM by email or username
+    let exists = false
+    if (cc.email) {
+      const { data } = await supabase.from('crm_contacts').select('id').eq('client_id', clientId).eq('email', cc.email).limit(1)
+      if (data && data.length > 0) exists = true
+    }
+    if (!exists && cc.username) {
+      const { data } = await supabase.from('crm_contacts').select('id').eq('client_id', clientId).eq('instagram', cc.username).limit(1)
+      if (data && data.length > 0) exists = true
+    }
+
+    if (!exists) {
+      const customData = typeof cc.custom_data === 'string' ? JSON.parse(cc.custom_data || '{}') : (cc.custom_data || {})
+      const tags = typeof cc.tags === 'string' ? JSON.parse(cc.tags || '[]') : (cc.tags || [])
+      await supabase.from('crm_contacts').insert({
+        client_id: clientId,
+        name: cc.name || cc.username || '',
+        email: cc.email || '',
+        phone: cc.phone || '',
+        instagram: cc.username || '',
+        source: 'manychat',
+        status: 'lead',
+        tags: JSON.stringify(tags),
+        notes: `Importado desde ManyChat. ID: ${cc.platform_id}`,
+      })
+      added++
+    }
+  }
+
+  return { added, skipped: chatContacts.length - added, total: chatContacts.length }
+}
+
 // ---- CHATBOT / MANYCHAT ----
 export async function getChatFlows(clientId) {
   const { data, error } = await supabase.from('chat_flows').select('*').eq('client_id', clientId).order('created_at', { ascending: false })

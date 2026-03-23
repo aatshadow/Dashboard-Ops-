@@ -146,6 +146,12 @@ export function useClientData() {
     updateEmailCampaign: useCallback((id, updates) => data.updateEmailCampaign(id, updates), [clientId]),
     deleteEmailCampaign: useCallback((id) => data.deleteEmailCampaign(id), [clientId]),
 
+    // ManyChat Config
+    getManychatConfig: useCallback(() => data.getManychatConfig(clientId), [clientId]),
+    saveManychatConfig: useCallback((config) => data.saveManychatConfig(config, clientId), [clientId]),
+    syncManychatSubscribers: useCallback(() => data.syncManychatSubscribers(clientId), [clientId]),
+    syncManychatToCrm: useCallback((contactIds) => data.syncManychatToCrm(contactIds, clientId), [clientId]),
+
     // Chatbot / ManyChat
     getChatFlows: useCallback(() => data.getChatFlows(clientId), [clientId]),
     addChatFlow: useCallback((flow) => data.addChatFlow(flow, clientId), [clientId]),

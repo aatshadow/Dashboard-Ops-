@@ -262,6 +262,17 @@ const EMAIL_CAMPAIGNS_MAP = {
   updatedAt: 'updated_at',
 }
 
+const MANYCHAT_CONFIG_MAP = {
+  clientId: 'client_id',
+  apiKey: 'api_key',
+  pageId: 'page_id',
+  webhookSecret: 'webhook_secret',
+  autoSyncCrm: 'auto_sync_crm',
+  syncTags: 'sync_tags',
+  lastSync: 'last_sync',
+  updatedAt: 'updated_at',
+}
+
 const CHAT_FLOWS_MAP = {
   clientId: 'client_id',
   triggerType: 'trigger_type',
@@ -346,6 +357,7 @@ const TABLE_MAPS = {
   email_subscribers: EMAIL_SUBSCRIBERS_MAP,
   email_templates: EMAIL_TEMPLATES_MAP,
   email_campaigns: EMAIL_CAMPAIGNS_MAP,
+  manychat_config: MANYCHAT_CONFIG_MAP,
   chat_flows: CHAT_FLOWS_MAP,
   chat_contacts: CHAT_CONTACTS_MAP,
   chat_conversations: CHAT_CONVERSATIONS_MAP,
@@ -383,6 +395,7 @@ const VALID_COLUMNS = {
   email_subscribers: new Set(['client_id', 'list_id', 'email', 'name', 'status', 'tags', 'custom_data', 'subscribed_at', 'unsubscribed_at']),
   email_templates: new Set(['client_id', 'name', 'subject', 'html_content', 'json_content', 'category', 'updated_at']),
   email_campaigns: new Set(['client_id', 'name', 'subject', 'from_name', 'from_email', 'reply_to', 'list_id', 'template_id', 'html_content', 'status', 'scheduled_at', 'sent_at', 'total_sent', 'total_opened', 'total_clicked', 'total_bounced', 'total_unsubscribed', 'updated_at']),
+  manychat_config: new Set(['client_id', 'api_key', 'page_id', 'webhook_secret', 'auto_sync_crm', 'sync_tags', 'last_sync', 'updated_at']),
   chat_flows: new Set(['client_id', 'name', 'description', 'trigger_type', 'trigger_value', 'channel', 'active', 'nodes', 'updated_at']),
   chat_contacts: new Set(['client_id', 'platform_id', 'platform', 'name', 'username', 'email', 'phone', 'avatar_url', 'tags', 'custom_data', 'last_interaction', 'subscribed']),
   chat_conversations: new Set(['client_id', 'contact_id', 'flow_id', 'channel', 'status', 'assigned_to', 'last_message', 'last_message_at', 'unread_count']),
