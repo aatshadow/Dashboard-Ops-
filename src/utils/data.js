@@ -1222,6 +1222,7 @@ export async function getEmailSubscribers(clientId, listId) {
 }
 export async function addEmailSubscriber(sub, clientId) {
   const db = toDb(sub, 'email_subscribers'); delete db.id; db.client_id = clientId
+  if (!db.list_id) db.list_id = null
   const { data, error } = await supabase.from('email_subscribers').insert(db).select().single()
   if (error) throw error
   return toApp(data, 'email_subscribers')
@@ -1264,12 +1265,16 @@ export async function getEmailCampaigns(clientId) {
 }
 export async function addEmailCampaign(campaign, clientId) {
   const db = toDb(campaign, 'email_campaigns'); delete db.id; db.client_id = clientId
+  if (!db.list_id) db.list_id = null
+  if (!db.template_id) db.template_id = null
   const { data, error } = await supabase.from('email_campaigns').insert(db).select().single()
   if (error) throw error
   return toApp(data, 'email_campaigns')
 }
 export async function updateEmailCampaign(id, updates) {
   const db = toDb(updates, 'email_campaigns'); delete db.id; delete db.client_id; db.updated_at = new Date().toISOString()
+  if (db.list_id === '') db.list_id = null
+  if (db.template_id === '') db.template_id = null
   const { error } = await supabase.from('email_campaigns').update(db).eq('id', id)
   if (error) throw error
 }
@@ -1328,6 +1333,8 @@ export async function getChatConversations(clientId) {
 }
 export async function addChatConversation(conv, clientId) {
   const db = toDb(conv, 'chat_conversations'); delete db.id; db.client_id = clientId
+  if (!db.flow_id) db.flow_id = null
+  if (!db.contact_id) db.contact_id = null
   const { data, error } = await supabase.from('chat_conversations').insert(db).select().single()
   if (error) throw error
   return toApp(data, 'chat_conversations')
