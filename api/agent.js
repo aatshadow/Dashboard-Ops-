@@ -9,143 +9,246 @@ import { supabase, resolveClientId } from './lib/supabase.js'
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// PROSPECTOR AGENT — Google Maps search + AI enrichment + CRM insert
+// PROSPECTOR AGENT — Multi-source search + AI enrichment + CRM insert
+// Sources: OpenStreetMap Overpass, Nominatim, Europages scraping
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Country ISO codes for Overpass API
 const COUNTRY_CODES = {
   'Espana': 'ES', 'Portugal': 'PT', 'Italia': 'IT', 'Francia': 'FR', 'Alemania': 'DE',
   'Reino Unido': 'GB', 'Paises Bajos': 'NL', 'Belgica': 'BE', 'Polonia': 'PL', 'Turquia': 'TR',
   'Rumania': 'RO', 'Republica Checa': 'CZ', 'Austria': 'AT', 'Suiza': 'CH', 'Suecia': 'SE',
+  'Bulgaria': 'BG',
 }
 
-// Search using TWO methods combined for maximum results:
-// 1. Overpass API (lightweight query — only fast tags, no name regex)
-// 2. Nominatim search (free text search on OpenStreetMap)
-async function searchGoogleMaps(query, country, maxResults = 20) {
+const COUNTRY_NAMES_EN = {
+  'Espana': 'Spain', 'Portugal': 'Portugal', 'Italia': 'Italy', 'Francia': 'France',
+  'Alemania': 'Germany', 'Reino Unido': 'United Kingdom', 'Paises Bajos': 'Netherlands',
+  'Belgica': 'Belgium', 'Polonia': 'Poland', 'Turquia': 'Turkey', 'Rumania': 'Romania',
+  'Republica Checa': 'Czech Republic', 'Austria': 'Austria', 'Suiza': 'Switzerland',
+  'Suecia': 'Sweden', 'Bulgaria': 'Bulgaria',
+}
+
+// ── Source 1: Overpass API (fast tag-based OSM search) ──
+async function searchOverpass(country, maxResults) {
   const isoCode = COUNTRY_CODES[country] || country
-  const results = []
+  const q = `[out:json][timeout:25];area["ISO3166-1"="${isoCode}"]->.a;(nwr["craft"~"textile|weaving"](area.a);nwr["shop"~"fabric|textile"](area.a);nwr["industrial"~"textile"](area.a););out center body ${maxResults * 2};`
+
+  const resp = await fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `data=${encodeURIComponent(q)}`,
+  })
+  if (!resp.ok) return []
+  const data = await resp.json()
+
   const seen = new Set()
-
-  // ── Method 1: Overpass — fast tag-based search ──
-  try {
-    const overpassQuery = `[out:json][timeout:25];area["ISO3166-1"="${isoCode}"]->.a;(nwr["craft"~"textile|weaving"](area.a);nwr["shop"~"fabric|textile"](area.a);nwr["industrial"~"textile"](area.a););out center body 60;`
-
-    const resp = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `data=${encodeURIComponent(overpassQuery)}`,
+  const results = []
+  for (const el of (data.elements || [])) {
+    if (results.length >= maxResults) break
+    const t = el.tags || {}
+    const name = t.name || t['name:es'] || t['name:en'] || t['name:it'] || t['name:de'] || t['name:fr'] || t['name:pt'] || ''
+    if (!name || seen.has(name.toLowerCase())) continue
+    seen.add(name.toLowerCase())
+    const lat = el.lat || el.center?.lat || ''
+    const lng = el.lon || el.center?.lon || ''
+    results.push({
+      name, source_type: 'OpenStreetMap',
+      address: [t['addr:street'], t['addr:housenumber'], t['addr:postcode'], t['addr:city']].filter(Boolean).join(', ') || '',
+      city: t['addr:city'] || '', country,
+      phone: t.phone || t['contact:phone'] || '',
+      email: t.email || t['contact:email'] || '',
+      website: t.website || t['contact:website'] || '',
+      maps_url: lat && lng ? `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}` : '',
+      lat, lng,
     })
+  }
+  return results
+}
 
-    if (resp.ok) {
-      const data = await resp.json()
-      for (const el of (data.elements || [])) {
+// ── Source 2: Nominatim (free-text geocoding search) ──
+async function searchNominatim(country, maxResults) {
+  const isoCode = (COUNTRY_CODES[country] || country).toLowerCase()
+  const terms = [`textile factory`, `fabrica textil`, `textile manufacturer`, `textile mill`, `fabric company`]
+  const seen = new Set()
+  const results = []
+
+  for (const term of terms) {
+    if (results.length >= maxResults) break
+    try {
+      const params = new URLSearchParams({
+        q: `${term} ${country}`, format: 'json', limit: '10',
+        countrycodes: isoCode, addressdetails: '1', extratags: '1',
+      })
+      const resp = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+        headers: { 'User-Agent': 'BlackWolfProspector/1.0' },
+      })
+      if (!resp.ok) continue
+      const places = await resp.json()
+
+      for (const p of places) {
         if (results.length >= maxResults) break
-        const tags = el.tags || {}
-        const name = tags.name || tags['name:es'] || tags['name:en'] || ''
+        const name = p.name || p.display_name?.split(',')[0] || ''
         if (!name || seen.has(name.toLowerCase())) continue
         seen.add(name.toLowerCase())
-        const lat = el.lat || el.center?.lat || ''
-        const lng = el.lon || el.center?.lon || ''
+        const extra = p.extratags || {}
+        const addr = p.address || {}
         results.push({
-          place_id: `osm_${el.type}_${el.id}`, name,
-          address: [tags['addr:street'], tags['addr:housenumber'], tags['addr:postcode'], tags['addr:city'], country].filter(Boolean).join(', ') || country,
-          lat, lng, rating: null, total_ratings: 0,
-          types: [tags.craft, tags.industrial, tags.shop].filter(Boolean),
-          business_status: '',
-          phone: tags.phone || tags['contact:phone'] || '',
-          website: tags.website || tags['contact:website'] || '',
-          maps_url: lat && lng ? `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}` : '',
+          name, source_type: 'Nominatim',
+          address: [addr.road, addr.house_number, addr.postcode, addr.city || addr.town || addr.village].filter(Boolean).join(', ') || '',
+          city: addr.city || addr.town || addr.village || '', country,
+          phone: extra.phone || extra['contact:phone'] || '',
+          email: extra.email || extra['contact:email'] || '',
+          website: extra.website || extra['contact:website'] || '',
+          maps_url: `https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lon}#map=17/${p.lat}/${p.lon}`,
+          lat: p.lat, lng: p.lon,
+        })
+      }
+      await new Promise(r => setTimeout(r, 1100))
+    } catch { /* skip */ }
+  }
+  return results
+}
+
+// ── Source 3: Europages (European B2B business directory) ──
+async function searchEuropages(country, maxResults) {
+  const countryEn = COUNTRY_NAMES_EN[country] || country
+  const results = []
+
+  try {
+    // Europages search URL
+    const url = `https://www.europages.co.uk/companies/textile%20manufacturer/${countryEn.toLowerCase().replace(/\s+/g, '-')}.html`
+    const resp = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml',
+      },
+    })
+    if (!resp.ok) return []
+    const html = await resp.text()
+
+    // Extract company data from Europages HTML
+    const companyPattern = /<h3[^>]*class="[^"]*company-name[^"]*"[^>]*>[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/gi
+    const addressPattern = /<span[^>]*class="[^"]*address[^"]*"[^>]*>([\s\S]*?)<\/span>/gi
+    const phonePattern = /(?:tel|phone|fono)[:\s]*([+\d\s()-]{8,})/gi
+    const websitePattern = /(?:href=")(https?:\/\/(?:www\.)?[^"]+)(?:"[^>]*class="[^"]*website)/gi
+
+    // Simpler extraction: look for structured data or company blocks
+    const nameMatches = html.match(/data-company-name="([^"]+)"/gi) || []
+    const seen = new Set()
+
+    for (const match of nameMatches) {
+      if (results.length >= maxResults) break
+      const name = match.replace(/data-company-name="/, '').replace(/"$/, '').trim()
+      if (!name || seen.has(name.toLowerCase())) continue
+      seen.add(name.toLowerCase())
+
+      results.push({
+        name, source_type: 'Europages',
+        address: '', city: '', country,
+        phone: '', email: '', website: '',
+        maps_url: '', lat: '', lng: '',
+      })
+    }
+
+    // Fallback: extract from heading tags
+    if (results.length === 0) {
+      const h3Matches = html.match(/<h[23][^>]*>([^<]{3,80})<\/h[23]>/gi) || []
+      for (const h of h3Matches) {
+        if (results.length >= maxResults) break
+        const name = h.replace(/<\/?h[23][^>]*>/gi, '').trim()
+        if (!name || name.length < 3 || name.length > 80 || seen.has(name.toLowerCase())) continue
+        // Filter out non-company names
+        if (/search|filter|result|page|textile manufacturer/i.test(name)) continue
+        seen.add(name.toLowerCase())
+        results.push({
+          name, source_type: 'Europages',
+          address: '', city: '', country,
+          phone: '', email: '', website: '',
+          maps_url: '', lat: '', lng: '',
         })
       }
     }
-  } catch (e) { /* continue to Nominatim */ }
-
-  // ── Method 2: Nominatim — free text search ──
-  if (results.length < maxResults) {
-    const searchTerms = [
-      `textile factory ${country}`,
-      `fabrica textil ${country}`,
-      `textile manufacturer ${country}`,
-    ]
-
-    for (const term of searchTerms) {
-      if (results.length >= maxResults) break
-      try {
-        const params = new URLSearchParams({
-          q: term, format: 'json', limit: String(Math.min(20, maxResults - results.length)),
-          countrycodes: isoCode.toLowerCase(), addressdetails: '1', extratags: '1',
-        })
-        const resp = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
-          headers: { 'User-Agent': 'BlackWolfProspector/1.0' },
-        })
-        if (!resp.ok) continue
-        const places = await resp.json()
-
-        for (const p of places) {
-          if (results.length >= maxResults) break
-          const name = p.name || p.display_name?.split(',')[0] || ''
-          if (!name || seen.has(name.toLowerCase())) continue
-          seen.add(name.toLowerCase())
-          const extra = p.extratags || {}
-          results.push({
-            place_id: `nom_${p.osm_type}_${p.osm_id}`, name,
-            address: p.display_name || country,
-            lat: p.lat, lng: p.lon, rating: null, total_ratings: 0,
-            types: [p.type, p.class].filter(Boolean),
-            business_status: '',
-            phone: extra.phone || extra['contact:phone'] || '',
-            website: extra.website || extra['contact:website'] || extra.url || '',
-            maps_url: `https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lon}#map=17/${p.lat}/${p.lon}`,
-          })
-        }
-        // Small delay between Nominatim calls (rate limit: 1 req/sec)
-        await new Promise(r => setTimeout(r, 1100))
-      } catch (e) { /* skip this term */ }
-    }
-  }
+  } catch { /* Europages unavailable */ }
 
   return results
 }
 
-async function getPlaceDetails(_placeId) { return {} }
+// ── Combined search across all sources ──
+async function searchBusinesses(country, maxResults = 20) {
+  // Run Overpass and Europages in parallel, Nominatim sequentially (rate limited)
+  const [overpassResults, europagesResults] = await Promise.all([
+    searchOverpass(country, maxResults).catch(() => []),
+    searchEuropages(country, Math.ceil(maxResults / 2)).catch(() => []),
+  ])
 
+  // Merge and deduplicate
+  const seen = new Set()
+  const all = []
+
+  for (const r of [...overpassResults, ...europagesResults]) {
+    if (all.length >= maxResults) break
+    const key = r.name.toLowerCase().replace(/[^a-z0-9]/g, '')
+    if (seen.has(key)) continue
+    seen.add(key)
+    all.push(r)
+  }
+
+  // Fill remaining with Nominatim
+  if (all.length < maxResults) {
+    const nominatimResults = await searchNominatim(country, maxResults - all.length).catch(() => [])
+    for (const r of nominatimResults) {
+      if (all.length >= maxResults) break
+      const key = r.name.toLowerCase().replace(/[^a-z0-9]/g, '')
+      if (seen.has(key)) continue
+      seen.add(key)
+      all.push(r)
+    }
+  }
+
+  return all
+}
+
+// ── AI Enrichment: Find CEO, emails, LinkedIn from company info ──
 async function enrichWithAI(companies) {
   if (!companies.length) return []
 
   const companySummaries = companies.map((c, i) =>
-    `${i + 1}. "${c.name}" — ${c.address}${c.website ? ` — Web: ${c.website}` : ''}`
+    `${i + 1}. "${c.name}" — ${c.address || c.country}${c.website ? ` — Web: ${c.website}` : ''}${c.phone ? ` — Tel: ${c.phone}` : ''}`
   ).join('\n')
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 4096,
-    system: `Eres un agente de investigacion empresarial. Tu trabajo es analizar empresas y deducir informacion util para contacto comercial B2B.
+    system: `Eres un agente de inteligencia comercial B2B de nivel enterprise. Investigas empresas europeas del sector textil para encontrar informacion de contacto de sus directivos.
 
-INSTRUCCIONES:
-1. Para cada empresa, proporciona tu mejor estimacion del CEO/Director/Gerente basandote en el nombre de la empresa, su ubicacion y sector
-2. Si la empresa tiene website, sugiere donde buscar la pagina "Equipo", "About Us", "Quienes Somos" o similar
-3. Genera un email de contacto probable basado en el dominio web (formato: info@dominio.com, contacto@dominio.com, direccion@dominio.com)
-4. Clasifica el tamano estimado de la empresa (micro, pequena, mediana, grande)
-5. Responde SIEMPRE en formato JSON valido`,
+INSTRUCCIONES ESTRICTAS:
+1. Para cada empresa, deduce el CEO/Director/Gerente mas probable
+2. Genera emails de contacto REALES basados en el dominio web: info@, contacto@, direccion@, admin@
+3. Si no hay web, genera emails basados en el nombre de empresa (sin espacios, normalizado)
+4. Genera la URL exacta de busqueda en LinkedIn para encontrar al CEO
+5. Clasifica tamano: micro (<10), pequena (10-50), mediana (50-250), grande (250+)
+6. Identifica el sector especifico: hilatura, tejeduria, confeccion, acabados, fibras, maquinaria textil, etc
+7. SIEMPRE responde en JSON valido, sin texto adicional`,
     messages: [{
       role: 'user',
-      content: `Analiza estas empresas textiles/fabricas y proporciona informacion de contacto estimada para cada una.
+      content: `Analiza estas ${companies.length} empresas textiles europeas:
 
-EMPRESAS:
 ${companySummaries}
 
-Responde con un JSON array donde cada elemento tenga:
-{
-  "index": numero (1-based),
-  "estimated_ceo": "nombre estimado o 'No disponible'",
-  "ceo_title": "CEO/Director/Gerente General",
-  "contact_emails": ["email1@dominio.com", "email2@dominio.com"],
-  "linkedin_search_url": "URL de busqueda en LinkedIn para encontrar al CEO",
+Responde SOLO con un JSON array:
+[{
+  "index": 1,
+  "estimated_ceo": "nombre completo o 'No disponible'",
+  "ceo_title": "CEO|Director General|Gerente|Managing Director",
+  "contact_emails": ["info@dominio.com", "direccion@dominio.com"],
+  "phone_guess": "+34 XXX XXX XXX (formato internacional del pais)",
+  "linkedin_search_url": "https://www.linkedin.com/search/results/people/?keywords=CEO%20NombreEmpresa",
   "company_size": "micro|pequena|mediana|grande",
-  "sector_tags": ["textil", "fabricacion", ...],
-  "notes": "cualquier observacion util para el equipo comercial"
-}`
+  "sector_specific": "hilatura|tejeduria|confeccion|acabados|fibras|distribucion",
+  "sector_tags": ["textil", "fabricacion", "europa"],
+  "website_guess": "https://www.nombreempresa.com",
+  "notes": "observacion comercial util"
+}]`
     }],
   })
 
@@ -155,55 +258,64 @@ Responde con un JSON array donde cada elemento tenga:
   try { return JSON.parse(jsonMatch[0]) } catch { return companies.map(() => ({})) }
 }
 
-function extractCountry(address) {
-  if (!address) return ''
-  const parts = address.split(',').map(p => p.trim())
-  return parts[parts.length - 1] || ''
-}
-
+// ── Insert leads into CRM with PROPER field mapping ──
 async function insertLeadsIntoCRM(clientId, leads, enrichments, runId) {
   const inserted = []
   for (let i = 0; i < leads.length; i++) {
     const lead = leads[i]
-    const enrichment = enrichments[i] || {}
+    const ai = enrichments[i] || {}
 
+    // Deduplicate by company name
     const { data: existing } = await supabase
       .from('crm_contacts').select('id')
       .eq('client_id', clientId).eq('company', lead.name).limit(1)
 
     if (existing && existing.length > 0) {
-      inserted.push({ ...lead, crm_status: 'duplicate', crm_id: existing[0].id })
+      inserted.push({ name: lead.name, crm_status: 'duplicate', crm_id: existing[0].id })
       continue
     }
 
+    // Map to CRM fields properly — NO dumping into notes
     const contactData = {
       client_id: clientId,
-      name: enrichment.estimated_ceo && enrichment.estimated_ceo !== 'No disponible'
-        ? enrichment.estimated_ceo : `Director/a — ${lead.name}`,
-      email: enrichment.contact_emails?.[0] || '',
-      phone: lead.phone || '',
+      // Person
+      name: ai.estimated_ceo && ai.estimated_ceo !== 'No disponible' ? ai.estimated_ceo : `Director/a — ${lead.name}`,
+      position: ai.ceo_title || 'CEO / Director',
+      // Company
       company: lead.name,
-      position: enrichment.ceo_title || 'CEO / Director',
-      country: extractCountry(lead.address),
-      source: 'Google Maps',
+      // Contact info — each in its OWN field
+      email: ai.contact_emails?.[0] || lead.email || '',
+      phone: lead.phone || ai.phone_guess || '',
+      website: lead.website || ai.website_guess || '',
+      address: lead.address || '',
+      country: lead.country || '',
+      linkedin: ai.linkedin_search_url || '',
+      // CRM metadata
+      source: 'Agente Prospector',
       status: 'lead',
-      tags: JSON.stringify(enrichment.sector_tags || ['textil', 'fabrica', 'prospection-agent']),
+      tags: JSON.stringify([
+        ...(ai.sector_tags || ['textil']),
+        ai.sector_specific || 'textil',
+        ai.company_size || 'desconocido',
+        lead.source_type || 'OSM',
+        'prospector-agent',
+      ].filter(Boolean)),
+      // Notes — ONLY for extra context, not contact data
       notes: [
-        `Direccion: ${lead.address}`,
-        lead.website ? `Web: ${lead.website}` : '',
-        lead.maps_url ? `Maps: ${lead.maps_url}` : '',
-        lead.rating ? `Rating: ${lead.rating}/5 (${lead.total_ratings} resenas)` : '',
-        enrichment.notes || '',
-        enrichment.linkedin_search_url ? `LinkedIn Search: ${enrichment.linkedin_search_url}` : '',
-        `Tamano estimado: ${enrichment.company_size || 'desconocido'}`,
-        `Agente Run: ${runId}`,
-      ].filter(Boolean).join('\n'),
+        ai.notes || '',
+        ai.contact_emails?.length > 1 ? `Emails alternativos: ${ai.contact_emails.slice(1).join(', ')}` : '',
+        lead.maps_url ? `Mapa: ${lead.maps_url}` : '',
+        `Fuente: ${lead.source_type || 'OpenStreetMap'}`,
+      ].filter(Boolean).join('\n') || '',
+      // Extra data in custom_fields
       custom_fields: JSON.stringify({
-        google_place_id: lead.place_id, website: lead.website || '',
-        maps_url: lead.maps_url || '', rating: lead.rating,
-        total_ratings: lead.total_ratings, company_size: enrichment.company_size || '',
-        agent_run_id: runId, contact_emails: enrichment.contact_emails || [],
-        linkedin_search: enrichment.linkedin_search_url || '',
+        agent_run_id: runId,
+        source_type: lead.source_type,
+        company_size: ai.company_size || '',
+        sector_specific: ai.sector_specific || '',
+        all_emails: ai.contact_emails || [],
+        lat: lead.lat || '', lng: lead.lng || '',
+        maps_url: lead.maps_url || '',
       }),
       deal_value: 0,
     }
@@ -212,24 +324,25 @@ async function insertLeadsIntoCRM(clientId, leads, enrichments, runId) {
       .from('crm_contacts').insert(contactData).select('id').single()
 
     if (error) {
-      inserted.push({ ...lead, crm_status: 'error', error: error.message })
+      inserted.push({ name: lead.name, crm_status: 'error', error: error.message })
     } else {
       await supabase.from('crm_activities').insert({
         client_id: clientId, contact_id: contact.id, type: 'note',
-        title: 'Lead capturado por Agente Prospector',
-        description: `Encontrado en Google Maps: "${lead.name}"\nDireccion: ${lead.address}\n${lead.website ? `Web: ${lead.website}` : ''}`,
-        performed_by: 'AI Agent',
+        title: `Lead capturado — ${lead.source_type || 'Prospector'}`,
+        description: `Empresa: ${lead.name}\nPais: ${lead.country}\nDireccion: ${lead.address}\nWeb: ${lead.website || ai.website_guess || 'N/A'}\nSector: ${ai.sector_specific || 'textil'}`,
+        performed_by: 'AI Prospector Agent',
       })
-      inserted.push({ ...lead, crm_status: 'created', crm_id: contact.id })
+      inserted.push({ name: lead.name, crm_status: 'created', crm_id: contact.id })
     }
   }
   return inserted
 }
 
+// ── Run tracking helpers ──
 async function createRun(clientId, config) {
   const { data, error } = await supabase.from('agent_runs').insert({
     client_id: clientId, agent_type: 'prospector', status: 'running', config,
-    logs: JSON.stringify([{ time: new Date().toISOString(), type: 'info', msg: 'Iniciando busqueda...' }]),
+    logs: JSON.stringify([{ time: new Date().toISOString(), type: 'info', msg: 'Iniciando busqueda multi-fuente...' }]),
   }).select('id').single()
   if (error) throw new Error('Failed to create run: ' + error.message)
   return data.id
@@ -246,102 +359,109 @@ async function appendLog(runId, log) {
   await supabase.from('agent_runs').update({ logs: JSON.stringify(logs) }).eq('id', runId)
 }
 
+// ── Prospector request handler ──
 async function handleProspector(req, res) {
   const { action, clientSlug, config } = req.body
   const clientId = await resolveClientId(clientSlug || 'black-wolf')
   if (!clientId) return res.status(400).json({ error: 'Client not found' })
 
-  switch (action) {
-    case 'search': {
-      const { query = 'fabricas textiles', countries = ['Espana', 'Portugal', 'Italia', 'Francia', 'Alemania'], maxPerCountry = 10 } = config || {}
-      const runId = await createRun(clientId, { query, countries, maxPerCountry })
-      let allLeads = [], allEnrichments = []
+  try {
+    switch (action) {
+      case 'search': {
+        const { query = 'fabricas textiles', countries = ['Espana', 'Portugal', 'Italia', 'Francia', 'Alemania'], maxPerCountry = 10 } = config || {}
+        const runId = await createRun(clientId, { query, countries, maxPerCountry })
+        let allLeads = [], allEnrichments = []
 
-      for (let ci = 0; ci < countries.length; ci++) {
-        const country = countries[ci]
-        // Delay between countries to avoid Overpass 429 rate limits
-        if (ci > 0) await new Promise(r => setTimeout(r, 3000))
+        for (let ci = 0; ci < countries.length; ci++) {
+          const country = countries[ci]
+          if (ci > 0) await new Promise(r => setTimeout(r, 2000))
 
-        await appendLog(runId, { type: 'info', msg: `Buscando "${query}" en ${country}... (${ci + 1}/${countries.length})` })
-        try {
-          const places = await searchGoogleMaps(query, country, maxPerCountry)
-          await appendLog(runId, { type: 'success', msg: `${places.length} resultados encontrados en ${country}` })
+          await appendLog(runId, { type: 'info', msg: `[${ci + 1}/${countries.length}] Buscando en ${country} (OSM + Europages + Nominatim)...` })
+          try {
+            const places = await searchBusinesses(country, maxPerCountry)
+            await appendLog(runId, { type: 'success', msg: `${places.length} empresas encontradas en ${country}` })
 
-          if (places.length > 0) {
-            await appendLog(runId, { type: 'info', msg: `Enriqueciendo ${places.length} empresas de ${country} con IA...` })
-            const enrichments = await enrichWithAI(places)
-            await appendLog(runId, { type: 'success', msg: `IA completo para ${country}` })
-            allLeads.push(...places)
-            allEnrichments.push(...enrichments)
+            if (places.length > 0) {
+              await appendLog(runId, { type: 'info', msg: `Enriqueciendo ${places.length} empresas con IA (CEO, emails, LinkedIn)...` })
+              const enrichments = await enrichWithAI(places)
+              await appendLog(runId, { type: 'success', msg: `IA completada para ${country}` })
+              allLeads.push(...places)
+              allEnrichments.push(...enrichments)
+            }
+          } catch (err) {
+            await appendLog(runId, { type: 'error', msg: `Error en ${country}: ${err.message}` })
           }
-        } catch (err) {
-          await appendLog(runId, { type: 'error', msg: `Error en ${country}: ${err.message}` })
         }
+
+        await appendLog(runId, { type: 'info', msg: `Insertando ${allLeads.length} leads en CRM BlackWolf...` })
+        const results = await insertLeadsIntoCRM(clientId, allLeads, allEnrichments, runId)
+        const created = results.filter(r => r.crm_status === 'created').length
+        const duplicates = results.filter(r => r.crm_status === 'duplicate').length
+        const errors = results.filter(r => r.crm_status === 'error').length
+
+        await appendLog(runId, { type: 'success', msg: `Completado: ${created} nuevos, ${duplicates} duplicados, ${errors} errores` })
+        await updateRun(runId, {
+          status: 'completed',
+          results_summary: JSON.stringify({ total_found: allLeads.length, created, duplicates, errors, countries_searched: countries }),
+          completed_at: new Date().toISOString(),
+        })
+        return res.status(200).json({ runId, total: allLeads.length, created, duplicates, errors, leads: results })
       }
 
-      await appendLog(runId, { type: 'info', msg: `Insertando ${allLeads.length} leads en CRM de BlackWolf...` })
-      const results = await insertLeadsIntoCRM(clientId, allLeads, allEnrichments, runId)
-      const created = results.filter(r => r.crm_status === 'created').length
-      const duplicates = results.filter(r => r.crm_status === 'duplicate').length
-      const errors = results.filter(r => r.crm_status === 'error').length
+      case 'enrich': {
+        const { data: leads } = await supabase.from('crm_contacts').select('*')
+          .eq('client_id', clientId).eq('source', 'Agente Prospector').ilike('name', '%Director%').limit(config?.limit || 50)
+        if (!leads || leads.length === 0) return res.status(200).json({ message: 'No leads to enrich', count: 0 })
 
-      await appendLog(runId, { type: 'success', msg: `Completado: ${created} nuevos leads, ${duplicates} duplicados, ${errors} errores` })
-      await updateRun(runId, {
-        status: 'completed',
-        results_summary: JSON.stringify({ total_found: allLeads.length, created, duplicates, errors, countries_searched: countries }),
-        completed_at: new Date().toISOString(),
-      })
-      return res.status(200).json({ runId, total: allLeads.length, created, duplicates, errors, leads: results })
-    }
-
-    case 'enrich': {
-      const { data: leads } = await supabase.from('crm_contacts').select('*')
-        .eq('client_id', clientId).eq('source', 'Google Maps').ilike('name', '%Director%').limit(config?.limit || 50)
-      if (!leads || leads.length === 0) return res.status(200).json({ message: 'No leads to enrich', count: 0 })
-
-      const companies = leads.map(l => ({
-        name: l.company,
-        address: l.notes?.match(/Direccion: (.+)/)?.[1] || '',
-        website: (() => { try { return JSON.parse(l.custom_fields || '{}').website || '' } catch { return '' } })(),
-      }))
-      const enrichments = await enrichWithAI(companies)
-      let updated = 0
-      for (let i = 0; i < leads.length; i++) {
-        const e = enrichments[i]
-        if (!e || !e.estimated_ceo || e.estimated_ceo === 'No disponible') continue
-        await supabase.from('crm_contacts').update({
-          name: e.estimated_ceo, position: e.ceo_title || leads[i].position,
-          email: e.contact_emails?.[0] || leads[i].email,
-        }).eq('id', leads[i].id)
-        updated++
+        const companies = leads.map(l => ({
+          name: l.company, address: l.address || '', country: l.country || '', website: l.website || '',
+        }))
+        const enrichments = await enrichWithAI(companies)
+        let updated = 0
+        for (let i = 0; i < leads.length; i++) {
+          const e = enrichments[i]
+          if (!e || !e.estimated_ceo || e.estimated_ceo === 'No disponible') continue
+          await supabase.from('crm_contacts').update({
+            name: e.estimated_ceo,
+            position: e.ceo_title || leads[i].position,
+            email: e.contact_emails?.[0] || leads[i].email,
+            phone: e.phone_guess || leads[i].phone,
+            website: e.website_guess || leads[i].website,
+            linkedin: e.linkedin_search_url || leads[i].linkedin,
+          }).eq('id', leads[i].id)
+          updated++
+        }
+        return res.status(200).json({ message: `${updated} leads enriched`, count: updated })
       }
-      return res.status(200).json({ message: `${updated} leads enriched`, count: updated })
-    }
 
-    case 'status': {
-      const { runId } = config || {}
-      if (!runId) return res.status(400).json({ error: 'runId required' })
-      const { data: run } = await supabase.from('agent_runs').select('*').eq('id', runId).single()
-      if (!run) return res.status(404).json({ error: 'Run not found' })
-      return res.status(200).json({
-        ...run, logs: JSON.parse(run.logs || '[]'),
-        results_summary: run.results_summary ? JSON.parse(run.results_summary) : null,
-        config: run.config ? (typeof run.config === 'string' ? JSON.parse(run.config) : run.config) : null,
-      })
-    }
+      case 'status': {
+        const { runId } = config || {}
+        if (!runId) return res.status(400).json({ error: 'runId required' })
+        const { data: run } = await supabase.from('agent_runs').select('*').eq('id', runId).single()
+        if (!run) return res.status(404).json({ error: 'Run not found' })
+        return res.status(200).json({
+          ...run, logs: JSON.parse(run.logs || '[]'),
+          results_summary: run.results_summary ? JSON.parse(run.results_summary) : null,
+          config: run.config ? (typeof run.config === 'string' ? JSON.parse(run.config) : run.config) : null,
+        })
+      }
 
-    case 'history': {
-      const { data: runs } = await supabase.from('agent_runs')
-        .select('id, agent_type, status, results_summary, created_at, completed_at')
-        .eq('client_id', clientId).eq('agent_type', 'prospector')
-        .order('created_at', { ascending: false }).limit(20)
-      return res.status(200).json({
-        runs: (runs || []).map(r => ({ ...r, results_summary: r.results_summary ? JSON.parse(r.results_summary) : null })),
-      })
-    }
+      case 'history': {
+        const { data: runs } = await supabase.from('agent_runs')
+          .select('id, agent_type, status, results_summary, created_at, completed_at')
+          .eq('client_id', clientId).eq('agent_type', 'prospector')
+          .order('created_at', { ascending: false }).limit(20)
+        return res.status(200).json({
+          runs: (runs || []).map(r => ({ ...r, results_summary: r.results_summary ? JSON.parse(r.results_summary) : null })),
+        })
+      }
 
-    default:
-      return res.status(400).json({ error: 'Invalid action. Use: search, enrich, status, history' })
+      default:
+        return res.status(400).json({ error: 'Invalid action' })
+    }
+  } catch (error) {
+    console.error('Prospector error:', error)
+    return res.status(500).json({ error: error.message })
   }
 }
 

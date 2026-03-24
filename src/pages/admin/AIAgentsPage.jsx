@@ -5,7 +5,7 @@ const API = import.meta.env.VITE_API_URL || ''
 const EUROPEAN_COUNTRIES = [
   'Espana', 'Portugal', 'Italia', 'Francia', 'Alemania',
   'Reino Unido', 'Paises Bajos', 'Belgica', 'Polonia', 'Turquia',
-  'Rumania', 'Republica Checa', 'Austria', 'Suiza', 'Suecia',
+  'Rumania', 'Republica Checa', 'Austria', 'Suiza', 'Suecia', 'Bulgaria',
 ]
 
 const SEARCH_PRESETS = [
