@@ -12,65 +12,90 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 // PROSPECTOR AGENT — Google Maps search + AI enrichment + CRM insert
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Uses Places API (New) — https://developers.google.com/maps/documentation/places/web-service/text-search
+// Country ISO codes for Overpass API
+const COUNTRY_CODES = {
+  'Espana': 'ES', 'Portugal': 'PT', 'Italia': 'IT', 'Francia': 'FR', 'Alemania': 'DE',
+  'Reino Unido': 'GB', 'Paises Bajos': 'NL', 'Belgica': 'BE', 'Polonia': 'PL', 'Turquia': 'TR',
+  'Rumania': 'RO', 'Republica Checa': 'CZ', 'Austria': 'AT', 'Suiza': 'CH', 'Suecia': 'SE',
+}
+
+// Uses OpenStreetMap Overpass API (100% free, no API key needed)
 async function searchGoogleMaps(query, country, maxResults = 20) {
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY
-  if (!apiKey) throw new Error('GOOGLE_MAPS_API_KEY not configured')
+  const isoCode = COUNTRY_CODES[country] || country
 
+  // Build search terms from the query
+  const searchTerms = query.toLowerCase()
+    .replace(/fabricas?\s*/gi, '')
+    .replace(/empresas?\s*de\s*/gi, '')
+    .split(/\s+/)
+    .filter(t => t.length > 2)
+
+  // Primary term for regex matching
+  const regexTerms = [...searchTerms, 'textil', 'textile', 'fabric', 'confeccion', 'tejido', 'hilatura', 'tela']
+    .map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+
+  const nameRegex = regexTerms.join('|')
+
+  // Overpass QL query: search by name, craft, or industrial tags
+  const overpassQuery = `
+    [out:json][timeout:30];
+    area["ISO3166-1"="${isoCode}"]->.searchArea;
+    (
+      nwr["craft"~"textile|weaving|dyer"](area.searchArea);
+      nwr["industrial"~"textile|factory"](area.searchArea);
+      nwr["name"~"${nameRegex}",i]["name"!~"^$"](area.searchArea);
+      nwr["man_made"="works"]["product"~"textile|fabric|cloth"](area.searchArea);
+    );
+    out center body ${maxResults * 2};
+  `
+
+  const resp = await fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `data=${encodeURIComponent(overpassQuery)}`,
+  })
+
+  if (!resp.ok) {
+    throw new Error(`Overpass API error: ${resp.status} ${resp.statusText}`)
+  }
+
+  const data = await resp.json()
+  const elements = data.elements || []
+
+  // Deduplicate by name and build results
+  const seen = new Set()
   const results = []
-  let pageToken = null
 
-  while (results.length < maxResults) {
-    const body = {
-      textQuery: `${query} in ${country}`,
-      languageCode: 'es',
-      pageSize: Math.min(20, maxResults - results.length),
-    }
-    if (pageToken) body.pageToken = pageToken
+  for (const el of elements) {
+    if (results.length >= maxResults) break
+    const tags = el.tags || {}
+    const name = tags.name || tags['name:es'] || tags['name:en'] || ''
+    if (!name || seen.has(name.toLowerCase())) continue
+    seen.add(name.toLowerCase())
 
-    const resp = await fetch('https://places.googleapis.com/v1/places:searchText', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.types,places.businessStatus,places.internationalPhoneNumber,places.websiteUri,places.googleMapsUri,nextPageToken',
-      },
-      body: JSON.stringify(body),
+    const lat = el.lat || el.center?.lat || ''
+    const lng = el.lon || el.center?.lon || ''
+
+    results.push({
+      place_id: `osm_${el.type}_${el.id}`,
+      name,
+      address: [tags['addr:street'], tags['addr:housenumber'], tags['addr:postcode'], tags['addr:city'], country].filter(Boolean).join(', ') || `${country}`,
+      lat,
+      lng,
+      rating: null,
+      total_ratings: 0,
+      types: [tags.craft, tags.industrial, tags.man_made, tags.landuse].filter(Boolean),
+      business_status: '',
+      phone: tags.phone || tags['contact:phone'] || '',
+      website: tags.website || tags['contact:website'] || tags.url || '',
+      maps_url: lat && lng ? `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}` : '',
     })
-
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}))
-      throw new Error(`Places API error ${resp.status}: ${err.error?.message || resp.statusText}`)
-    }
-
-    const data = await resp.json()
-
-    for (const place of (data.places || [])) {
-      if (results.length >= maxResults) break
-      results.push({
-        place_id: place.id || '',
-        name: place.displayName?.text || '',
-        address: place.formattedAddress || '',
-        lat: place.location?.latitude,
-        lng: place.location?.longitude,
-        rating: place.rating || null,
-        total_ratings: place.userRatingCount || 0,
-        types: place.types || [],
-        business_status: place.businessStatus || '',
-        phone: place.internationalPhoneNumber || '',
-        website: place.websiteUri || '',
-        maps_url: place.googleMapsUri || '',
-      })
-    }
-
-    pageToken = data.nextPageToken
-    if (!pageToken || results.length >= maxResults) break
   }
 
   return results
 }
 
-// Place details no longer needed — searchText already returns phone/website/maps_url
+// Not needed with Overpass — data comes in the search
 async function getPlaceDetails(_placeId) {
   return {}
 }
