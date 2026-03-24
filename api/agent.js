@@ -19,92 +19,96 @@ const COUNTRY_CODES = {
   'Rumania': 'RO', 'Republica Checa': 'CZ', 'Austria': 'AT', 'Suiza': 'CH', 'Suecia': 'SE',
 }
 
-// Uses OpenStreetMap Overpass API (100% free, no API key needed)
+// Search using TWO methods combined for maximum results:
+// 1. Overpass API (lightweight query — only fast tags, no name regex)
+// 2. Nominatim search (free text search on OpenStreetMap)
 async function searchGoogleMaps(query, country, maxResults = 20) {
   const isoCode = COUNTRY_CODES[country] || country
+  const results = []
+  const seen = new Set()
 
-  // Keep name regex short — long regexes cause Overpass to return 0
-  const nameRegex = 'textil|tessil|fabric|tejido|confeccion|filatur|hilatur|cotton|algodon|wool|lana|denim|silk|seda|lino|linen'
+  // ── Method 1: Overpass — fast tag-based search ──
+  try {
+    const overpassQuery = `[out:json][timeout:25];area["ISO3166-1"="${isoCode}"]->.a;(nwr["craft"~"textile|weaving"](area.a);nwr["shop"~"fabric|textile"](area.a);nwr["industrial"~"textile"](area.a););out center body 60;`
 
-  // Overpass QL: focused on tags that work + short name regex
-  const overpassQuery = `
-    [out:json][timeout:60];
-    area["ISO3166-1"="${isoCode}"]->.a;
-    (
-      nwr["craft"~"textile|weaving|dyer|tailor"](area.a);
-      nwr["shop"~"fabric|textile|clothes"](area.a);
-      nwr["industrial"~"textile"](area.a);
-      nwr["man_made"="works"]["product"~"textile|fabric|cloth"](area.a);
-      nwr["building"="industrial"]["name"~"${nameRegex}",i](area.a);
-      nwr["landuse"="industrial"]["name"~"${nameRegex}",i](area.a);
-    );
-    out center body ${Math.max(maxResults * 3, 100)};
-  `
-
-  const fetchOverpass = async () => {
     const resp = await fetch('https://overpass-api.de/api/interpreter', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: `data=${encodeURIComponent(overpassQuery)}`,
     })
-    if (!resp.ok) {
-      if (resp.status === 429) {
-        await new Promise(r => setTimeout(r, 5000))
-        const retry = await fetch('https://overpass-api.de/api/interpreter', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: `data=${encodeURIComponent(overpassQuery)}`,
+
+    if (resp.ok) {
+      const data = await resp.json()
+      for (const el of (data.elements || [])) {
+        if (results.length >= maxResults) break
+        const tags = el.tags || {}
+        const name = tags.name || tags['name:es'] || tags['name:en'] || ''
+        if (!name || seen.has(name.toLowerCase())) continue
+        seen.add(name.toLowerCase())
+        const lat = el.lat || el.center?.lat || ''
+        const lng = el.lon || el.center?.lon || ''
+        results.push({
+          place_id: `osm_${el.type}_${el.id}`, name,
+          address: [tags['addr:street'], tags['addr:housenumber'], tags['addr:postcode'], tags['addr:city'], country].filter(Boolean).join(', ') || country,
+          lat, lng, rating: null, total_ratings: 0,
+          types: [tags.craft, tags.industrial, tags.shop].filter(Boolean),
+          business_status: '',
+          phone: tags.phone || tags['contact:phone'] || '',
+          website: tags.website || tags['contact:website'] || '',
+          maps_url: lat && lng ? `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}` : '',
         })
-        if (!retry.ok) throw new Error(`Overpass API error: ${retry.status} (retry failed)`)
-        return retry.json()
       }
-      throw new Error(`Overpass API error: ${resp.status} ${resp.statusText}`)
     }
-    return resp.json()
-  }
+  } catch (e) { /* continue to Nominatim */ }
 
-  const data = await fetchOverpass()
-  return parseOverpassResults(data, country, maxResults)
-}
+  // ── Method 2: Nominatim — free text search ──
+  if (results.length < maxResults) {
+    const searchTerms = [
+      `textile factory ${country}`,
+      `fabrica textil ${country}`,
+      `textile manufacturer ${country}`,
+    ]
 
-function parseOverpassResults(data, country, maxResults) {
-  const elements = data.elements || []
-  const seen = new Set()
-  const results = []
+    for (const term of searchTerms) {
+      if (results.length >= maxResults) break
+      try {
+        const params = new URLSearchParams({
+          q: term, format: 'json', limit: String(Math.min(20, maxResults - results.length)),
+          countrycodes: isoCode.toLowerCase(), addressdetails: '1', extratags: '1',
+        })
+        const resp = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+          headers: { 'User-Agent': 'BlackWolfProspector/1.0' },
+        })
+        if (!resp.ok) continue
+        const places = await resp.json()
 
-  for (const el of elements) {
-    if (results.length >= maxResults) break
-    const tags = el.tags || {}
-    const name = tags.name || tags['name:es'] || tags['name:en'] || tags['name:it'] || tags['name:fr'] || tags['name:de'] || tags['name:pt'] || ''
-    if (!name || seen.has(name.toLowerCase())) continue
-    seen.add(name.toLowerCase())
-
-    const lat = el.lat || el.center?.lat || ''
-    const lng = el.lon || el.center?.lon || ''
-
-    results.push({
-      place_id: `osm_${el.type}_${el.id}`,
-      name,
-      address: [tags['addr:street'], tags['addr:housenumber'], tags['addr:postcode'], tags['addr:city'], tags['addr:country'] || country].filter(Boolean).join(', ') || country,
-      lat,
-      lng,
-      rating: null,
-      total_ratings: 0,
-      types: [tags.craft, tags.industrial, tags.man_made, tags.landuse, tags.shop].filter(Boolean),
-      business_status: '',
-      phone: tags.phone || tags['contact:phone'] || tags['phone:mobile'] || '',
-      website: tags.website || tags['contact:website'] || tags.url || '',
-      maps_url: lat && lng ? `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}` : '',
-    })
+        for (const p of places) {
+          if (results.length >= maxResults) break
+          const name = p.name || p.display_name?.split(',')[0] || ''
+          if (!name || seen.has(name.toLowerCase())) continue
+          seen.add(name.toLowerCase())
+          const extra = p.extratags || {}
+          results.push({
+            place_id: `nom_${p.osm_type}_${p.osm_id}`, name,
+            address: p.display_name || country,
+            lat: p.lat, lng: p.lon, rating: null, total_ratings: 0,
+            types: [p.type, p.class].filter(Boolean),
+            business_status: '',
+            phone: extra.phone || extra['contact:phone'] || '',
+            website: extra.website || extra['contact:website'] || extra.url || '',
+            maps_url: `https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lon}#map=17/${p.lat}/${p.lon}`,
+          })
+        }
+        // Small delay between Nominatim calls (rate limit: 1 req/sec)
+        await new Promise(r => setTimeout(r, 1100))
+      } catch (e) { /* skip this term */ }
+    }
   }
 
   return results
 }
 
-// Not needed with Overpass — data comes in the search
-async function getPlaceDetails(_placeId) {
-  return {}
-}
+async function getPlaceDetails(_placeId) { return {} }
 
 async function enrichWithAI(companies) {
   if (!companies.length) return []
