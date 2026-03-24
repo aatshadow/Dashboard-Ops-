@@ -23,30 +23,37 @@ const COUNTRY_CODES = {
 async function searchGoogleMaps(query, country, maxResults = 20) {
   const isoCode = COUNTRY_CODES[country] || country
 
-  // Build search terms from the query
-  const searchTerms = query.toLowerCase()
-    .replace(/fabricas?\s*/gi, '')
-    .replace(/empresas?\s*de\s*/gi, '')
-    .split(/\s+/)
-    .filter(t => t.length > 2)
+  // Wide net of textile-related terms in multiple languages
+  const nameRegex = [
+    'textil', 'textile', 'tessil', 'têxtil',
+    'fabric', 'tejido', 'tessut', 'tecido',
+    'confeccion', 'confezione', 'confecção',
+    'hilatura', 'filatura', 'fiação', 'spinning',
+    'tela', 'cloth', 'weaving', 'tejedur',
+    'knitting', 'tricot', 'maglia',
+    'garment', 'apparel', 'ropa', 'moda',
+    'cotton', 'algodon', 'cotone', 'algodão',
+    'lana', 'wool', 'seda', 'silk', 'soie',
+    'denim', 'linen', 'lino',
+    'manufactur', 'fábrica', 'fabrica', 'usine', 'Fabrik',
+  ].join('|')
 
-  // Primary term for regex matching
-  const regexTerms = [...searchTerms, 'textil', 'textile', 'fabric', 'confeccion', 'tejido', 'hilatura', 'tela']
-    .map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-
-  const nameRegex = regexTerms.join('|')
-
-  // Overpass QL query: search by name, craft, or industrial tags
+  // Overpass QL: broad search across tags and name
   const overpassQuery = `
-    [out:json][timeout:30];
-    area["ISO3166-1"="${isoCode}"]->.searchArea;
+    [out:json][timeout:60];
+    area["ISO3166-1"="${isoCode}"]->.a;
     (
-      nwr["craft"~"textile|weaving|dyer"](area.searchArea);
-      nwr["industrial"~"textile|factory"](area.searchArea);
-      nwr["name"~"${nameRegex}",i]["name"!~"^$"](area.searchArea);
-      nwr["man_made"="works"]["product"~"textile|fabric|cloth"](area.searchArea);
+      nwr["craft"~"textile|weaving|dyer|shoemaker|tailor"](area.a);
+      nwr["industrial"~"textile|factory"](area.a);
+      nwr["man_made"="works"](area.a);
+      nwr["landuse"="industrial"]["name"~"${nameRegex}",i](area.a);
+      nwr["shop"~"fabric|textile"](area.a);
+      nwr["office"]["name"~"${nameRegex}",i](area.a);
+      nwr["building"="industrial"]["name"~"${nameRegex}",i](area.a);
+      nwr["building"="manufacture"]["name"~"${nameRegex}",i](area.a);
+      nwr["name"~"${nameRegex}",i]["name"!~"^$"](area.a);
     );
-    out center body ${maxResults * 2};
+    out center body ${Math.max(maxResults * 3, 100)};
   `
 
   const resp = await fetch('https://overpass-api.de/api/interpreter', {
@@ -56,20 +63,34 @@ async function searchGoogleMaps(query, country, maxResults = 20) {
   })
 
   if (!resp.ok) {
+    // If rate-limited, wait and retry once
+    if (resp.status === 429) {
+      await new Promise(r => setTimeout(r, 5000))
+      const retry = await fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `data=${encodeURIComponent(overpassQuery)}`,
+      })
+      if (!retry.ok) throw new Error(`Overpass API error: ${retry.status} (retry failed)`)
+      const retryData = await retry.json()
+      return parseOverpassResults(retryData, country, maxResults)
+    }
     throw new Error(`Overpass API error: ${resp.status} ${resp.statusText}`)
   }
 
   const data = await resp.json()
-  const elements = data.elements || []
+  return parseOverpassResults(data, country, maxResults)
+}
 
-  // Deduplicate by name and build results
+function parseOverpassResults(data, country, maxResults) {
+  const elements = data.elements || []
   const seen = new Set()
   const results = []
 
   for (const el of elements) {
     if (results.length >= maxResults) break
     const tags = el.tags || {}
-    const name = tags.name || tags['name:es'] || tags['name:en'] || ''
+    const name = tags.name || tags['name:es'] || tags['name:en'] || tags['name:it'] || tags['name:fr'] || tags['name:de'] || tags['name:pt'] || ''
     if (!name || seen.has(name.toLowerCase())) continue
     seen.add(name.toLowerCase())
 
@@ -79,14 +100,14 @@ async function searchGoogleMaps(query, country, maxResults = 20) {
     results.push({
       place_id: `osm_${el.type}_${el.id}`,
       name,
-      address: [tags['addr:street'], tags['addr:housenumber'], tags['addr:postcode'], tags['addr:city'], country].filter(Boolean).join(', ') || `${country}`,
+      address: [tags['addr:street'], tags['addr:housenumber'], tags['addr:postcode'], tags['addr:city'], tags['addr:country'] || country].filter(Boolean).join(', ') || country,
       lat,
       lng,
       rating: null,
       total_ratings: 0,
-      types: [tags.craft, tags.industrial, tags.man_made, tags.landuse].filter(Boolean),
+      types: [tags.craft, tags.industrial, tags.man_made, tags.landuse, tags.shop].filter(Boolean),
       business_status: '',
-      phone: tags.phone || tags['contact:phone'] || '',
+      phone: tags.phone || tags['contact:phone'] || tags['phone:mobile'] || '',
       website: tags.website || tags['contact:website'] || tags.url || '',
       maps_url: lat && lng ? `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}` : '',
     })
@@ -247,21 +268,23 @@ async function handleProspector(req, res) {
       const runId = await createRun(clientId, { query, countries, maxPerCountry })
       let allLeads = [], allEnrichments = []
 
-      for (const country of countries) {
-        await appendLog(runId, { type: 'info', msg: `Buscando "${query}" en ${country}...` })
+      for (let ci = 0; ci < countries.length; ci++) {
+        const country = countries[ci]
+        // Delay between countries to avoid Overpass 429 rate limits
+        if (ci > 0) await new Promise(r => setTimeout(r, 3000))
+
+        await appendLog(runId, { type: 'info', msg: `Buscando "${query}" en ${country}... (${ci + 1}/${countries.length})` })
         try {
           const places = await searchGoogleMaps(query, country, maxPerCountry)
           await appendLog(runId, { type: 'success', msg: `${places.length} resultados encontrados en ${country}` })
-          const enrichedPlaces = []
-          for (const place of places) {
-            try { enrichedPlaces.push({ ...place, ...(await getPlaceDetails(place.place_id)) }) }
-            catch { enrichedPlaces.push(place) }
+
+          if (places.length > 0) {
+            await appendLog(runId, { type: 'info', msg: `Enriqueciendo ${places.length} empresas de ${country} con IA...` })
+            const enrichments = await enrichWithAI(places)
+            await appendLog(runId, { type: 'success', msg: `IA completo para ${country}` })
+            allLeads.push(...places)
+            allEnrichments.push(...enrichments)
           }
-          await appendLog(runId, { type: 'info', msg: `Enriqueciendo ${enrichedPlaces.length} empresas de ${country} con IA...` })
-          const enrichments = await enrichWithAI(enrichedPlaces)
-          await appendLog(runId, { type: 'success', msg: `IA completo para ${country}` })
-          allLeads.push(...enrichedPlaces)
-          allEnrichments.push(...enrichments)
         } catch (err) {
           await appendLog(runId, { type: 'error', msg: `Error en ${country}: ${err.message}` })
         }
