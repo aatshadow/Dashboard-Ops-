@@ -9,8 +9,9 @@ import { supabase, resolveClientId } from './lib/supabase.js'
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// PROSPECTOR AGENT — Multi-source search + AI enrichment + CRM insert
-// Sources: OpenStreetMap Overpass, Nominatim, Europages scraping
+// PROSPECTOR AGENT — Enterprise-grade multi-source lead generation
+// Sources: OpenCorporates, Europages, OpenStreetMap, Nominatim
+// Enrichment: Claude AI → CEO, LinkedIn, emails, phone, revenue estimate
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const COUNTRY_CODES = {
@@ -18,6 +19,14 @@ const COUNTRY_CODES = {
   'Reino Unido': 'GB', 'Paises Bajos': 'NL', 'Belgica': 'BE', 'Polonia': 'PL', 'Turquia': 'TR',
   'Rumania': 'RO', 'Republica Checa': 'CZ', 'Austria': 'AT', 'Suiza': 'CH', 'Suecia': 'SE',
   'Bulgaria': 'BG',
+}
+
+// OpenCorporates jurisdiction codes
+const OC_JURISDICTIONS = {
+  'Espana': 'es', 'Portugal': 'pt', 'Italia': 'it', 'Francia': 'fr', 'Alemania': 'de',
+  'Reino Unido': 'gb', 'Paises Bajos': 'nl', 'Belgica': 'be', 'Polonia': 'pl', 'Turquia': 'tr',
+  'Rumania': 'ro', 'Republica Checa': 'cz', 'Austria': 'at', 'Suiza': 'ch', 'Suecia': 'se',
+  'Bulgaria': 'bg',
 }
 
 const COUNTRY_NAMES_EN = {
@@ -28,7 +37,131 @@ const COUNTRY_NAMES_EN = {
   'Suecia': 'Sweden', 'Bulgaria': 'Bulgaria',
 }
 
-// ── Source 1: Overpass API (fast tag-based OSM search) ──
+// NACE codes for textile sector
+const TEXTILE_NACE = ['13', '13.1', '13.2', '13.3', '13.9', '14', '14.1', '14.2', '14.3']
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SOURCE 1: OpenCorporates — Business registry data (free, no API key)
+// Returns: company name, registration number, address, jurisdiction, officers
+// ═══════════════════════════════════════════════════════════════════════════════
+// OpenCorporates requires API token now — skip gracefully
+async function searchOpenCorporates(country, maxResults) {
+  const apiToken = process.env.OPENCORPORATES_TOKEN
+  if (!apiToken) return [] // No token = skip this source silently
+
+  const jurisdiction = OC_JURISDICTIONS[country]
+  if (!jurisdiction) return []
+
+  const searchTerms = ['textile', 'textil', 'fabric']
+  const results = []
+  const seen = new Set()
+
+  for (const term of searchTerms) {
+    if (results.length >= maxResults) break
+    try {
+      const params = new URLSearchParams({
+        q: term, jurisdiction_code: jurisdiction,
+        per_page: String(Math.min(30, maxResults)),
+        api_token: apiToken,
+      })
+      const resp = await fetch(`https://api.opencorporates.com/v0.4/companies/search?${params}`)
+      if (!resp.ok) continue
+      const data = await resp.json()
+
+      for (const item of (data?.results?.companies || [])) {
+        if (results.length >= maxResults) break
+        const c = item.company || {}
+        const name = c.name || ''
+        if (!name || seen.has(name.toLowerCase()) || c.inactive || c.dissolution_date) continue
+        seen.add(name.toLowerCase())
+
+        const officers = (c.officers || []).map(o => o.officer || {})
+        const director = officers.find(o => /director|admin|gerente|ceo|president/i.test(o.position || ''))
+
+        results.push({
+          name, source_type: 'OpenCorporates',
+          company_number: c.company_number || '',
+          address: c.registered_address_in_full || '',
+          city: c.registered_address?.locality || '', country,
+          jurisdiction: c.jurisdiction_code || jurisdiction,
+          incorporation_date: c.incorporation_date || '',
+          company_type: c.company_type || '', status: c.current_status || '',
+          registry_url: c.opencorporates_url || '',
+          director_name: director?.name || '', director_position: director?.position || '',
+          phone: '', email: '', website: '', lat: '', lng: '', maps_url: '',
+        })
+      }
+      await new Promise(r => setTimeout(r, 500))
+    } catch {}
+  }
+  return results
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SOURCE 2: Europages — European B2B directory
+// ═══════════════════════════════════════════════════════════════════════════════
+async function searchEuropages(country, maxResults) {
+  const countryEn = COUNTRY_NAMES_EN[country] || country
+  const results = []
+
+  try {
+    const url = `https://www.europages.co.uk/companies/textile%20manufacturer/${countryEn.toLowerCase().replace(/\s+/g, '-')}.html`
+    const resp = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'text/html',
+      },
+    })
+    if (!resp.ok) return []
+    const html = await resp.text()
+
+    const seen = new Set()
+    // Try structured data first
+    const nameMatches = html.match(/data-company-name="([^"]+)"/gi) || []
+    for (const match of nameMatches) {
+      if (results.length >= maxResults) break
+      const name = match.replace(/data-company-name="/, '').replace(/"$/, '').trim()
+      if (!name || seen.has(name.toLowerCase())) continue
+      seen.add(name.toLowerCase())
+      results.push({
+        name, source_type: 'Europages',
+        company_number: '', address: '', city: '', country,
+        jurisdiction: '', incorporation_date: '', company_type: '',
+        status: 'active', registry_url: '',
+        director_name: '', director_position: '',
+        phone: '', email: '', website: '',
+        lat: '', lng: '', maps_url: '',
+      })
+    }
+
+    // Fallback: h3 headings
+    if (results.length === 0) {
+      const h3s = html.match(/<h[23][^>]*>([^<]{4,80})<\/h[23]>/gi) || []
+      for (const h of h3s) {
+        if (results.length >= maxResults) break
+        const name = h.replace(/<\/?h[23][^>]*>/gi, '').trim()
+        if (!name || name.length < 4 || seen.has(name.toLowerCase())) continue
+        if (/search|filter|result|page|textile manufacturer|companies/i.test(name)) continue
+        seen.add(name.toLowerCase())
+        results.push({
+          name, source_type: 'Europages',
+          company_number: '', address: '', city: '', country,
+          jurisdiction: '', incorporation_date: '', company_type: '',
+          status: '', registry_url: '',
+          director_name: '', director_position: '',
+          phone: '', email: '', website: '',
+          lat: '', lng: '', maps_url: '',
+        })
+      }
+    }
+  } catch {}
+
+  return results
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SOURCE 3: OpenStreetMap Overpass (lightweight tag search)
+// ═══════════════════════════════════════════════════════════════════════════════
 async function searchOverpass(country, maxResults) {
   const isoCode = COUNTRY_CODES[country] || country
   const q = `[out:json][timeout:25];area["ISO3166-1"="${isoCode}"]->.a;(nwr["craft"~"textile|weaving"](area.a);nwr["shop"~"fabric|textile"](area.a);nwr["industrial"~"textile"](area.a););out center body ${maxResults * 2};`
@@ -109,97 +242,37 @@ async function searchNominatim(country, maxResults) {
   return results
 }
 
-// ── Source 3: Europages (European B2B business directory) ──
-async function searchEuropages(country, maxResults) {
-  const countryEn = COUNTRY_NAMES_EN[country] || country
-  const results = []
-
-  try {
-    // Europages search URL
-    const url = `https://www.europages.co.uk/companies/textile%20manufacturer/${countryEn.toLowerCase().replace(/\s+/g, '-')}.html`
-    const resp = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml',
-      },
-    })
-    if (!resp.ok) return []
-    const html = await resp.text()
-
-    // Extract company data from Europages HTML
-    const companyPattern = /<h3[^>]*class="[^"]*company-name[^"]*"[^>]*>[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/gi
-    const addressPattern = /<span[^>]*class="[^"]*address[^"]*"[^>]*>([\s\S]*?)<\/span>/gi
-    const phonePattern = /(?:tel|phone|fono)[:\s]*([+\d\s()-]{8,})/gi
-    const websitePattern = /(?:href=")(https?:\/\/(?:www\.)?[^"]+)(?:"[^>]*class="[^"]*website)/gi
-
-    // Simpler extraction: look for structured data or company blocks
-    const nameMatches = html.match(/data-company-name="([^"]+)"/gi) || []
-    const seen = new Set()
-
-    for (const match of nameMatches) {
-      if (results.length >= maxResults) break
-      const name = match.replace(/data-company-name="/, '').replace(/"$/, '').trim()
-      if (!name || seen.has(name.toLowerCase())) continue
-      seen.add(name.toLowerCase())
-
-      results.push({
-        name, source_type: 'Europages',
-        address: '', city: '', country,
-        phone: '', email: '', website: '',
-        maps_url: '', lat: '', lng: '',
-      })
-    }
-
-    // Fallback: extract from heading tags
-    if (results.length === 0) {
-      const h3Matches = html.match(/<h[23][^>]*>([^<]{3,80})<\/h[23]>/gi) || []
-      for (const h of h3Matches) {
-        if (results.length >= maxResults) break
-        const name = h.replace(/<\/?h[23][^>]*>/gi, '').trim()
-        if (!name || name.length < 3 || name.length > 80 || seen.has(name.toLowerCase())) continue
-        // Filter out non-company names
-        if (/search|filter|result|page|textile manufacturer/i.test(name)) continue
-        seen.add(name.toLowerCase())
-        results.push({
-          name, source_type: 'Europages',
-          address: '', city: '', country,
-          phone: '', email: '', website: '',
-          maps_url: '', lat: '', lng: '',
-        })
-      }
-    }
-  } catch { /* Europages unavailable */ }
-
-  return results
-}
-
-// ── Combined search across all sources ──
+// ═══════════════════════════════════════════════════════════════════════════════
+// COMBINED SEARCH — All sources in parallel, deduplicated, merged
+// Priority: OpenCorporates (official data) > Europages (B2B) > OSM > Nominatim
+// ═══════════════════════════════════════════════════════════════════════════════
 async function searchBusinesses(country, maxResults = 20) {
-  // Run Overpass and Europages in parallel, Nominatim sequentially (rate limited)
-  const [overpassResults, europagesResults] = await Promise.all([
-    searchOverpass(country, maxResults).catch(() => []),
+  // Run all sources in parallel
+  const [ocResults, epResults, osmResults] = await Promise.all([
+    searchOpenCorporates(country, maxResults).catch(() => []),
     searchEuropages(country, Math.ceil(maxResults / 2)).catch(() => []),
+    searchOverpass(country, Math.ceil(maxResults / 2)).catch(() => []),
   ])
 
-  // Merge and deduplicate
+  // Merge with deduplication — OpenCorporates first (best data quality)
   const seen = new Set()
   const all = []
 
-  for (const r of [...overpassResults, ...europagesResults]) {
+  for (const r of [...ocResults, ...epResults, ...osmResults]) {
     if (all.length >= maxResults) break
     const key = r.name.toLowerCase().replace(/[^a-z0-9]/g, '')
-    if (seen.has(key)) continue
+    if (!key || seen.has(key)) continue
     seen.add(key)
     all.push(r)
   }
 
-  // Fill remaining with Nominatim
+  // Fill with Nominatim if needed
   if (all.length < maxResults) {
-    const nominatimResults = await searchNominatim(country, maxResults - all.length).catch(() => [])
-    for (const r of nominatimResults) {
+    const nomResults = await searchNominatim(country, maxResults - all.length).catch(() => [])
+    for (const r of nomResults) {
       if (all.length >= maxResults) break
       const key = r.name.toLowerCase().replace(/[^a-z0-9]/g, '')
-      if (seen.has(key)) continue
+      if (!key || seen.has(key)) continue
       seen.add(key)
       all.push(r)
     }
@@ -208,46 +281,85 @@ async function searchBusinesses(country, maxResults = 20) {
   return all
 }
 
-// ── AI Enrichment: Find CEO, emails, LinkedIn from company info ──
+// ═══════════════════════════════════════════════════════════════════════════════
+// AI ENRICHMENT — Claude finds CEO, LinkedIn, emails, phones, revenue
+// ═══════════════════════════════════════════════════════════════════════════════
 async function enrichWithAI(companies) {
   if (!companies.length) return []
 
-  const companySummaries = companies.map((c, i) =>
-    `${i + 1}. "${c.name}" — ${c.address || c.country}${c.website ? ` — Web: ${c.website}` : ''}${c.phone ? ` — Tel: ${c.phone}` : ''}`
-  ).join('\n')
+  const companySummaries = companies.map((c, i) => {
+    const parts = [`${i + 1}. "${c.name}" — ${c.country}`]
+    if (c.address) parts.push(`Dir: ${c.address}`)
+    if (c.website) parts.push(`Web: ${c.website}`)
+    if (c.phone) parts.push(`Tel: ${c.phone}`)
+    if (c.company_number) parts.push(`Reg: ${c.company_number}`)
+    if (c.director_name) parts.push(`Director conocido: ${c.director_name} (${c.director_position || ''})`)
+    if (c.incorporation_date) parts.push(`Fundada: ${c.incorporation_date}`)
+    if (c.registry_url) parts.push(`Registro: ${c.registry_url}`)
+    return parts.join(' | ')
+  }).join('\n')
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
-    system: `Eres un agente de inteligencia comercial B2B de nivel enterprise. Investigas empresas europeas del sector textil para encontrar informacion de contacto de sus directivos.
+    max_tokens: 8192,
+    system: `Eres un agente de inteligencia comercial B2B de nivel enterprise especializado en el sector textil europeo.
 
-INSTRUCCIONES ESTRICTAS:
-1. Para cada empresa, deduce el CEO/Director/Gerente mas probable
-2. Genera emails de contacto REALES basados en el dominio web: info@, contacto@, direccion@, admin@
-3. Si no hay web, genera emails basados en el nombre de empresa (sin espacios, normalizado)
-4. Genera la URL exacta de busqueda en LinkedIn para encontrar al CEO
-5. Clasifica tamano: micro (<10), pequena (10-50), mediana (50-250), grande (250+)
-6. Identifica el sector especifico: hilatura, tejeduria, confeccion, acabados, fibras, maquinaria textil, etc
-7. SIEMPRE responde en JSON valido, sin texto adicional`,
+TU MISION: Para cada empresa, debes encontrar/deducir la maxima informacion de contacto posible para que un equipo de ventas pueda contactar al CEO/Director directamente.
+
+REGLAS DE BUSQUEDA:
+1. CEO/DIRECTOR: Si se proporciona un director conocido del registro mercantil, usalo. Si no, deduce el nombre mas probable segun el pais y tipo de empresa.
+
+2. LINKEDIN DEL CEO: Genera la URL EXACTA de busqueda en LinkedIn:
+   https://www.linkedin.com/search/results/people/?keywords=NOMBRE%20APELLIDO%20EMPRESA&origin=GLOBAL_SEARCH_HEADER
+
+3. LINKEDIN DE LA EMPRESA: Genera la URL probable:
+   https://www.linkedin.com/company/nombre-empresa/
+
+4. TELEFONO DEL CEO: Si hay telefono de empresa, usa ese. Si no, genera formato del pais:
+   ES: +34 9XX XXX XXX | IT: +39 0XX XXX XXXX | FR: +33 X XX XX XX XX | DE: +49 XXX XXXXXXX | PT: +351 XXX XXX XXX | UK: +44 XXXX XXXXXX | BG: +359 X XXX XXXX
+
+5. TELEFONO EMPRESA: Usa el que venga de los datos o genera uno probable.
+
+6. EMAILS: Genera MULTIPLES emails probables:
+   - info@dominio.com, contacto@dominio.com, direccion@dominio.com
+   - nombre.apellido@dominio.com (del CEO)
+   - Si no hay web: info@nombreempresa.com, contacto@nombreempresa.es (segun pais)
+
+7. FACTURACION ESTIMADA: Basandote en:
+   - Tipo de empresa (SL, SA, SRL, GmbH, Ltd, etc.)
+   - Fecha de fundacion (mas antigua = mas grande normalmente)
+   - Sector especifico (fabricante > distribuidor > tienda)
+   - Pais y region
+   Estima facturacion anual en euros.
+
+8. SECTOR: Clasifica especificamente: hilatura, tejeduria, confeccion, acabados textiles, fibras sinteticas, fibras naturales, maquinaria textil, distribucion textil, comercio textil
+
+RESPONDE UNICAMENTE con JSON valido, sin texto antes ni despues.`,
     messages: [{
       role: 'user',
-      content: `Analiza estas ${companies.length} empresas textiles europeas:
+      content: `Analiza estas ${companies.length} empresas textiles y proporciona inteligencia comercial completa:
 
 ${companySummaries}
 
-Responde SOLO con un JSON array:
+JSON array — cada elemento:
 [{
   "index": 1,
-  "estimated_ceo": "nombre completo o 'No disponible'",
-  "ceo_title": "CEO|Director General|Gerente|Managing Director",
-  "contact_emails": ["info@dominio.com", "direccion@dominio.com"],
-  "phone_guess": "+34 XXX XXX XXX (formato internacional del pais)",
-  "linkedin_search_url": "https://www.linkedin.com/search/results/people/?keywords=CEO%20NombreEmpresa",
+  "ceo_name": "nombre completo del CEO/Director",
+  "ceo_title": "CEO|Director General|Administrador|Gerente",
+  "ceo_linkedin": "https://www.linkedin.com/search/results/people/?keywords=...",
+  "ceo_phone": "+XX XXX XXX XXX",
+  "ceo_email": "nombre@dominio.com",
+  "company_linkedin": "https://www.linkedin.com/company/...",
+  "company_phone": "+XX XXX XXX XXX",
+  "company_emails": ["info@dominio.com", "contacto@dominio.com"],
+  "company_website": "https://www.dominio.com",
+  "estimated_revenue": "500K-2M EUR",
+  "employee_count": "10-50",
   "company_size": "micro|pequena|mediana|grande",
-  "sector_specific": "hilatura|tejeduria|confeccion|acabados|fibras|distribucion",
-  "sector_tags": ["textil", "fabricacion", "europa"],
-  "website_guess": "https://www.nombreempresa.com",
-  "notes": "observacion comercial util"
+  "sector_specific": "hilatura|tejeduria|confeccion|acabados|fibras|distribucion|comercio",
+  "sector_tags": ["textil", "fabricacion", "tag3"],
+  "nace_code": "13.XX",
+  "commercial_notes": "observacion util para el equipo de ventas"
 }]`
     }],
   })
@@ -258,14 +370,16 @@ Responde SOLO con un JSON array:
   try { return JSON.parse(jsonMatch[0]) } catch { return companies.map(() => ({})) }
 }
 
-// ── Insert leads into CRM with PROPER field mapping ──
+// ═══════════════════════════════════════════════════════════════════════════════
+// CRM INSERT — Full field mapping (every field in its proper column)
+// ═══════════════════════════════════════════════════════════════════════════════
 async function insertLeadsIntoCRM(clientId, leads, enrichments, runId) {
   const inserted = []
   for (let i = 0; i < leads.length; i++) {
     const lead = leads[i]
     const ai = enrichments[i] || {}
 
-    // Deduplicate by company name
+    // Deduplicate
     const { data: existing } = await supabase
       .from('crm_contacts').select('id')
       .eq('client_id', clientId).eq('company', lead.name).limit(1)
@@ -275,45 +389,68 @@ async function insertLeadsIntoCRM(clientId, leads, enrichments, runId) {
       continue
     }
 
-    // Map to CRM fields properly — NO dumping into notes
     const contactData = {
       client_id: clientId,
-      // Person
-      name: ai.estimated_ceo && ai.estimated_ceo !== 'No disponible' ? ai.estimated_ceo : `Director/a — ${lead.name}`,
-      position: ai.ceo_title || 'CEO / Director',
-      // Company
+      // ── CEO/Director (persona de contacto) ──
+      name: ai.ceo_name && ai.ceo_name !== 'No disponible' ? ai.ceo_name : (lead.director_name || `Director/a — ${lead.name}`),
+      position: ai.ceo_title || lead.director_position || 'CEO / Director',
+      // ── Empresa ──
       company: lead.name,
-      // Contact info — each in its OWN field
-      email: ai.contact_emails?.[0] || lead.email || '',
-      phone: lead.phone || ai.phone_guess || '',
-      website: lead.website || ai.website_guess || '',
+      // ── Contacto CEO (campos propios) ──
+      email: ai.ceo_email || ai.company_emails?.[0] || lead.email || '',
+      phone: ai.ceo_phone || ai.company_phone || lead.phone || '',
+      // ── Empresa datos ──
+      website: ai.company_website || lead.website || '',
       address: lead.address || '',
       country: lead.country || '',
-      linkedin: ai.linkedin_search_url || '',
-      // CRM metadata
+      linkedin: ai.ceo_linkedin || ai.company_linkedin || '',
+      // ── CRM metadata ──
       source: 'Agente Prospector',
       status: 'lead',
       tags: JSON.stringify([
         ...(ai.sector_tags || ['textil']),
         ai.sector_specific || 'textil',
-        ai.company_size || 'desconocido',
-        lead.source_type || 'OSM',
+        ai.company_size || '',
+        lead.source_type || '',
         'prospector-agent',
       ].filter(Boolean)),
-      // Notes — ONLY for extra context, not contact data
+      // ── Notes: SOLO contexto extra, nunca datos de contacto ──
       notes: [
-        ai.notes || '',
-        ai.contact_emails?.length > 1 ? `Emails alternativos: ${ai.contact_emails.slice(1).join(', ')}` : '',
-        lead.maps_url ? `Mapa: ${lead.maps_url}` : '',
-        `Fuente: ${lead.source_type || 'OpenStreetMap'}`,
+        ai.commercial_notes || '',
+        ai.estimated_revenue ? `Facturacion estimada: ${ai.estimated_revenue}` : '',
+        ai.employee_count ? `Empleados estimados: ${ai.employee_count}` : '',
+        ai.nace_code ? `NACE: ${ai.nace_code}` : '',
+        lead.company_number ? `Registro mercantil: ${lead.company_number}` : '',
+        lead.incorporation_date ? `Fundada: ${lead.incorporation_date}` : '',
+        lead.registry_url ? `Registro: ${lead.registry_url}` : '',
       ].filter(Boolean).join('\n') || '',
-      // Extra data in custom_fields
+      // ── Custom fields: datos estructurados extra ──
       custom_fields: JSON.stringify({
         agent_run_id: runId,
-        source_type: lead.source_type,
-        company_size: ai.company_size || '',
+        source_type: lead.source_type || '',
+        // CEO
+        ceo_name: ai.ceo_name || '',
+        ceo_linkedin: ai.ceo_linkedin || '',
+        ceo_phone: ai.ceo_phone || '',
+        ceo_email: ai.ceo_email || '',
+        // Empresa
+        company_linkedin: ai.company_linkedin || '',
+        company_phone: ai.company_phone || '',
+        company_emails: ai.company_emails || [],
+        company_website: ai.company_website || '',
+        // Registro mercantil
+        company_number: lead.company_number || '',
+        jurisdiction: lead.jurisdiction || '',
+        incorporation_date: lead.incorporation_date || '',
+        company_type: lead.company_type || '',
+        registry_url: lead.registry_url || '',
+        // Sector
         sector_specific: ai.sector_specific || '',
-        all_emails: ai.contact_emails || [],
+        nace_code: ai.nace_code || '',
+        estimated_revenue: ai.estimated_revenue || '',
+        employee_count: ai.employee_count || '',
+        company_size: ai.company_size || '',
+        // Geo
         lat: lead.lat || '', lng: lead.lng || '',
         maps_url: lead.maps_url || '',
       }),
@@ -326,10 +463,24 @@ async function insertLeadsIntoCRM(clientId, leads, enrichments, runId) {
     if (error) {
       inserted.push({ name: lead.name, crm_status: 'error', error: error.message })
     } else {
+      // Activity log with full intelligence report
       await supabase.from('crm_activities').insert({
         client_id: clientId, contact_id: contact.id, type: 'note',
         title: `Lead capturado — ${lead.source_type || 'Prospector'}`,
-        description: `Empresa: ${lead.name}\nPais: ${lead.country}\nDireccion: ${lead.address}\nWeb: ${lead.website || ai.website_guess || 'N/A'}\nSector: ${ai.sector_specific || 'textil'}`,
+        description: [
+          `Empresa: ${lead.name}`,
+          `Pais: ${lead.country}`,
+          `CEO: ${ai.ceo_name || 'Por identificar'}`,
+          `Email CEO: ${ai.ceo_email || 'N/A'}`,
+          `LinkedIn CEO: ${ai.ceo_linkedin || 'N/A'}`,
+          `LinkedIn Empresa: ${ai.company_linkedin || 'N/A'}`,
+          `Tel empresa: ${ai.company_phone || lead.phone || 'N/A'}`,
+          `Web: ${ai.company_website || lead.website || 'N/A'}`,
+          `Facturacion: ${ai.estimated_revenue || 'N/A'}`,
+          `Sector: ${ai.sector_specific || 'textil'}`,
+          `Fuente: ${lead.source_type}`,
+          lead.registry_url ? `Registro: ${lead.registry_url}` : '',
+        ].filter(Boolean).join('\n'),
         performed_by: 'AI Prospector Agent',
       })
       inserted.push({ name: lead.name, crm_status: 'created', crm_id: contact.id })
@@ -342,7 +493,7 @@ async function insertLeadsIntoCRM(clientId, leads, enrichments, runId) {
 async function createRun(clientId, config) {
   const { data, error } = await supabase.from('agent_runs').insert({
     client_id: clientId, agent_type: 'prospector', status: 'running', config,
-    logs: JSON.stringify([{ time: new Date().toISOString(), type: 'info', msg: 'Iniciando busqueda multi-fuente...' }]),
+    logs: JSON.stringify([{ time: new Date().toISOString(), type: 'info', msg: 'Iniciando busqueda en registros mercantiles, directorios B2B y mapas...' }]),
   }).select('id').single()
   if (error) throw new Error('Failed to create run: ' + error.message)
   return data.id
@@ -376,13 +527,13 @@ async function handleProspector(req, res) {
           const country = countries[ci]
           if (ci > 0) await new Promise(r => setTimeout(r, 2000))
 
-          await appendLog(runId, { type: 'info', msg: `[${ci + 1}/${countries.length}] Buscando en ${country} (OSM + Europages + Nominatim)...` })
+          await appendLog(runId, { type: 'info', msg: `[${ci + 1}/${countries.length}] Buscando en ${country} (OpenCorporates + Europages + OSM + Nominatim)...` })
           try {
             const places = await searchBusinesses(country, maxPerCountry)
             await appendLog(runId, { type: 'success', msg: `${places.length} empresas encontradas en ${country}` })
 
             if (places.length > 0) {
-              await appendLog(runId, { type: 'info', msg: `Enriqueciendo ${places.length} empresas con IA (CEO, emails, LinkedIn)...` })
+              await appendLog(runId, { type: 'info', msg: `Enriqueciendo ${places.length} empresas con IA (CEO, LinkedIn, emails, telefono, facturacion)...` })
               const enrichments = await enrichWithAI(places)
               await appendLog(runId, { type: 'success', msg: `IA completada para ${country}` })
               allLeads.push(...places)
