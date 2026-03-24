@@ -12,73 +12,67 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 // PROSPECTOR AGENT — Google Maps search + AI enrichment + CRM insert
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// Uses Places API (New) — https://developers.google.com/maps/documentation/places/web-service/text-search
 async function searchGoogleMaps(query, country, maxResults = 20) {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY
   if (!apiKey) throw new Error('GOOGLE_MAPS_API_KEY not configured')
 
   const results = []
-  let nextPageToken = null
-  const maxPages = Math.ceil(maxResults / 20)
+  let pageToken = null
 
-  for (let page = 0; page < maxPages; page++) {
-    const params = new URLSearchParams({
-      query: `${query} in ${country}`,
-      key: apiKey,
-      language: 'es',
+  while (results.length < maxResults) {
+    const body = {
+      textQuery: `${query} in ${country}`,
+      languageCode: 'es',
+      pageSize: Math.min(20, maxResults - results.length),
+    }
+    if (pageToken) body.pageToken = pageToken
+
+    const resp = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.types,places.businessStatus,places.internationalPhoneNumber,places.websiteUri,places.googleMapsUri,nextPageToken',
+      },
+      body: JSON.stringify(body),
     })
-    if (nextPageToken) params.set('pagetoken', nextPageToken)
 
-    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?${params}`
-    const resp = await fetch(url)
-    if (!resp.ok) throw new Error(`Google Maps API error: ${resp.status}`)
-
-    const data = await resp.json()
-    if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
-      throw new Error(`Google Maps API status: ${data.status} — ${data.error_message || ''}`)
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}))
+      throw new Error(`Places API error ${resp.status}: ${err.error?.message || resp.statusText}`)
     }
 
-    for (const place of (data.results || [])) {
+    const data = await resp.json()
+
+    for (const place of (data.places || [])) {
       if (results.length >= maxResults) break
       results.push({
-        place_id: place.place_id,
-        name: place.name,
-        address: place.formatted_address || '',
-        lat: place.geometry?.location?.lat,
-        lng: place.geometry?.location?.lng,
+        place_id: place.id || '',
+        name: place.displayName?.text || '',
+        address: place.formattedAddress || '',
+        lat: place.location?.latitude,
+        lng: place.location?.longitude,
         rating: place.rating || null,
-        total_ratings: place.user_ratings_total || 0,
+        total_ratings: place.userRatingCount || 0,
         types: place.types || [],
-        business_status: place.business_status || '',
+        business_status: place.businessStatus || '',
+        phone: place.internationalPhoneNumber || '',
+        website: place.websiteUri || '',
+        maps_url: place.googleMapsUri || '',
       })
     }
 
-    nextPageToken = data.next_page_token
-    if (!nextPageToken || results.length >= maxResults) break
-    await new Promise(r => setTimeout(r, 2000))
+    pageToken = data.nextPageToken
+    if (!pageToken || results.length >= maxResults) break
   }
 
   return results
 }
 
-async function getPlaceDetails(placeId) {
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY
-  const params = new URLSearchParams({
-    place_id: placeId,
-    fields: 'formatted_phone_number,international_phone_number,website,url,name,opening_hours',
-    key: apiKey,
-    language: 'es',
-  })
-
-  const resp = await fetch(`https://maps.googleapis.com/maps/api/place/details/json?${params}`)
-  if (!resp.ok) return {}
-  const data = await resp.json()
-  if (data.status !== 'OK') return {}
-
-  return {
-    phone: data.result?.international_phone_number || data.result?.formatted_phone_number || '',
-    website: data.result?.website || '',
-    maps_url: data.result?.url || '',
-  }
+// Place details no longer needed — searchText already returns phone/website/maps_url
+async function getPlaceDetails(_placeId) {
+  return {}
 }
 
 async function enrichWithAI(companies) {
