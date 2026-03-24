@@ -23,62 +23,47 @@ const COUNTRY_CODES = {
 async function searchGoogleMaps(query, country, maxResults = 20) {
   const isoCode = COUNTRY_CODES[country] || country
 
-  // Wide net of textile-related terms in multiple languages
-  const nameRegex = [
-    'textil', 'textile', 'tessil', 'têxtil',
-    'fabric', 'tejido', 'tessut', 'tecido',
-    'confeccion', 'confezione', 'confecção',
-    'hilatura', 'filatura', 'fiação', 'spinning',
-    'tela', 'cloth', 'weaving', 'tejedur',
-    'knitting', 'tricot', 'maglia',
-    'garment', 'apparel', 'ropa', 'moda',
-    'cotton', 'algodon', 'cotone', 'algodão',
-    'lana', 'wool', 'seda', 'silk', 'soie',
-    'denim', 'linen', 'lino',
-    'manufactur', 'fábrica', 'fabrica', 'usine', 'Fabrik',
-  ].join('|')
+  // Keep name regex short — long regexes cause Overpass to return 0
+  const nameRegex = 'textil|tessil|fabric|tejido|confeccion|filatur|hilatur|cotton|algodon|wool|lana|denim|silk|seda|lino|linen'
 
-  // Overpass QL: broad search across tags and name
+  // Overpass QL: focused on tags that work + short name regex
   const overpassQuery = `
     [out:json][timeout:60];
     area["ISO3166-1"="${isoCode}"]->.a;
     (
-      nwr["craft"~"textile|weaving|dyer|shoemaker|tailor"](area.a);
-      nwr["industrial"~"textile|factory"](area.a);
-      nwr["man_made"="works"](area.a);
-      nwr["landuse"="industrial"]["name"~"${nameRegex}",i](area.a);
-      nwr["shop"~"fabric|textile"](area.a);
-      nwr["office"]["name"~"${nameRegex}",i](area.a);
+      nwr["craft"~"textile|weaving|dyer|tailor"](area.a);
+      nwr["shop"~"fabric|textile|clothes"](area.a);
+      nwr["industrial"~"textile"](area.a);
+      nwr["man_made"="works"]["product"~"textile|fabric|cloth"](area.a);
       nwr["building"="industrial"]["name"~"${nameRegex}",i](area.a);
-      nwr["building"="manufacture"]["name"~"${nameRegex}",i](area.a);
-      nwr["name"~"${nameRegex}",i]["name"!~"^$"](area.a);
+      nwr["landuse"="industrial"]["name"~"${nameRegex}",i](area.a);
     );
     out center body ${Math.max(maxResults * 3, 100)};
   `
 
-  const resp = await fetch('https://overpass-api.de/api/interpreter', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `data=${encodeURIComponent(overpassQuery)}`,
-  })
-
-  if (!resp.ok) {
-    // If rate-limited, wait and retry once
-    if (resp.status === 429) {
-      await new Promise(r => setTimeout(r, 5000))
-      const retry = await fetch('https://overpass-api.de/api/interpreter', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `data=${encodeURIComponent(overpassQuery)}`,
-      })
-      if (!retry.ok) throw new Error(`Overpass API error: ${retry.status} (retry failed)`)
-      const retryData = await retry.json()
-      return parseOverpassResults(retryData, country, maxResults)
+  const fetchOverpass = async () => {
+    const resp = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `data=${encodeURIComponent(overpassQuery)}`,
+    })
+    if (!resp.ok) {
+      if (resp.status === 429) {
+        await new Promise(r => setTimeout(r, 5000))
+        const retry = await fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `data=${encodeURIComponent(overpassQuery)}`,
+        })
+        if (!retry.ok) throw new Error(`Overpass API error: ${retry.status} (retry failed)`)
+        return retry.json()
+      }
+      throw new Error(`Overpass API error: ${resp.status} ${resp.statusText}`)
     }
-    throw new Error(`Overpass API error: ${resp.status} ${resp.statusText}`)
+    return resp.json()
   }
 
-  const data = await resp.json()
+  const data = await fetchOverpass()
   return parseOverpassResults(data, country, maxResults)
 }
 
