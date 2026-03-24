@@ -60,7 +60,15 @@ export default function AIAgentsPage() {
   const [history, setHistory] = useState([])
   const [loadingHistory, setLoadingHistory] = useState(false)
 
+  // TMview bot state
+  const [tmviewStep, setTmviewStep] = useState('idle') // idle, urls, paste, processing, done
+  const [tmviewUrls, setTmviewUrls] = useState([])
+  const [tmviewPaste, setTmviewPaste] = useState('')
+  const [tmviewResult, setTmviewResult] = useState(null)
+  const [tmviewChat, setTmviewChat] = useState([])
+
   const logsEndRef = useRef(null)
+  const tmviewChatRef = useRef(null)
   const pollRef = useRef(null)
 
   // Auto-scroll logs
@@ -168,6 +176,81 @@ export default function AIAgentsPage() {
     }
   }
 
+  // ── TMview Bot ──
+  const addChat = (role, text) => {
+    setTmviewChat(prev => [...prev, { role, text, time: new Date().toISOString() }])
+    setTimeout(() => tmviewChatRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+  }
+
+  const startTmview = async () => {
+    setActiveTab('tmview')
+    setTmviewStep('urls')
+    setTmviewChat([])
+    setTmviewResult(null)
+    setTmviewPaste('')
+
+    addChat('bot', `Hola! Soy tu agente de prospeccion. Voy a ayudarte a encontrar fabricas textiles en los registros oficiales de marcas europeas (TMview/TMDN).`)
+
+    setTimeout(() => {
+      addChat('bot', `Necesito que abras estos enlaces en tu navegador. Cada uno busca marcas textiles (clases Niza 24 y 25) en los paises que has seleccionado.`)
+    }, 800)
+
+    // Generate URLs
+    try {
+      const resp = await fetch(`${API}/api/agent`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'tmview-urls', clientSlug: 'black-wolf', config: { countries: selectedCountries } }),
+      })
+      const data = await resp.json()
+      setTmviewUrls(data.urls || [])
+
+      setTimeout(() => {
+        addChat('bot', `He generado ${data.urls?.length || 0} enlaces de busqueda. Abre cada uno, espera a que carguen los resultados, y luego selecciona todo el contenido de la pagina (Ctrl+A) y copialo (Ctrl+C).`)
+        addChat('bot', `Cuando tengas los datos copiados, pegalos en el cuadro de abajo y pulsa "Procesar". Yo me encargo de extraer las empresas, encontrar al CEO, su LinkedIn, email, telefono y facturacion estimada.`)
+      }, 1500)
+    } catch (err) {
+      addChat('bot', `Error generando URLs: ${err.message}`)
+    }
+  }
+
+  const processTmview = async () => {
+    if (!tmviewPaste || tmviewPaste.length < 20) {
+      addChat('bot', 'Necesito mas texto. Asegurate de copiar toda la pagina de resultados de TMview.')
+      return
+    }
+
+    setTmviewStep('processing')
+    addChat('user', `[Texto pegado: ${tmviewPaste.length} caracteres]`)
+    addChat('bot', 'Recibido. Analizando el contenido con IA para extraer empresas titulares de marcas textiles...')
+
+    try {
+      const resp = await fetch(`${API}/api/agent`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'tmview-parse', clientSlug: 'black-wolf', config: { pastedText: tmviewPaste } }),
+      })
+      const data = await resp.json()
+
+      if (!resp.ok) throw new Error(data.error || 'Error procesando')
+
+      setTmviewResult(data)
+      setTmviewStep('done')
+
+      if (data.created > 0) {
+        addChat('bot', `Excelente! He extraido ${data.extracted} empresas del texto.`)
+        addChat('bot', `${data.created} leads nuevos creados en el CRM de BlackWolf con CEO, LinkedIn, email, telefono y facturacion estimada.${data.duplicates > 0 ? ` (${data.duplicates} ya existian)` : ''}`)
+        addChat('bot', `Empresas añadidas:\n${data.companies?.map((c, i) => `  ${i + 1}. ${c}`).join('\n')}`)
+        addChat('bot', 'Puedes ver los leads en Consola Central → BlackWolf → CRM. Quieres pegar mas resultados de otro pais?')
+      } else if (data.duplicates > 0) {
+        addChat('bot', `Encontre ${data.extracted} empresas pero todas ya estaban en el CRM (${data.duplicates} duplicados). Prueba con otro pais.`)
+      } else {
+        addChat('bot', data.message || 'No se encontraron empresas en el texto. Asegurate de copiar la pagina de resultados completa.')
+      }
+    } catch (err) {
+      addChat('bot', `Error: ${err.message}. Intenta copiar el contenido de nuevo.`)
+      setTmviewStep('paste')
+    }
+  }
+
   const toggleCountry = (c) => setSelectedCountries(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])
   const fmtTime = (iso) => { try { return new Date(iso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) } catch { return '' } }
   const fmtDate = (iso) => { try { return new Date(iso).toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) } catch { return '' } }
@@ -266,6 +349,7 @@ export default function AIAgentsPage() {
         <div style={{ display: 'flex', borderBottom: '1px solid #1F1F1F', padding: '0 24px' }}>
           {[
             { key: 'config', label: 'Configuracion' },
+            { key: 'tmview', label: 'TMview Bot' },
             { key: 'logs', label: `Logs en vivo${agentStatus === 'running' ? ' ●' : ''}` },
             { key: 'results', label: 'Resultados' },
             { key: 'history', label: 'Historial' },
@@ -346,6 +430,126 @@ export default function AIAgentsPage() {
                 </div>
                 {error && <div style={{ background: '#EF444422', border: '1px solid #EF4444', borderRadius: 8, padding: 12, marginTop: 12, color: '#FCA5A5', fontSize: '0.85rem' }}>{error}</div>}
               </div>
+            </div>
+          )}
+
+          {/* TMVIEW BOT */}
+          {activeTab === 'tmview' && (
+            <div>
+              {/* Chat area */}
+              <div style={{ background: '#0A0A0A', borderRadius: 10, padding: 20, marginBottom: 16, maxHeight: 400, overflowY: 'auto' }}>
+                {tmviewChat.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: 40 }}>
+                    <div style={{ fontSize: '2rem', marginBottom: 12 }}>🤖</div>
+                    <p style={{ color: '#888', fontSize: '0.9rem', marginBottom: 16 }}>Asistente de prospeccion TMview</p>
+                    <p style={{ color: '#666', fontSize: '0.8rem', marginBottom: 20 }}>Busca titulares de marcas textiles en el registro oficial europeo de marcas (TMDN). El bot te guia paso a paso.</p>
+                    <button onClick={startTmview} style={{ background: 'linear-gradient(135deg, #8B5CF6, #6366F1)', border: 'none', borderRadius: 10, color: '#fff', fontWeight: 700, padding: '12px 28px', cursor: 'pointer', fontSize: '0.9rem' }}>
+                      Iniciar busqueda en TMview
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {tmviewChat.map((msg, i) => (
+                      <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 12, justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                        {msg.role === 'bot' && <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#8B5CF622', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', flexShrink: 0 }}>🤖</div>}
+                        <div style={{
+                          background: msg.role === 'user' ? '#6366F133' : '#1a1a1a',
+                          border: `1px solid ${msg.role === 'user' ? '#6366F1' : '#1F1F1F'}`,
+                          borderRadius: 10, padding: '10px 14px', maxWidth: '80%',
+                          color: '#ddd', fontSize: '0.85rem', whiteSpace: 'pre-wrap', lineHeight: 1.5,
+                        }}>
+                          {msg.text}
+                        </div>
+                      </div>
+                    ))}
+                    <div ref={tmviewChatRef} />
+                  </>
+                )}
+              </div>
+
+              {/* TMview URLs */}
+              {tmviewUrls.length > 0 && tmviewStep !== 'done' && (
+                <div style={{ background: '#1a1a1a', border: '1px solid #1F1F1F', borderRadius: 10, padding: 16, marginBottom: 16 }}>
+                  <div style={{ color: '#8B5CF6', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 600, marginBottom: 12 }}>
+                    Enlaces TMview — abre cada uno y copia los resultados
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {tmviewUrls.map((u, i) => (
+                      <a key={i} href={u.url} target="_blank" rel="noopener noreferrer" style={{
+                        display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                        background: '#0D0D0D', border: '1px solid #333', borderRadius: 8,
+                        color: '#C4B5FD', textDecoration: 'none', fontSize: '0.8rem',
+                        transition: 'border-color 0.2s',
+                      }}>
+                        <span style={{ fontSize: '1rem' }}>🔗</span>
+                        <span style={{ fontWeight: 600 }}>{u.country}</span>
+                        <span style={{ color: '#666', flex: 1 }}>— {u.instructions}</span>
+                        <span style={{ color: '#8B5CF6', fontSize: '0.7rem' }}>Abrir ↗</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Paste area */}
+              {(tmviewStep === 'urls' || tmviewStep === 'paste' || tmviewStep === 'done') && tmviewChat.length > 0 && (
+                <div style={{ background: '#1a1a1a', border: '1px solid #1F1F1F', borderRadius: 10, padding: 16 }}>
+                  <div style={{ color: '#888', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 600, marginBottom: 8 }}>
+                    Pega aqui el contenido de TMview
+                  </div>
+                  <textarea
+                    value={tmviewPaste}
+                    onChange={e => setTmviewPaste(e.target.value)}
+                    placeholder="Selecciona todo el contenido de la pagina de resultados de TMview (Ctrl+A) y pegalo aqui (Ctrl+V)..."
+                    style={{
+                      width: '100%', height: 120, background: '#0D0D0D', border: '1px solid #333',
+                      borderRadius: 8, color: '#ccc', padding: 12, fontSize: '0.8rem',
+                      fontFamily: 'monospace', resize: 'vertical', outline: 'none', boxSizing: 'border-box',
+                    }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+                    <span style={{ color: '#555', fontSize: '0.75rem' }}>
+                      {tmviewPaste.length > 0 ? `${tmviewPaste.length} caracteres` : 'Esperando contenido...'}
+                    </span>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {tmviewStep === 'done' && (
+                        <button onClick={() => { setTmviewPaste(''); setTmviewStep('paste') }} style={{
+                          background: '#1a1a1a', border: '1px solid #333', borderRadius: 8,
+                          color: '#888', padding: '8px 16px', cursor: 'pointer', fontSize: '0.8rem',
+                        }}>Pegar mas datos</button>
+                      )}
+                      <button
+                        onClick={processTmview}
+                        disabled={tmviewStep === 'processing' || tmviewPaste.length < 20}
+                        style={{
+                          background: tmviewStep === 'processing' ? '#333' : 'linear-gradient(135deg, #8B5CF6, #6366F1)',
+                          border: 'none', borderRadius: 8, color: tmviewStep === 'processing' ? '#666' : '#fff',
+                          fontWeight: 600, padding: '8px 20px', cursor: tmviewStep === 'processing' ? 'not-allowed' : 'pointer',
+                          fontSize: '0.85rem',
+                        }}
+                      >
+                        {tmviewStep === 'processing' ? '⏳ Analizando...' : '🤖 Procesar con IA'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TMview results */}
+              {tmviewResult && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 16 }}>
+                  {[
+                    { label: 'Empresas extraidas', value: tmviewResult.extracted, color: '#8B5CF6' },
+                    { label: 'Leads creados', value: tmviewResult.created, color: '#22C55E' },
+                    { label: 'Duplicados', value: tmviewResult.duplicates, color: '#FFB800' },
+                  ].map(c => (
+                    <div key={c.label} style={{ background: '#0D0D0D', border: '1px solid #1F1F1F', borderRadius: 10, padding: 16, textAlign: 'center' }}>
+                      <div style={{ color: c.color, fontSize: '1.6rem', fontWeight: 700 }}>{c.value}</div>
+                      <div style={{ color: '#666', fontSize: '0.7rem', marginTop: 4 }}>{c.label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

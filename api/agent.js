@@ -403,7 +403,16 @@ async function insertLeadsIntoCRM(clientId, leads, enrichments, runId) {
       website: ai.company_website || lead.website || '',
       address: lead.address || '',
       country: lead.country || '',
-      linkedin: ai.ceo_linkedin || ai.company_linkedin || '',
+      linkedin: ai.ceo_linkedin || '',
+      // ── Nuevos campos propios (NO en notas) ──
+      estimated_revenue: ai.estimated_revenue || '',
+      company_linkedin: ai.company_linkedin || '',
+      ceo_linkedin: ai.ceo_linkedin || '',
+      company_phone: ai.company_phone || lead.phone || '',
+      ceo_phone: ai.ceo_phone || '',
+      nace_code: ai.nace_code || '',
+      employee_count: ai.employee_count || '',
+      tmview_data: JSON.stringify(lead.tmview_data || {}),
       // ── CRM metadata ──
       source: 'Agente Prospector',
       status: 'lead',
@@ -583,6 +592,115 @@ async function handleProspector(req, res) {
           updated++
         }
         return res.status(200).json({ message: `${updated} leads enriched`, count: updated })
+      }
+
+      case 'tmview-parse': {
+        // User pastes TMview page content → Claude extracts companies → insert into CRM
+        const { pastedText, countries: tmCountries } = config || {}
+        if (!pastedText || pastedText.length < 20) {
+          return res.status(400).json({ error: 'Pega el contenido de TMview (minimo 20 caracteres)' })
+        }
+
+        const parseResponse = await anthropic.messages.create({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 8192,
+          system: `Eres un experto en datos de registros de marcas y propiedad industrial. El usuario ha copiado contenido de la web TMview (TMDN) que contiene informacion de marcas registradas del sector textil.
+
+Tu trabajo: extraer TODAS las empresas/titulares de marcas que aparezcan en el texto pegado.
+
+Para cada empresa extrae:
+- Nombre del titular/solicitante de la marca (esto es la EMPRESA)
+- Direccion completa
+- Pais
+- Nombre de la marca registrada
+- Clase de Niza (24=textiles, 25=ropa, etc.)
+- Estado de la marca
+- Representante legal (si aparece)
+- Numero de solicitud
+
+IMPORTANTE: Los titulares de marcas textiles son las FABRICAS y EMPRESAS que buscamos como leads.
+Responde SOLO con JSON valido.`,
+          messages: [{
+            role: 'user',
+            content: `Contenido pegado de TMview:\n\n${pastedText.slice(0, 15000)}\n\nExtrae todas las empresas/titulares en JSON array:
+[{
+  "company_name": "nombre de la empresa titular",
+  "trademark_name": "nombre de la marca",
+  "address": "direccion completa",
+  "country": "pais",
+  "nice_classes": ["24", "25"],
+  "status": "Registered|Filed|Expired",
+  "representative": "representante legal si aparece",
+  "application_number": "numero de solicitud",
+  "applicant_type": "empresa|persona fisica"
+}]`
+          }],
+        })
+
+        const parseText = parseResponse.content.filter(b => b.type === 'text').map(b => b.text).join('')
+        const parseMatch = parseText.match(/\[[\s\S]*\]/)
+        let tmCompanies = []
+        try { tmCompanies = JSON.parse(parseMatch[0]) } catch { return res.status(400).json({ error: 'No se pudieron extraer empresas del texto pegado' }) }
+
+        if (tmCompanies.length === 0) {
+          return res.status(200).json({ message: 'No se encontraron empresas en el texto', count: 0 })
+        }
+
+        // Prepare as leads for enrichment
+        const tmLeads = tmCompanies.map(c => ({
+          name: c.company_name,
+          source_type: 'TMview',
+          address: c.address || '',
+          city: '', country: c.country || '',
+          company_number: c.application_number || '',
+          jurisdiction: '', incorporation_date: '',
+          company_type: c.applicant_type || '',
+          status: c.status || '',
+          registry_url: 'https://www.tmdn.org/tmview/',
+          director_name: c.representative || '',
+          director_position: c.representative ? 'Representante Legal' : '',
+          phone: '', email: '', website: '',
+          lat: '', lng: '', maps_url: '',
+          tmview_data: {
+            trademark_name: c.trademark_name || '',
+            nice_classes: c.nice_classes || [],
+            application_number: c.application_number || '',
+            representative: c.representative || '',
+            status: c.status || '',
+          },
+        }))
+
+        // Enrich with AI
+        const tmEnrichments = await enrichWithAI(tmLeads)
+
+        // Insert into CRM
+        const tmResults = await insertLeadsIntoCRM(clientId, tmLeads, tmEnrichments, 'tmview-manual')
+        const tmCreated = tmResults.filter(r => r.crm_status === 'created').length
+        const tmDups = tmResults.filter(r => r.crm_status === 'duplicate').length
+
+        return res.status(200).json({
+          message: `TMview: ${tmCompanies.length} empresas extraidas, ${tmCreated} leads creados, ${tmDups} duplicados`,
+          extracted: tmCompanies.length,
+          created: tmCreated,
+          duplicates: tmDups,
+          companies: tmCompanies.map(c => c.company_name),
+        })
+      }
+
+      case 'tmview-urls': {
+        // Generate TMview search URLs for given countries
+        const { countries: urlCountries } = config || {}
+        const officeMap = {
+          'Espana': 'ES', 'Portugal': 'PT', 'Italia': 'IT', 'Francia': 'FR', 'Alemania': 'DE',
+          'Reino Unido': 'GB', 'Paises Bajos': 'NL', 'Belgica': 'BE', 'Polonia': 'PL', 'Turquia': 'TR',
+          'Rumania': 'RO', 'Republica Checa': 'CZ', 'Austria': 'AT', 'Suiza': 'CH', 'Suecia': 'SE', 'Bulgaria': 'BG',
+        }
+        const urls = (urlCountries || []).map(c => ({
+          country: c,
+          url: `https://www.tmdn.org/tmview/#/tmview/results?page=1&pageSize=30&criteria=C&basicSearch=textile&offices=${officeMap[c] || c}&niceClass=24,25`,
+          instructions: `Busca marcas textiles en ${c} (clases 24-25)`,
+        }))
+        return res.status(200).json({ urls })
       }
 
       case 'status': {
