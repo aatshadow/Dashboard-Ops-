@@ -85,6 +85,8 @@ const emptyContact = {
   triager: '', gestor_asignado: '',
   // Payment
   deal_value: '', product: '', payment_type: '', payment_method: '',
+  // Facturación / Empresa
+  owner_name: '', owner_email: '', billing_annual: '', billing_cif: '', billing_address: '',
 }
 
 // ─── Utility ────────────────────────────────────────────────────────────────────
@@ -200,6 +202,7 @@ export default function CrmPage() {
     getCrmTasks, addCrmTask, updateCrmTask, deleteCrmTask,
     getTeam, addSale, getProducts, getPaymentFees,
     addCrmContacts, bulkUpdateCrmContacts,
+    enrichContact,
   } = useClientData()
 
   // Translated constants
@@ -1105,6 +1108,7 @@ export default function CrmPage() {
           onStatusChange={handleStatusChange}
           getCrmActivities={getCrmActivities} addCrmActivity={addCrmActivity} deleteCrmActivity={deleteCrmActivity}
           getCrmFiles={getCrmFiles} addCrmFile={addCrmFile} deleteCrmFile={deleteCrmFile}
+          onEnrich={enrichContact}
           en={en}
         />
       )}
@@ -1375,7 +1379,7 @@ function CalendarView({ contacts, getCrmActivities, onContactClick, en }) {
 // ═════════════════════════════════════════════════════════════════════════════════
 function ContactSidebar({
   contact, customFields, team, statuses, statusMap, pipelines, products, paymentFees,
-  onClose, onUpdate, onDelete, onStatusChange,
+  onClose, onUpdate, onDelete, onStatusChange, onEnrich,
   getCrmActivities, addCrmActivity, deleteCrmActivity,
   getCrmFiles, addCrmFile, deleteCrmFile,
   en,
@@ -1535,6 +1539,8 @@ function ContactSidebar({
             {contact.company && <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{contact.company}</div>}
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
+            {!editing && <button onClick={async () => { try { const r = await onEnrich(contact.id); alert(`Enriquecido: ${r.phone ? 'Tel: ' + r.phone : 'Sin tel'}, ${r.email ? 'Email: ' + r.email : 'Sin email'}, ${r.billing?.cif ? 'CIF: ' + r.billing.cif : ''}`) } catch (e) { alert('Error: ' + e.message) } }}
+              style={{ padding: '6px 10px', background: 'rgba(34,197,94,.1)', border: '1px solid rgba(34,197,94,.3)', borderRadius: 6, cursor: 'pointer', color: '#22c55e', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}><Search size={13} /> {L('Enriquecer', 'Enrich')}</button>}
             {!editing && <button onClick={startEditing} style={{ ...S.btnGhost, display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}><Edit3 size={13} /> {L('Editar', 'Edit')}</button>}
             <button onClick={onDelete} style={{ padding: '6px 10px', background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.3)', borderRadius: 6, cursor: 'pointer', color: '#EF4444', display: 'flex', alignItems: 'center', fontSize: 12 }}><Trash2 size={13} /></button>
             <button onClick={handleClose} style={{ padding: '6px', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><X size={18} /></button>
@@ -1666,6 +1672,18 @@ function ContactSidebar({
                       <LinkRow icon={<FileText size={13} />} label={L('Producto', 'Product')} value={contact.product} />
                       <LinkRow icon={<FileText size={13} />} label={L('Tipo Pago', 'Pay Type')} value={contact.payment_type} />
                       <LinkRow icon={<FileText size={13} />} label={L('Método', 'Method')} value={contact.payment_method} />
+                    </div>
+                  </div>
+
+                  {/* Facturación / Empresa */}
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={S.sectionLabel}>{L('Facturación / Empresa', 'Billing / Company')}</div>
+                    <div style={{ display: 'grid', gap: 2 }}>
+                      <LinkRow icon={<User size={13} />} label={L('Dueño / Owner', 'Owner')} value={contact.owner_name || contact.ownerName} />
+                      <LinkRow icon={<Mail size={13} />} label={L('Email del Dueño', 'Owner Email')} value={contact.owner_email || contact.ownerEmail} href={(contact.owner_email || contact.ownerEmail) ? `mailto:${contact.owner_email || contact.ownerEmail}` : null} />
+                      <LinkRow icon={<DollarSign size={13} />} label={L('Facturación Anual', 'Annual Revenue')} value={contact.billing_annual || contact.billingAnnual ? fmtL(contact.billing_annual || contact.billingAnnual) : ''} />
+                      <LinkRow icon={<FileText size={13} />} label="CIF / NIF" value={contact.billing_cif || contact.billingCif} />
+                      <LinkRow icon={<MapPin size={13} />} label={L('Dir. Fiscal', 'Billing Address')} value={contact.billing_address || contact.billingAddress} />
                     </div>
                   </div>
 
@@ -1810,6 +1828,26 @@ function ContactSidebar({
                         <option value="">—</option>
                         {(paymentFees || []).map(f => <option key={f.method} value={f.method}>{f.method}</option>)}
                       </select>
+                    </div>
+                  </div>
+
+                  {/* Facturación / Empresa */}
+                  <div style={{ ...S.sectionLabel, color: 'var(--orange)' }}>{L('Facturación / Empresa', 'Billing / Company')}</div>
+                  <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
+                    {[
+                      { label: L('Dueño / Owner', 'Owner Name'), key: 'owner_name' },
+                      { label: L('Email del Dueño', 'Owner Email'), key: 'owner_email', type: 'email' },
+                      { label: 'CIF / NIF', key: 'billing_cif' },
+                      { label: L('Dir. Fiscal', 'Billing Address'), key: 'billing_address' },
+                    ].map(f => (
+                      <div key={f.key}>
+                        <label style={S.label}>{f.label}</label>
+                        <input type={f.type || 'text'} value={editForm[f.key] || ''} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))} style={S.input} />
+                      </div>
+                    ))}
+                    <div>
+                      <label style={S.label}>{L('Facturación Anual (€)', 'Annual Revenue (€)')}</label>
+                      <input type="number" value={editForm.billing_annual || ''} onChange={e => setEditForm(p => ({ ...p, billing_annual: e.target.value }))} style={S.input} placeholder="100000" />
                     </div>
                   </div>
 
@@ -2420,6 +2458,25 @@ function NewContactModal({ customFields, team, statuses, onClose, onSave, en }) 
           <div style={{ marginBottom: 12 }}>
             <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, display: 'block' }}>Tags</label>
             <input name="tags" placeholder={L('vip, seguimiento', 'vip, follow-up')} style={inputStyle} />
+          </div>
+          {/* Facturación */}
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--orange)', marginBottom: 8, marginTop: 16 }}>{L('Facturación / Empresa', 'Billing / Company')}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+            {[
+              { name: 'owner_name', label: L('Dueño / Owner', 'Owner'), placeholder: L('Nombre del dueño', 'Owner name') },
+              { name: 'owner_email', label: L('Email del Dueño', 'Owner Email'), placeholder: 'owner@empresa.com' },
+              { name: 'billing_cif', label: 'CIF / NIF', placeholder: 'B12345678' },
+              { name: 'billing_address', label: L('Dir. Fiscal', 'Billing Address'), placeholder: L('Dirección fiscal', 'Billing address') },
+            ].map(f => (
+              <div key={f.name}>
+                <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, display: 'block' }}>{f.label}</label>
+                <input name={f.name} placeholder={f.placeholder} style={inputStyle} />
+              </div>
+            ))}
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, display: 'block' }}>{L('Facturación Anual (€)', 'Annual Revenue (€)')}</label>
+              <input name="billing_annual" type="number" placeholder="100000" style={inputStyle} />
+            </div>
           </div>
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, display: 'block' }}>{L('Notas', 'Notes')}</label>

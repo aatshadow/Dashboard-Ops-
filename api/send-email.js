@@ -37,6 +37,112 @@ export default async function handler(req, res) {
       return res.status(200).json(data)
     }
 
+    // ── Enrich/Scrape Company Data ──
+    if (action === 'enrich') {
+      const { company, name, website, country } = req.body
+      if (!company && !website) return res.status(400).json({ error: 'company or website required' })
+
+      const results = { phone: null, email: null, owner: null, billing: null, sources: [] }
+
+      // Strategy 1: Google search for phone number
+      const queries = [
+        `"${company}" teléfono contacto ${country || 'España'}`,
+        `"${company}" phone number contact`,
+        website ? `site:${website} teléfono OR phone OR contacto` : null,
+        `"${company}" CIF facturación`,
+      ].filter(Boolean)
+
+      for (const query of queries) {
+        try {
+          const gRes = await fetch(`https://www.googleapis.com/customsearch/v1?key=${process.env.GOOGLE_API_KEY || ''}&cx=${process.env.GOOGLE_CX || ''}&q=${encodeURIComponent(query)}&num=5`)
+          if (gRes.ok) {
+            const gData = await gRes.json()
+            for (const item of (gData.items || [])) {
+              const snippet = (item.snippet || '') + ' ' + (item.title || '')
+              // Extract phone numbers (Spanish/international format)
+              const phones = snippet.match(/(?:\+?\d{1,3}[\s.-]?)?\(?\d{2,4}\)?[\s.-]?\d{3}[\s.-]?\d{2,4}[\s.-]?\d{0,4}/g)
+              if (phones && !results.phone) {
+                const cleaned = phones.map(p => p.replace(/[^\d+]/g, '')).filter(p => p.length >= 9)
+                if (cleaned.length > 0) {
+                  results.phone = cleaned[0]
+                  results.sources.push({ type: 'phone', source: 'google', url: item.link })
+                }
+              }
+              // Extract emails
+              const emails = snippet.match(/[\w.+-]+@[\w.-]+\.\w{2,}/g)
+              if (emails && !results.email) {
+                results.email = emails[0]
+                results.sources.push({ type: 'email', source: 'google', url: item.link })
+              }
+            }
+          }
+        } catch (e) { /* skip */ }
+      }
+
+      // Strategy 2: Scrape company website for contact info
+      if (website) {
+        const contactPaths = ['/contacto', '/contact', '/about', '/sobre-nosotros', '/legal', '/aviso-legal', '/impressum']
+        for (const path of ['', ...contactPaths]) {
+          try {
+            const url = website.replace(/\/$/, '') + path
+            const pageRes = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, redirect: 'follow', signal: AbortSignal.timeout(5000) })
+            if (pageRes.ok) {
+              const html = await pageRes.text()
+              // Extract phones from HTML
+              if (!results.phone) {
+                const phoneMatches = html.match(/(?:tel:|phone:|teléfono|telefono|telf?\.?:?\s*)([+\d\s().-]{9,18})/gi)
+                if (phoneMatches) {
+                  for (const m of phoneMatches) {
+                    const cleaned = m.replace(/[^\d+]/g, '')
+                    if (cleaned.length >= 9) { results.phone = cleaned; results.sources.push({ type: 'phone', source: 'website', url }); break }
+                  }
+                }
+                // Also try href="tel:" pattern
+                const telLinks = html.match(/href=["']tel:([^"']+)["']/gi)
+                if (telLinks && !results.phone) {
+                  const num = telLinks[0].replace(/href=["']tel:/i, '').replace(/["']/g, '').replace(/[^\d+]/g, '')
+                  if (num.length >= 9) { results.phone = num; results.sources.push({ type: 'phone', source: 'website-tel', url }) }
+                }
+              }
+              // Extract emails from HTML
+              if (!results.email) {
+                const emailMatches = html.match(/[\w.+-]+@[\w.-]+\.\w{2,}/g)
+                if (emailMatches) {
+                  const good = emailMatches.filter(e => !e.includes('example') && !e.includes('sentry') && !e.includes('webpack'))
+                  if (good.length > 0) { results.email = good[0]; results.sources.push({ type: 'email', source: 'website', url }) }
+                }
+              }
+              // Extract CIF/NIF from legal pages
+              if (!results.billing) {
+                const cifMatch = html.match(/(?:CIF|NIF|VAT|N\.I\.F|C\.I\.F)[:\s]*([A-Z]?\d{7,8}[A-Z]?)/i)
+                if (cifMatch) { results.billing = { cif: cifMatch[1] }; results.sources.push({ type: 'cif', source: 'website', url }) }
+              }
+              if (results.phone && results.email) break // Got what we need
+            }
+          } catch (e) { /* skip timeouts */ }
+        }
+      }
+
+      // Strategy 3: Try LinkedIn company page (public info)
+      if (company && !results.phone) {
+        try {
+          const liRes = await fetch(`https://www.google.com/search?q=${encodeURIComponent(company + ' site:linkedin.com/company')}`, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' }, signal: AbortSignal.timeout(5000)
+          })
+          if (liRes.ok) {
+            const liHtml = await liRes.text()
+            const phones = liHtml.match(/(?:\+?\d{1,3}[\s.-]?)?\(?\d{2,4}\)?[\s.-]?\d{3}[\s.-]?\d{2,4}/g)
+            if (phones) {
+              const cleaned = phones.map(p => p.replace(/[^\d+]/g, '')).filter(p => p.length >= 9 && p.length <= 15)
+              if (cleaned.length > 0) { results.phone = cleaned[0]; results.sources.push({ type: 'phone', source: 'linkedin' }) }
+            }
+          }
+        } catch (e) { /* skip */ }
+      }
+
+      return res.status(200).json(results)
+    }
+
     // ── Resend Email Sending (default / legacy) ──
     const { resendApiKey, emails } = req.body
     if (!resendApiKey) return res.status(400).json({ error: 'resendApiKey is required' })

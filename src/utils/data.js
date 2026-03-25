@@ -1297,6 +1297,35 @@ export async function deleteEmailCampaign(id) {
   if (error) throw error
 }
 
+// ---- ENRICH CONTACT ----
+export async function enrichContact(contactId, clientId) {
+  const { data: contact } = await supabase.from('crm_contacts').select('*').eq('id', contactId).single()
+  if (!contact) throw new Error('Contacto no encontrado')
+
+  const res = await fetch('/api/send-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'enrich',
+      company: contact.company || contact.name || '',
+      name: contact.name || '',
+      website: contact.website || '',
+      country: contact.country || 'España',
+    }),
+  })
+
+  const result = await res.json()
+  if (!res.ok) throw new Error(result.error || 'Error en enriquecimiento')
+
+  const updates = { enriched_at: new Date().toISOString(), enrichment_data: JSON.stringify(result) }
+  if (result.phone && !contact.phone) updates.phone = result.phone
+  if (result.email && !contact.email) updates.email = result.email
+  if (result.billing?.cif && !contact.billing_cif) updates.billing_cif = result.billing.cif
+
+  await supabase.from('crm_contacts').update(updates).eq('id', contactId)
+  return result
+}
+
 // ---- MANYCHAT CONFIG ----
 export async function getManychatConfig(clientId) {
   const { data, error } = await supabase.from('manychat_config').select('*').eq('client_id', clientId).limit(1).single()

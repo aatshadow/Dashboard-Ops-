@@ -89,6 +89,7 @@ export function useClientData() {
     updateCrmContact: useCallback((id, updates) => data.updateCrmContact(id, updates, clientId), [clientId]),
     bulkUpdateCrmContacts: useCallback((ids, updates) => data.bulkUpdateCrmContacts(ids, updates, clientId), [clientId]),
     deleteCrmContact: useCallback((id) => data.deleteCrmContact(id, clientId), [clientId]),
+    enrichContact: useCallback((id) => data.enrichContact(id, clientId), [clientId]),
 
     getCrmActivities: useCallback((contactId) => data.getCrmActivities(clientId, contactId), [clientId]),
     addCrmActivity: useCallback((activity) => data.addCrmActivity(activity, clientId), [clientId]),

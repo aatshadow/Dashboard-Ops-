@@ -166,6 +166,13 @@ const CRM_CONTACTS_MAP = {
   lastActivityAt: 'last_activity_at',
   updatedAt: 'updated_at',
   pipelineId: 'pipeline_id',
+  ownerName: 'owner_name',
+  ownerEmail: 'owner_email',
+  billingAnnual: 'billing_annual',
+  billingCif: 'billing_cif',
+  billingAddress: 'billing_address',
+  enrichedAt: 'enriched_at',
+  enrichmentData: 'enrichment_data',
 }
 
 const CRM_ACTIVITIES_MAP = {
@@ -383,7 +390,7 @@ const VALID_COLUMNS = {
   ceo_integrations: new Set(['client_id', 'service', 'api_key', 'config', 'enabled', 'last_sync']),
   ceo_finance_entries: new Set(['client_id', 'date', 'category', 'description', 'amount', 'recurring', 'notes']),
   commission_payments: new Set(['client_id', 'member_id', 'period_start', 'period_end', 'role', 'cash_base', 'rate', 'commission_amount', 'status', 'paid_at', 'notes']),
-  crm_contacts: new Set(['client_id', 'name', 'email', 'phone', 'company', 'position', 'instagram', 'country', 'source', 'status', 'assigned_to', 'assigned_closer', 'assigned_setter', 'assigned_cold_caller', 'tags', 'custom_fields', 'notes', 'deal_value', 'last_activity_at', 'updated_at', 'address', 'whatsapp', 'zoom_link', 'website', 'linkedin', 'pipeline_id', 'producto_interes', 'capital_disponible', 'situacion_actual', 'exp_amazon', 'decisor_confirmado', 'fecha_llamada', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'triager', 'gestor_asignado', 'product', 'payment_type', 'payment_method']),
+  crm_contacts: new Set(['client_id', 'name', 'email', 'phone', 'company', 'position', 'instagram', 'country', 'source', 'status', 'assigned_to', 'assigned_closer', 'assigned_setter', 'assigned_cold_caller', 'tags', 'custom_fields', 'notes', 'deal_value', 'last_activity_at', 'updated_at', 'address', 'whatsapp', 'zoom_link', 'website', 'linkedin', 'pipeline_id', 'producto_interes', 'capital_disponible', 'situacion_actual', 'exp_amazon', 'decisor_confirmado', 'fecha_llamada', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'triager', 'gestor_asignado', 'product', 'payment_type', 'payment_method', 'owner_name', 'owner_email', 'billing_annual', 'billing_cif', 'billing_address', 'enriched_at', 'enrichment_data']),
   crm_activities: new Set(['client_id', 'contact_id', 'type', 'custom_type', 'title', 'description', 'outcome', 'duration_minutes', 'performed_by', 'performed_at', 'file_url', 'scheduled_at']),
   crm_custom_fields: new Set(['client_id', 'name', 'field_key', 'field_type', 'options', 'required', 'position', 'active']),
   crm_smart_views: new Set(['client_id', 'name', 'filters', 'columns', 'sort_by', 'sort_dir', 'color', 'icon', 'position', 'created_by', 'pipeline_id']),
