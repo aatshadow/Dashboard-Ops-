@@ -48,6 +48,13 @@ export default function AdminLayout({ children, user, onLogout }) {
           <span>Sistema de SOC</span>
         </a>
         <NavLink
+          to="/admin/erp"
+          className={({ isActive }) => `admin-nav-item ${isActive ? 'admin-nav-item--active' : ''}`}
+        >
+          <span className="admin-nav-icon">🏭</span>
+          <span>ERP</span>
+        </NavLink>
+        <NavLink
           to="/admin/ai-agents"
           className={({ isActive }) => `admin-nav-item ${isActive ? 'admin-nav-item--active' : ''}`}
         >
