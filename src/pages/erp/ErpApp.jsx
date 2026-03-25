@@ -8,6 +8,7 @@ import ErpInventory from './ErpInventory'
 import ErpContacts from './ErpContacts'
 import ErpHR from './ErpHR'
 import ErpAccounting from './ErpAccounting'
+import ErpProduction from './ErpProduction'
 import ErpSettings from './ErpSettings'
 
 const ErpContext = createContext(null)
@@ -18,6 +19,7 @@ const NAV = [
   { to: 'ventas', label: 'Ventas', icon: '💰' },
   { to: 'compras', label: 'Compras', icon: '🛒' },
   { to: 'inventario', label: 'Inventario', icon: '📦' },
+  { to: 'produccion', label: 'Producción', icon: '🏭' },
   { to: 'contactos', label: 'Contactos', icon: '👥' },
   { to: 'rrhh', label: 'RRHH', icon: '🏢' },
   { to: 'contabilidad', label: 'Contabilidad', icon: '📒' },
@@ -185,6 +187,7 @@ export default function ErpApp() {
           <Route path="ventas" element={<ErpSales />} />
           <Route path="compras" element={<ErpPurchases />} />
           <Route path="inventario" element={<ErpInventory />} />
+          <Route path="produccion" element={<ErpProduction />} />
           <Route path="contactos" element={<ErpContacts />} />
           <Route path="rrhh" element={<ErpHR />} />
           <Route path="contabilidad" element={<ErpAccounting />} />
