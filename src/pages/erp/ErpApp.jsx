@@ -110,18 +110,22 @@ function ErpLayout({ children, company, user, onLogout }) {
   )
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: 'var(--bg)' }}>
-      <aside className="sidebar sidebar--desktop" style={{ width: collapsed ? 60 : 220, background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', transition: 'width .2s', overflow: 'hidden', flexShrink: 0 }}>
+    <div style={{ display: 'flex', height: '100vh', background: 'var(--bg)', position: 'fixed', inset: 0, zIndex: 1 }}>
+      {/* Desktop sidebar */}
+      <aside style={{ width: collapsed ? 60 : 220, minWidth: collapsed ? 60 : 220, background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', transition: 'all .2s', overflow: 'hidden' }}>
         {sidebar}
       </aside>
-      {mobileOpen && <div className="mobile-overlay" onClick={() => setMobileOpen(false)} />}
-      <aside className={`sidebar sidebar--mobile ${mobileOpen ? 'sidebar--mobile-open' : ''}`} style={{ width: 240, background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
+      {/* Mobile overlay */}
+      {mobileOpen && <div onClick={() => setMobileOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 90 }} />}
+      {/* Mobile sidebar */}
+      <aside style={{ position: 'fixed', left: mobileOpen ? 0 : -260, top: 0, bottom: 0, width: 240, background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', transition: 'left .2s', zIndex: 100 }}>
         {sidebar}
       </aside>
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Main content */}
+      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
         <header style={{ padding: '12px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, background: 'var(--bg-card)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button onClick={() => setMobileOpen(!mobileOpen)} className="mobile-hamburger" style={{ display: 'none' }}>{mobileOpen ? '✕' : '☰'}</button>
+            <button onClick={() => setMobileOpen(!mobileOpen)} style={{ padding: '6px 10px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 16, lineHeight: 1 }}>{mobileOpen ? '✕' : '☰'}</button>
             <h1 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: 0 }}>{pageTitle}</h1>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -129,7 +133,7 @@ function ErpLayout({ children, company, user, onLogout }) {
             <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{user.name || user.email}</span>
           </div>
         </header>
-        <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: 24 }}>
           {children}
         </div>
       </main>
