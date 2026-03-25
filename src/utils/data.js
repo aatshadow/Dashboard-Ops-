@@ -834,13 +834,23 @@ export async function updateSuperAdminCommission(clientId, rate) {
 
 // ---- CRM CONTACTS ----
 export async function getCrmContacts(clientId) {
-  const { data, error } = await supabase
-    .from('crm_contacts')
-    .select('*')
-    .eq('client_id', clientId)
-    .order('created_at', { ascending: false })
-  if (error) return []
-  return data.map(row => toApp(row, 'crm_contacts'))
+  // Paginate to get all contacts (Supabase default limit is 1000)
+  const all = []
+  let from = 0
+  const PAGE = 1000
+  while (true) {
+    const { data, error } = await supabase
+      .from('crm_contacts')
+      .select('*')
+      .eq('client_id', clientId)
+      .order('created_at', { ascending: false })
+      .range(from, from + PAGE - 1)
+    if (error || !data || data.length === 0) break
+    all.push(...data)
+    if (data.length < PAGE) break
+    from += PAGE
+  }
+  return all.map(row => toApp(row, 'crm_contacts'))
 }
 
 export async function addCrmContact(contact, clientId) {
