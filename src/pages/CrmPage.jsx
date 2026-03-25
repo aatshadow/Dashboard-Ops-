@@ -342,8 +342,8 @@ export default function CrmPage() {
   // ─── Filtering ────────────────────────────────────────────────────────────
   const filteredContacts = useMemo(() => {
     let list = [...contacts]
-    // Pipeline filter
-    if (activePipeline) {
+    // Pipeline filter — only filter if user explicitly selected a pipeline
+    if (activePipelineId && activePipeline) {
       list = list.filter(c => !c.pipelineId || c.pipelineId === activePipeline.id)
     }
     // Search
