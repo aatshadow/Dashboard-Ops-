@@ -350,6 +350,7 @@ export default function AIAgentsPage() {
           {[
             { key: 'config', label: 'Configuracion' },
             { key: 'tmview', label: 'TMview Bot' },
+            { key: 'market', label: 'Market Research' },
             { key: 'logs', label: `Logs en vivo${agentStatus === 'running' ? ' ●' : ''}` },
             { key: 'results', label: 'Resultados' },
             { key: 'history', label: 'Historial' },
@@ -552,6 +553,188 @@ export default function AIAgentsPage() {
               )}
             </div>
           )}
+
+          {/* MARKET RESEARCH */}
+          {activeTab === 'market' && (() => {
+            const [mrSector, setMrSector] = useState('textile manufacturing')
+            const [mrCountries, setMrCountries] = useState('Spain, Bulgaria, Germany, France, Netherlands')
+            const [mrGoal, setMrGoal] = useState('Find and convert textile factories >100k annual revenue with ERP + Cybersecurity services for €10,000')
+            const [mrLoading, setMrLoading] = useState(false)
+            const [mrReport, setMrReport] = useState(null)
+
+            const runResearch = async () => {
+              setMrLoading(true)
+              setMrReport(null)
+              try {
+                const r = await fetch(`${API}/api/agent`, {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ action: 'market-research', clientSlug: selectedClient, sector: mrSector, countries: mrCountries.split(',').map(c => c.trim()), goal: mrGoal })
+                })
+                const data = await r.json()
+                if (r.ok) setMrReport(data.report)
+                else alert('Error: ' + (data.error || 'Unknown'))
+              } catch (e) { alert('Error: ' + e.message) }
+              setMrLoading(false)
+            }
+
+            return (
+              <div>
+                <h3 style={{ color: '#FF6B00', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16 }}>Investigacion de Mercado + Estrategia de Ventas</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                  <div>
+                    <label style={{ color: '#888', fontSize: '0.75rem', display: 'block', marginBottom: 6 }}>Sector objetivo</label>
+                    <input value={mrSector} onChange={e => setMrSector(e.target.value)} style={{ width: '100%', padding: '10px 14px', background: '#0A0A0A', border: '1px solid #222', borderRadius: 8, color: '#fff', fontSize: 14 }} />
+                  </div>
+                  <div>
+                    <label style={{ color: '#888', fontSize: '0.75rem', display: 'block', marginBottom: 6 }}>Paises (separados por coma)</label>
+                    <input value={mrCountries} onChange={e => setMrCountries(e.target.value)} style={{ width: '100%', padding: '10px 14px', background: '#0A0A0A', border: '1px solid #222', borderRadius: 8, color: '#fff', fontSize: 14 }} />
+                  </div>
+                  <div style={{ gridColumn: '1/-1' }}>
+                    <label style={{ color: '#888', fontSize: '0.75rem', display: 'block', marginBottom: 6 }}>Objetivo</label>
+                    <textarea value={mrGoal} onChange={e => setMrGoal(e.target.value)} rows={2} style={{ width: '100%', padding: '10px 14px', background: '#0A0A0A', border: '1px solid #222', borderRadius: 8, color: '#fff', fontSize: 14, resize: 'vertical' }} />
+                  </div>
+                </div>
+                <button onClick={runResearch} disabled={mrLoading} style={{ padding: '12px 24px', borderRadius: 8, border: 'none', background: mrLoading ? '#333' : '#FF6B00', color: '#fff', cursor: mrLoading ? 'wait' : 'pointer', fontSize: 14, fontWeight: 700, marginBottom: 20 }}>
+                  {mrLoading ? '🔍 Analizando mercado... (puede tardar 30-60s)' : '🚀 Lanzar Investigacion de Mercado'}
+                </button>
+
+                {mrReport && (
+                  <div style={{ display: 'grid', gap: 16 }}>
+                    {/* Market Overview */}
+                    {mrReport.marketOverview && (
+                      <div style={{ background: '#0A0A0A', border: '1px solid #222', borderRadius: 10, padding: 20 }}>
+                        <h4 style={{ color: '#FF6B00', margin: '0 0 12px', fontSize: 14 }}>📊 Vision del Mercado</h4>
+                        <div style={{ fontSize: 13, color: '#ccc', lineHeight: 1.8 }}>
+                          <div><strong>Tamaño:</strong> {mrReport.marketOverview.marketSize}</div>
+                          <div><strong>Crecimiento:</strong> {mrReport.marketOverview.growthRate}</div>
+                          <div style={{ marginTop: 8 }}><strong>Tendencias:</strong></div>
+                          <ul style={{ margin: '4px 0', paddingLeft: 20 }}>{(mrReport.marketOverview.keyTrends || []).map((t, i) => <li key={i}>{t}</li>)}</ul>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Prospecting Strategy */}
+                    {mrReport.prospectingStrategy && (
+                      <div style={{ background: '#0A0A0A', border: '1px solid #222', borderRadius: 10, padding: 20 }}>
+                        <h4 style={{ color: '#22C55E', margin: '0 0 12px', fontSize: 14 }}>🎯 Estrategia de Prospeccion</h4>
+                        <div style={{ fontSize: 13, color: '#ccc', lineHeight: 1.8 }}>
+                          {mrReport.prospectingStrategy.idealCustomerProfile && (
+                            <div style={{ marginBottom: 12 }}>
+                              <strong>Cliente ideal:</strong> {mrReport.prospectingStrategy.idealCustomerProfile.revenue} facturacion, {mrReport.prospectingStrategy.idealCustomerProfile.employees} empleados
+                              <div style={{ marginTop: 4 }}><strong>Pain points:</strong></div>
+                              <ul style={{ margin: '4px 0', paddingLeft: 20 }}>{(mrReport.prospectingStrategy.idealCustomerProfile.painPoints || []).map((p, i) => <li key={i}>{p}</li>)}</ul>
+                            </div>
+                          )}
+                          {mrReport.prospectingStrategy.bestCountries && (
+                            <div><strong>Mejores paises:</strong>
+                              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                                {mrReport.prospectingStrategy.bestCountries.map((c, i) => (
+                                  <span key={i} style={{ padding: '6px 12px', borderRadius: 8, background: '#1a1a1a', border: '1px solid #333', fontSize: 12 }}>
+                                    <strong style={{ color: '#FF6B00' }}>{c.country}</strong> — {c.reason} (~{c.estimatedLeads} leads)
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {mrReport.prospectingStrategy.followUpSequence && (
+                            <div style={{ marginTop: 12 }}><strong>Secuencia follow-up:</strong>
+                              <div style={{ display: 'grid', gap: 4, marginTop: 8 }}>
+                                {mrReport.prospectingStrategy.followUpSequence.map((f, i) => (
+                                  <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 10px', background: '#111', borderRadius: 6, fontSize: 12 }}>
+                                    <span style={{ color: '#FF6B00', fontWeight: 700, minWidth: 50 }}>Dia {f.day}</span>
+                                    <span style={{ color: '#888' }}>{f.channel}</span>
+                                    <span style={{ color: '#ccc' }}>{f.action}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Email Strategy */}
+                    {mrReport.emailStrategy && (
+                      <div style={{ background: '#0A0A0A', border: '1px solid #222', borderRadius: 10, padding: 20 }}>
+                        <h4 style={{ color: '#3B82F6', margin: '0 0 12px', fontSize: 14 }}>📧 Estrategia de Emails</h4>
+                        <div style={{ fontSize: 13, color: '#ccc', lineHeight: 1.8 }}>
+                          <div><strong>Mejor hora de envio:</strong> {mrReport.emailStrategy.bestSendTimes}</div>
+                          {mrReport.emailStrategy.sequenceRecommendation && (
+                            <div style={{ marginTop: 12 }}><strong>Secuencia de emails recomendada:</strong>
+                              {mrReport.emailStrategy.sequenceRecommendation.map((e, i) => (
+                                <div key={i} style={{ padding: '8px 12px', background: '#111', borderRadius: 6, marginTop: 6, display: 'flex', alignItems: 'center', gap: 12 }}>
+                                  <span style={{ color: '#FF6B00', fontWeight: 700, fontSize: 16 }}>#{e.email}</span>
+                                  <div>
+                                    <div style={{ fontWeight: 600, color: '#fff', fontSize: 12 }}>{e.subject}</div>
+                                    <div style={{ fontSize: 11, color: '#888' }}>Angulo: {e.angle} · Esperar {e.waitDays} dias</div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {mrReport.emailStrategy.optimalSubjectLines && (
+                            <div style={{ marginTop: 12 }}><strong>Subject lines con mejor apertura:</strong>
+                              <ul style={{ margin: '4px 0', paddingLeft: 20 }}>{mrReport.emailStrategy.optimalSubjectLines.map((s, i) => <li key={i} style={{ color: '#22C55E' }}>{s}</li>)}</ul>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Sales Funnel */}
+                    {mrReport.salesFunnel && (
+                      <div style={{ background: '#0A0A0A', border: '1px solid #222', borderRadius: 10, padding: 20 }}>
+                        <h4 style={{ color: '#F59E0B', margin: '0 0 12px', fontSize: 14 }}>🏆 Funnel de Ventas</h4>
+                        <div style={{ fontSize: 13, color: '#ccc' }}>
+                          {mrReport.salesFunnel.stages && mrReport.salesFunnel.stages.map((s, i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid #1a1a1a' }}>
+                              <span style={{ fontSize: 20 }}>{['🎯', '📧', '📞', '🤝', '💰', '🏆'][i] || '📌'}</span>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 600, color: '#fff' }}>{s.name}</div>
+                                <div style={{ fontSize: 11, color: '#888' }}>{(s.actions || []).join(' → ')}</div>
+                              </div>
+                              <span style={{ color: '#FF6B00', fontWeight: 700 }}>{s.conversionRate}</span>
+                            </div>
+                          ))}
+                          {mrReport.salesFunnel.monthlyTargets && (
+                            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 16 }}>
+                              {Object.entries(mrReport.salesFunnel.monthlyTargets).map(([k, v]) => (
+                                <div key={k} style={{ padding: '8px 16px', background: '#111', borderRadius: 8, textAlign: 'center' }}>
+                                  <div style={{ fontSize: 18, fontWeight: 700, color: '#FF6B00' }}>{v}</div>
+                                  <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase' }}>{k}/mes</div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Action Plan */}
+                    {mrReport.actionPlan && (
+                      <div style={{ background: '#0A0A0A', border: '1px solid #222', borderRadius: 10, padding: 20 }}>
+                        <h4 style={{ color: '#EC4899', margin: '0 0 12px', fontSize: 14 }}>📋 Plan de Accion (4 semanas)</h4>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          {mrReport.actionPlan.map((w, i) => (
+                            <div key={i} style={{ padding: 16, background: '#111', borderRadius: 8, border: '1px solid #222' }}>
+                              <div style={{ fontWeight: 700, color: '#FF6B00', marginBottom: 8 }}>Semana {w.week}</div>
+                              <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: '#ccc', lineHeight: 1.8 }}>
+                                {(w.actions || []).map((a, j) => <li key={j}>{a}</li>)}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ fontSize: 12, color: '#666', textAlign: 'center', padding: 8 }}>
+                      Las plantillas de email recomendadas y las listas por pais se han creado automaticamente en Email Marketing.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           {/* LOGS — live feed */}
           {activeTab === 'logs' && (

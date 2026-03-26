@@ -1149,7 +1149,7 @@ export default async function handler(req, res) {
 
   // Route: if body has 'action', it's an agent
   const { action } = req.body
-  if (action === 'deep-enrich' || action === 'personalize' || action === 'scrap-pipeline') {
+  if (action === 'deep-enrich' || action === 'personalize' || action === 'scrap-pipeline' || action === 'market-research') {
     try {
       return await handleScrapPipeline(req, res)
     } catch (error) {
@@ -1586,6 +1586,184 @@ async function handleScrapPipeline(req, res) {
     }
 
     return res.status(200).json({ action: 'scrap-pipeline', processed: results.length, results })
+  }
+
+  // ── MARKET RESEARCH: analyze market + optimize prospecting + email strategy ──
+  if (action === 'market-research') {
+    const { sector, countries, currentLeadsCount, goal } = req.body
+
+    // Gather market data from multiple sources
+    const marketData = []
+
+    // Search for industry reports, competitor analysis, market size
+    const researchQueries = [
+      `${sector || 'textile manufacturing'} industry market size Europe 2025 2026`,
+      `${sector || 'textile'} factory digitalization ERP adoption rate`,
+      `${sector || 'textile'} companies ${(countries || ['Spain', 'Bulgaria']).join(' ')} directory list`,
+      `best cold email strategies B2B manufacturing 2026`,
+      `ERP sales funnel conversion rates B2B`,
+      `${sector || 'textile'} pain points challenges digitalization`,
+      `cold email subject lines highest open rate B2B manufacturing`,
+      `EU digitalization grants 2026 manufacturing SME`,
+    ]
+
+    for (const query of researchQueries) {
+      try {
+        const r = await fetch(`https://www.google.com/search?q=${encodeURIComponent(query)}&num=5`, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+          signal: AbortSignal.timeout(8000)
+        })
+        if (r.ok) {
+          const html = await r.text()
+          // Extract snippets
+          const snippets = html.match(/<span class="[^"]*">[^<]{50,300}<\/span>/g) || []
+          const cleaned = snippets.map(s => s.replace(/<[^>]+>/g, '').trim()).filter(s => s.length > 50).slice(0, 3)
+          if (cleaned.length > 0) marketData.push({ query, findings: cleaned })
+        }
+      } catch (e) { /* skip */ }
+    }
+
+    // Get existing CRM data for analysis
+    const { data: leads } = await supabase.from('crm_contacts').select('country, status, source, company, billing_annual, enrichment_data').eq('client_id', clientId).limit(500)
+    const { data: emailCampaigns } = await supabase.from('email_campaigns').select('*').eq('client_id', clientId)
+    const { data: templates } = await supabase.from('email_templates').select('name, subject, category').eq('client_id', clientId)
+
+    // Analyze current leads
+    const leadAnalysis = {
+      total: (leads || []).length,
+      byCountry: {},
+      byStatus: {},
+      withEmail: 0,
+      withPhone: 0,
+      withOwner: 0,
+      avgBilling: 0,
+    }
+    let billingSum = 0, billingCount = 0
+    for (const l of (leads || [])) {
+      leadAnalysis.byCountry[l.country || 'Unknown'] = (leadAnalysis.byCountry[l.country || 'Unknown'] || 0) + 1
+      leadAnalysis.byStatus[l.status || 'unknown'] = (leadAnalysis.byStatus[l.status || 'unknown'] || 0) + 1
+      if (l.email) leadAnalysis.withEmail++
+      if (l.phone) leadAnalysis.withPhone++
+      const ed = typeof l.enrichment_data === 'string' ? JSON.parse(l.enrichment_data || '{}') : (l.enrichment_data || {})
+      if (ed.ownerName) leadAnalysis.withOwner++
+      if (l.billing_annual > 0) { billingSum += Number(l.billing_annual); billingCount++ }
+    }
+    leadAnalysis.avgBilling = billingCount > 0 ? Math.round(billingSum / billingCount) : 0
+
+    // Claude generates comprehensive market research + strategy
+    try {
+      const prompt = `You are a B2B sales strategist and market research expert. Analyze this data and create a comprehensive report.
+
+COMPANY: BlackWolf Security
+SERVICES: Custom ERP (€10,000), Cybersecurity/SOC, Process Automation, AI Agents
+TARGET SECTOR: ${sector || 'Textile manufacturing / Factories'}
+TARGET COUNTRIES: ${(countries || ['Spain', 'Bulgaria', 'Germany', 'France', 'Netherlands']).join(', ')}
+GOAL: ${goal || 'Find and convert textile factories that invoice >100k annually'}
+
+CURRENT CRM DATA:
+${JSON.stringify(leadAnalysis, null, 2)}
+
+EXISTING EMAIL TEMPLATES: ${(templates || []).map(t => t.name + ' - ' + t.subject).join('; ') || 'None'}
+EXISTING CAMPAIGNS: ${(emailCampaigns || []).length} campaigns
+
+MARKET RESEARCH DATA:
+${marketData.map(d => `Query: ${d.query}\nFindings: ${d.findings.join(' | ')}`).join('\n\n')}
+
+Create a comprehensive report in JSON with this structure:
+{
+  "marketOverview": {
+    "marketSize": "...",
+    "growthRate": "...",
+    "keyTrends": ["..."],
+    "targetSegments": ["..."]
+  },
+  "competitorAnalysis": {
+    "mainCompetitors": [{"name":"...", "pricing":"...", "weakness":"..."}],
+    "ourAdvantages": ["..."],
+    "differentiators": ["..."]
+  },
+  "prospectingStrategy": {
+    "bestChannels": [{"channel":"...", "conversionRate":"...", "cost":"...", "priority":"high/medium/low"}],
+    "idealCustomerProfile": {"revenue":"...", "employees":"...", "painPoints":["..."]},
+    "searchKeywords": ["..."],
+    "bestCountries": [{"country":"...", "reason":"...", "estimatedLeads":"..."}],
+    "bestTimesToContact": "...",
+    "followUpSequence": [{"day":"...", "action":"...", "channel":"..."}]
+  },
+  "emailStrategy": {
+    "optimalSubjectLines": ["..."],
+    "bestSendTimes": "...",
+    "sequenceRecommendation": [
+      {"email":1, "subject":"...", "angle":"...", "waitDays":0},
+      {"email":2, "subject":"...", "angle":"...", "waitDays":3},
+      {"email":3, "subject":"...", "angle":"...", "waitDays":5}
+    ],
+    "a_b_tests": [{"test":"...", "hypothesis":"..."}],
+    "personalizationTips": ["..."]
+  },
+  "salesFunnel": {
+    "stages": [{"name":"...", "conversionRate":"...", "actions":["..."]}],
+    "estimatedPipeline": "...",
+    "monthlyTargets": {"leads":"...", "emails":"...", "calls":"...", "meetings":"...", "closes":"..."}
+  },
+  "actionPlan": [
+    {"week":1, "actions":["..."]},
+    {"week":2, "actions":["..."]},
+    {"week":3, "actions":["..."]},
+    {"week":4, "actions":["..."]}
+  ],
+  "recommendedEmailTemplates": [
+    {"name":"...", "subject":"...", "targetSegment":"...", "language":"...", "html":"<short html email>"}
+  ]
+}
+
+Be specific with numbers, percentages, and actionable recommendations. Base on real industry data.`
+
+      const aiRes = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 4000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+
+      const text = aiRes.content[0]?.text || ''
+      const jsonMatch = text.match(/\{[\s\S]*\}/)
+      let report = null
+      if (jsonMatch) {
+        try { report = JSON.parse(jsonMatch[0]) } catch (e) { report = { raw: text } }
+      } else {
+        report = { raw: text }
+      }
+
+      // Auto-create recommended email templates
+      if (report.recommendedEmailTemplates && Array.isArray(report.recommendedEmailTemplates)) {
+        for (const tpl of report.recommendedEmailTemplates) {
+          if (tpl.name && tpl.subject) {
+            await supabase.from('email_templates').insert({
+              client_id: clientId,
+              name: `Strategy - ${tpl.name}`,
+              subject: tpl.subject,
+              html_content: tpl.html || `<p>${tpl.name}</p>`,
+              category: 'strategy',
+            })
+          }
+        }
+      }
+
+      // Auto-create recommended lists by segment
+      if (report.prospectingStrategy?.bestCountries) {
+        for (const c of report.prospectingStrategy.bestCountries) {
+          const listName = `Strategy - ${c.country} - ${sector || 'Factories'}`
+          const { data: existing } = await supabase.from('email_lists').select('id').eq('client_id', clientId).eq('name', listName).limit(1)
+          if (!existing || existing.length === 0) {
+            await supabase.from('email_lists').insert({ client_id: clientId, name: listName, description: `${c.reason} - Est. ${c.estimatedLeads} leads` })
+          }
+        }
+      }
+
+      return res.status(200).json({ action: 'market-research', report, leadAnalysis, marketDataSources: marketData.length })
+    } catch (e) {
+      console.error('Market research AI error:', e)
+      return res.status(500).json({ error: 'AI analysis failed: ' + e.message })
+    }
   }
 
   return res.status(400).json({ error: 'Unknown scrap action: ' + action })
