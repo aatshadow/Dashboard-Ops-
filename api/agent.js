@@ -426,7 +426,8 @@ async function insertLeadsIntoCRM(clientId, leads, enrichments, runId) {
       tmview_data: JSON.stringify(lead.tmview_data || {}),
       // ── CRM metadata ──
       source: 'Agente Prospector',
-      status: 'lead',
+      pipeline_id: 'd922fa5f-ce79-4787-aa22-09f17f4979a7', // Leads Scrap pipeline
+      status: 'raw',
       tags: JSON.stringify([
         ...(ai.sector_tags || ['textil']),
         ai.sector_specific || 'textil',
