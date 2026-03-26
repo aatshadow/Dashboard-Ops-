@@ -19,8 +19,11 @@ const SEARCH_PRESETS = [
 const PIPELINE_STEPS = [
   { key: 'search', icon: '🔍', name: 'Busqueda Multi-Fuente', desc: 'OSM + Europages + Nominatim', color: '#FF6B00' },
   { key: 'enrich', icon: '🤖', name: 'AI Enrichment', desc: 'CEO, emails, LinkedIn, sector', color: '#8B5CF6' },
-  { key: 'crm', icon: '📋', name: 'CRM BlackWolf', desc: 'Insertar leads con datos', color: '#22C55E' },
-  { key: 'done', icon: '✍️', name: 'Personalizacion', desc: 'Mensajes de venta (pronto)', color: '#3B82F6' },
+  { key: 'crm', icon: '📋', name: 'CRM Insert', desc: 'Leads con datos completos al CRM', color: '#22C55E' },
+  { key: 'deep', icon: '🔬', name: 'Deep Scraping', desc: 'Web + Google: tel, email dueño, CIF', color: '#F59E0B' },
+  { key: 'personalize', icon: '✍️', name: 'Email Personalizado', desc: 'Claude genera email a medida por empresa', color: '#3B82F6' },
+  { key: 'lists', icon: '📧', name: 'Email Marketing', desc: 'Plantilla + lista segmentada auto', color: '#EC4899' },
+  { key: 'research', icon: '📊', name: 'Market Research', desc: 'Analisis mercado + funnel + estrategia', color: '#14B8A6' },
 ]
 
 const statusLabels = {
@@ -37,6 +40,10 @@ const logTypeColors = { info: '#3B82F6', success: '#22C55E', warning: '#FFB800',
 function detectPhase(logs) {
   if (!logs || logs.length === 0) return null
   const lastMsg = [...logs].reverse().find(l => l.msg)?.msg || ''
+  if (/market.*research|analisis.*mercado|estrategia/i.test(lastMsg)) return 'research'
+  if (/lista.*creada|plantilla.*email|email.*marketing/i.test(lastMsg)) return 'lists'
+  if (/personali|email.*generado|claude.*email/i.test(lastMsg)) return 'personalize'
+  if (/deep.*scrap|scrapeando|owner.*encontrad/i.test(lastMsg)) return 'deep'
   if (/completado|insertando.*leads/i.test(lastMsg)) return 'crm'
   if (/enriqueciendo|IA complet/i.test(lastMsg)) return 'enrich'
   if (/buscando|empresas encontrad/i.test(lastMsg)) return 'search'
