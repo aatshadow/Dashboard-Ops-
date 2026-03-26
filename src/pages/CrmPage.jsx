@@ -670,6 +670,19 @@ export default function CrmPage() {
             style={{ ...S.btnGhost, display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, borderColor: 'var(--orange)', color: 'var(--orange)' }}>
             <Edit3 size={13} /> {L('Editar en masa', 'Bulk Edit')}
           </button>
+          <button onClick={async () => {
+            const ids = [...bulkSelected]
+            if (!confirm(L(`¿Lanzar Scrap Pipeline en ${ids.length} contactos? (Enriquecer + Crear email personalizado)`, `Launch Scrap Pipeline on ${ids.length} contacts?`))) return
+            try {
+              const r = await fetch('/api/agent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'scrap-pipeline', clientSlug, contactIds: ids }) })
+              const result = await r.json()
+              if (r.ok) { alert(L(`Pipeline completado: ${result.processed} contactos procesados`, `Pipeline done: ${result.processed} contacts processed`)); refreshContacts() }
+              else alert('Error: ' + (result.error || 'Unknown'))
+            } catch (e) { alert('Error: ' + e.message) }
+          }}
+            style={{ ...S.btnGhost, display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, borderColor: '#22C55E', color: '#22C55E' }}>
+            <Search size={13} /> {L('Scrap Pipeline', 'Scrap Pipeline')}
+          </button>
           <button onClick={handleBulkDelete}
             style={{ ...S.btnGhost, display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, borderColor: '#EF4444', color: '#EF4444' }}>
             <Trash2 size={13} /> {L('Eliminar', 'Delete')}

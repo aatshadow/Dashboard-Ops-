@@ -1147,8 +1147,16 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  // Route: if body has 'action', it's the prospector agent
+  // Route: if body has 'action', it's an agent
   const { action } = req.body
+  if (action === 'deep-enrich' || action === 'personalize' || action === 'scrap-pipeline') {
+    try {
+      return await handleScrapPipeline(req, res)
+    } catch (error) {
+      console.error('Scrap pipeline error:', error)
+      return res.status(500).json({ error: error.message })
+    }
+  }
   if (action) {
     try {
       return await handleProspector(req, res)
@@ -1234,4 +1242,351 @@ export default async function handler(req, res) {
 
     return res.status(500).json({ error: 'Internal server error: ' + error.message })
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SCRAP PIPELINE — Deep Enrich + Personalize Email Agent
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const SCRAP_PIPELINE_ID = 'd922fa5f-ce79-4787-aa22-09f17f4979a7'
+
+async function deepEnrichContact(contact) {
+  const company = contact.company || contact.name || ''
+  const website = contact.website || ''
+  const country = contact.country || 'España'
+  const results = { phone: null, ownerName: null, ownerEmail: null, ceoPhone: null, companyEmail: null, cif: null, sector: null, employees: null, revenue: null, linkedin: null, sources: [] }
+
+  // Strategy 1: Scrape company website deeply
+  if (website) {
+    const paths = ['', '/contacto', '/contact', '/about', '/sobre-nosotros', '/equipo', '/team', '/legal', '/aviso-legal', '/impressum', '/privacy', '/imprint', '/kontakt', '/za-nas', '/about-us']
+    for (const path of paths) {
+      try {
+        const url = website.replace(/\/$/, '') + path
+        const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }, redirect: 'follow', signal: AbortSignal.timeout(8000) })
+        if (!r.ok) continue
+        const html = await r.text()
+
+        // Phones
+        if (!results.phone) {
+          const telLinks = html.match(/href=["']tel:([^"']+)["']/gi)
+          if (telLinks) { const num = telLinks[0].replace(/href=["']tel:/i, '').replace(/["']/g, '').replace(/[^\d+]/g, ''); if (num.length >= 9) results.phone = num }
+          if (!results.phone) {
+            const phonePatterns = html.match(/(?:tel|phone|telefon|teléfono|тел|τηλ)[:\s]*([+\d\s().-]{9,18})/gi)
+            if (phonePatterns) { for (const m of phonePatterns) { const c = m.replace(/[^\d+]/g, ''); if (c.length >= 9 && c.length <= 15) { results.phone = c; break } } }
+          }
+        }
+
+        // Emails
+        const emails = html.match(/[\w.+-]+@[\w.-]+\.\w{2,}/g)
+        if (emails) {
+          const good = emails.filter(e => !e.includes('example') && !e.includes('sentry') && !e.includes('webpack') && !e.includes('wixpress'))
+          if (!results.companyEmail && good.length > 0) results.companyEmail = good[0]
+          // Look for owner/CEO emails
+          const ownerEmails = good.filter(e => /ceo|director|owner|gerente|info|contact|admin/i.test(e))
+          if (ownerEmails.length > 0 && !results.ownerEmail) results.ownerEmail = ownerEmails[0]
+        }
+
+        // CIF/NIF
+        if (!results.cif) {
+          const cifMatch = html.match(/(?:CIF|NIF|VAT|N\.I\.F|C\.I\.F|ЕИК|БУЛСТАТ|EIK)[:\s]*([A-Z0-9]?\d{7,10}[A-Z0-9]?)/i)
+          if (cifMatch) results.cif = cifMatch[1]
+        }
+
+        // Owner/CEO names from about/team pages
+        if (!results.ownerName && /about|equipo|team|za-nas|sobre/i.test(path)) {
+          const nameMatch = html.match(/(?:CEO|Director|Founder|Owner|Gerente|Управител|Собственик|Geschäftsführer)[:\s<>]*([A-ZА-Яa-zа-я\s.'-]{3,40})/i)
+          if (nameMatch) results.ownerName = nameMatch[1].replace(/<[^>]*>/g, '').trim()
+        }
+      } catch (e) { /* timeout, skip */ }
+    }
+  }
+
+  // Strategy 2: Google searches
+  const queries = [
+    `"${company}" CEO OR director OR owner OR gerente email`,
+    `"${company}" teléfono contacto ${country}`,
+    `"${company}" CIF OR NIF OR VAT`,
+    website ? `site:linkedin.com "${company}"` : null,
+  ].filter(Boolean)
+
+  for (const query of queries) {
+    try {
+      const r = await fetch(`https://www.google.com/search?q=${encodeURIComponent(query)}&num=5`, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+        signal: AbortSignal.timeout(8000)
+      })
+      if (!r.ok) continue
+      const html = await r.text()
+
+      if (!results.phone) {
+        const phones = html.match(/(?:\+?\d{1,3}[\s.-]?)?\(?\d{2,4}\)?[\s.-]?\d{3}[\s.-]?\d{2,4}[\s.-]?\d{0,4}/g)
+        if (phones) { const cleaned = phones.map(p => p.replace(/[^\d+]/g, '')).filter(p => p.length >= 9 && p.length <= 15); if (cleaned.length > 0) results.phone = cleaned[0] }
+      }
+      if (!results.companyEmail) {
+        const emails = html.match(/[\w.+-]+@[\w.-]+\.\w{2,}/g)
+        if (emails) { const good = emails.filter(e => !e.includes('google') && !e.includes('example')); if (good.length > 0) results.companyEmail = good[0] }
+      }
+      // LinkedIn URL
+      if (!results.linkedin) {
+        const liMatch = html.match(/linkedin\.com\/(?:company|in)\/[a-z0-9-]+/i)
+        if (liMatch) results.linkedin = 'https://' + liMatch[0]
+      }
+    } catch (e) { /* skip */ }
+  }
+
+  // Strategy 3: Use Claude to deduce missing info
+  if (!results.ownerName || !results.ownerEmail) {
+    try {
+      const prompt = `Given this company info, deduce the most likely CEO/owner name and email:
+Company: ${company}
+Country: ${country}
+Website: ${website}
+Known email: ${results.companyEmail || contact.email || 'unknown'}
+Known phone: ${results.phone || contact.phone || 'unknown'}
+
+Return ONLY valid JSON: {"ownerName":"...", "ownerEmail":"...", "ceoPhone":"...", "sector":"...", "estimatedRevenue":"...", "estimatedEmployees":"..."}`
+
+      const aiRes = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 300,
+        messages: [{ role: 'user', content: prompt }]
+      })
+      const text = aiRes.content[0]?.text || ''
+      const jsonMatch = text.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        const ai = JSON.parse(jsonMatch[0])
+        if (!results.ownerName && ai.ownerName) results.ownerName = ai.ownerName
+        if (!results.ownerEmail && ai.ownerEmail) results.ownerEmail = ai.ownerEmail
+        if (!results.ceoPhone && ai.ceoPhone) results.ceoPhone = ai.ceoPhone
+        if (!results.sector && ai.sector) results.sector = ai.sector
+        if (!results.revenue && ai.estimatedRevenue) results.revenue = ai.estimatedRevenue
+        if (!results.employees && ai.estimatedEmployees) results.employees = ai.estimatedEmployees
+      }
+    } catch (e) { /* AI failed, continue */ }
+  }
+
+  return results
+}
+
+async function personalizeEmail(contact, enrichData) {
+  const company = contact.company || contact.name || ''
+  const ownerName = enrichData.ownerName || contact.owner_name || 'Estimado/a Director/a'
+  const country = contact.country || ''
+  const sector = enrichData.sector || 'manufactura'
+
+  // Determine language
+  const lang = /bulgar|българия/i.test(country) ? 'bg' :
+               /deutsch|german|austria|schweiz/i.test(country) ? 'de' :
+               /france|français/i.test(country) ? 'fr' :
+               /nederland|dutch/i.test(country) ? 'nl' :
+               /portug/i.test(country) ? 'pt' :
+               /spain|españa|español/i.test(country) ? 'es' : 'en'
+
+  try {
+    const prompt = `Write a personalized cold email in ${lang === 'bg' ? 'Bulgarian' : lang === 'de' ? 'German' : lang === 'fr' ? 'French' : lang === 'nl' ? 'Dutch' : lang === 'pt' ? 'Portuguese' : lang === 'es' ? 'Spanish' : 'English'} for:
+
+Company: ${company}
+Contact: ${ownerName}
+Country: ${country}
+Sector: ${sector}
+Website: ${contact.website || 'N/A'}
+
+WE ARE BlackWolf Security - a technology company offering:
+1. Custom ERP system (like SAP/Odoo but built specifically for their industry)
+2. Cybersecurity (SOC monitoring, penetration testing, compliance)
+3. Process automation (AI agents, workflow optimization)
+4. Complete digital transformation
+
+OFFER: €10,000 package includes:
+- Full process mapping of their company
+- Custom ERP implementation
+- Cybersecurity audit + SOC setup
+- AI-powered automation of repetitive tasks
+- 3 months support
+
+The email should:
+- Be 150-200 words max
+- Reference something specific about their company/industry
+- Create urgency (EU digitalization grants available)
+- End with a clear CTA (15-min call)
+- Sound human, not salesy
+- Include a subject line
+
+Return ONLY valid JSON: {"subject":"...", "html":"<html email with inline styles, professional design>"}`
+
+    const aiRes = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514', max_tokens: 1500,
+      messages: [{ role: 'user', content: prompt }]
+    })
+
+    const text = aiRes.content[0]?.text || ''
+    const jsonMatch = text.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0])
+    }
+  } catch (e) {
+    console.error('Personalize error:', e.message)
+  }
+
+  return { subject: `Propuesta de digitalización para ${company}`, html: `<p>Estimado/a ${ownerName},</p><p>Desde BlackWolf Security nos gustaría ayudar a ${company} con su transformación digital.</p>` }
+}
+
+async function handleScrapPipeline(req, res) {
+  const { action, clientSlug, contactIds } = req.body
+  const clientId = await resolveClientId(clientSlug)
+  if (!clientId) return res.status(400).json({ error: 'Client not found' })
+
+  // ── DEEP ENRICH single or batch ──
+  if (action === 'deep-enrich') {
+    if (!contactIds || !contactIds.length) return res.status(400).json({ error: 'contactIds required' })
+
+    const results = []
+    for (const cid of contactIds) {
+      const { data: contact } = await supabase.from('crm_contacts').select('*').eq('id', cid).single()
+      if (!contact) { results.push({ id: cid, error: 'not found' }); continue }
+
+      // Update status
+      await supabase.from('crm_contacts').update({ status: 'enriching', pipeline_id: SCRAP_PIPELINE_ID }).eq('id', cid)
+
+      // Queue entry
+      await supabase.from('scrap_agent_queue').insert({ client_id: clientId, contact_id: cid, stage: 'enriching', enrich_started_at: new Date().toISOString() })
+
+      // Deep enrich
+      const enrichData = await deepEnrichContact(contact)
+
+      // Update contact with found data
+      const updates = { enriched_at: new Date().toISOString(), enrichment_data: JSON.stringify(enrichData), status: 'enriched', pipeline_id: SCRAP_PIPELINE_ID }
+      if (enrichData.phone && !contact.phone) updates.phone = enrichData.phone
+      if (enrichData.companyEmail && !contact.email) updates.email = enrichData.companyEmail
+      if (enrichData.ownerName && !contact.owner_name) updates.owner_name = enrichData.ownerName
+      if (enrichData.ownerEmail && !contact.owner_email) updates.owner_email = enrichData.ownerEmail
+      if (enrichData.cif && !contact.billing_cif) updates.billing_cif = enrichData.cif
+      if (enrichData.linkedin && !contact.linkedin) updates.linkedin = enrichData.linkedin
+
+      await supabase.from('crm_contacts').update(updates).eq('id', cid)
+      await supabase.from('scrap_agent_queue').update({ stage: 'enriched', enrich_completed_at: new Date().toISOString(), enrich_data: JSON.stringify(enrichData) }).eq('contact_id', cid)
+
+      results.push({ id: cid, company: contact.company || contact.name, enrichData })
+    }
+
+    return res.status(200).json({ action: 'deep-enrich', results })
+  }
+
+  // ── PERSONALIZE: create email for enriched contacts ──
+  if (action === 'personalize') {
+    if (!contactIds || !contactIds.length) return res.status(400).json({ error: 'contactIds required' })
+
+    // Get or create email config
+    const { data: emailConfig } = await supabase.from('email_config').select('*').eq('client_id', clientId).limit(1).single()
+
+    const results = []
+    for (const cid of contactIds) {
+      const { data: contact } = await supabase.from('crm_contacts').select('*').eq('id', cid).single()
+      if (!contact) { results.push({ id: cid, error: 'not found' }); continue }
+
+      await supabase.from('crm_contacts').update({ status: 'personalizing', pipeline_id: SCRAP_PIPELINE_ID }).eq('id', cid)
+
+      const enrichData = typeof contact.enrichment_data === 'string' ? JSON.parse(contact.enrichment_data || '{}') : (contact.enrichment_data || {})
+      const email = await personalizeEmail(contact, enrichData)
+
+      // Create template in email marketing
+      const templateName = `Scrap - ${contact.company || contact.name}`
+      const { data: template } = await supabase.from('email_templates').insert({
+        client_id: clientId, name: templateName, subject: email.subject, html_content: email.html, category: 'scrap-outreach'
+      }).select().single()
+
+      // Find or create list by country/sector
+      const listName = `Scrap - ${contact.country || 'Internacional'} - ${enrichData.sector || 'General'}`
+      let { data: lists } = await supabase.from('email_lists').select('*').eq('client_id', clientId).eq('name', listName)
+      let list = lists && lists[0]
+      if (!list) {
+        const { data: newList } = await supabase.from('email_lists').insert({ client_id: clientId, name: listName, description: `Leads scrapeados - ${contact.country} - ${enrichData.sector || 'General'}` }).select().single()
+        list = newList
+      }
+
+      // Add contact as subscriber
+      const subEmail = contact.owner_email || enrichData.ownerEmail || contact.email || enrichData.companyEmail
+      if (subEmail && list) {
+        const { data: existingSub } = await supabase.from('email_subscribers').select('id').eq('email', subEmail).eq('list_id', list.id).limit(1)
+        if (!existingSub || existingSub.length === 0) {
+          await supabase.from('email_subscribers').insert({ client_id: clientId, list_id: list.id, email: subEmail, name: enrichData.ownerName || contact.name || '', status: 'subscribed' })
+        }
+      }
+
+      // Update contact and queue
+      await supabase.from('crm_contacts').update({ status: 'ready', pipeline_id: SCRAP_PIPELINE_ID }).eq('id', cid)
+      await supabase.from('scrap_agent_queue').update({
+        stage: 'ready', personalize_completed_at: new Date().toISOString(),
+        email_subject: email.subject, email_html: email.html,
+        template_id: template?.id || null, list_id: list?.id || null,
+      }).eq('contact_id', cid)
+
+      results.push({ id: cid, company: contact.company || contact.name, subject: email.subject, templateId: template?.id, listId: list?.id, listName })
+    }
+
+    return res.status(200).json({ action: 'personalize', results })
+  }
+
+  // ── FULL PIPELINE: enrich + personalize in one go ──
+  if (action === 'scrap-pipeline') {
+    if (!contactIds || !contactIds.length) return res.status(400).json({ error: 'contactIds required' })
+
+    const results = []
+    for (const cid of contactIds) {
+      // Step 1: Deep enrich
+      req.body.action = 'deep-enrich'
+      req.body.contactIds = [cid]
+
+      const { data: contact } = await supabase.from('crm_contacts').select('*').eq('id', cid).single()
+      if (!contact) { results.push({ id: cid, error: 'not found' }); continue }
+
+      await supabase.from('crm_contacts').update({ status: 'enriching', pipeline_id: SCRAP_PIPELINE_ID }).eq('id', cid)
+      const enrichData = await deepEnrichContact(contact)
+
+      const updates = { enriched_at: new Date().toISOString(), enrichment_data: JSON.stringify(enrichData), status: 'enriched', pipeline_id: SCRAP_PIPELINE_ID }
+      if (enrichData.phone && !contact.phone) updates.phone = enrichData.phone
+      if (enrichData.companyEmail && !contact.email) updates.email = enrichData.companyEmail
+      if (enrichData.ownerName && !contact.owner_name) updates.owner_name = enrichData.ownerName
+      if (enrichData.ownerEmail && !contact.owner_email) updates.owner_email = enrichData.ownerEmail
+      if (enrichData.cif && !contact.billing_cif) updates.billing_cif = enrichData.cif
+
+      await supabase.from('crm_contacts').update(updates).eq('id', cid)
+
+      // Step 2: Personalize
+      await supabase.from('crm_contacts').update({ status: 'personalizing' }).eq('id', cid)
+      const updatedContact = { ...contact, ...updates }
+      const email = await personalizeEmail(updatedContact, enrichData)
+
+      // Save template
+      const templateName = `Scrap - ${contact.company || contact.name}`
+      const { data: template } = await supabase.from('email_templates').insert({
+        client_id: clientId, name: templateName, subject: email.subject, html_content: email.html, category: 'scrap-outreach'
+      }).select().single()
+
+      // Find/create list
+      const listName = `Scrap - ${contact.country || 'Internacional'} - ${enrichData.sector || 'General'}`
+      let { data: lists } = await supabase.from('email_lists').select('*').eq('client_id', clientId).eq('name', listName)
+      let list = lists && lists[0]
+      if (!list) {
+        const { data: nl } = await supabase.from('email_lists').insert({ client_id: clientId, name: listName, description: `Leads scrapeados - ${contact.country}` }).select().single()
+        list = nl
+      }
+
+      // Add subscriber
+      const subEmail = enrichData.ownerEmail || contact.owner_email || contact.email || enrichData.companyEmail
+      if (subEmail && list) {
+        const { data: ex } = await supabase.from('email_subscribers').select('id').eq('email', subEmail).eq('list_id', list.id).limit(1)
+        if (!ex || ex.length === 0) {
+          await supabase.from('email_subscribers').insert({ client_id: clientId, list_id: list.id, email: subEmail, name: enrichData.ownerName || contact.name || '', status: 'subscribed' })
+        }
+      }
+
+      await supabase.from('crm_contacts').update({ status: 'ready', pipeline_id: SCRAP_PIPELINE_ID }).eq('id', cid)
+
+      results.push({ id: cid, company: contact.company || contact.name, enrichData, email: { subject: email.subject }, templateId: template?.id, listName })
+    }
+
+    return res.status(200).json({ action: 'scrap-pipeline', processed: results.length, results })
+  }
+
+  return res.status(400).json({ error: 'Unknown scrap action: ' + action })
 }
