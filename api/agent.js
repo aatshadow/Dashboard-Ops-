@@ -379,13 +379,24 @@ async function insertLeadsIntoCRM(clientId, leads, enrichments, runId) {
     const lead = leads[i]
     const ai = enrichments[i] || {}
 
-    // Deduplicate
-    const { data: existing } = await supabase
-      .from('crm_contacts').select('id')
-      .eq('client_id', clientId).eq('company', lead.name).limit(1)
+    // Deduplicate — check by company name (normalized) AND by email
+    const normalizedName = lead.name.toLowerCase().replace(/[^a-z0-9]/g, '')
+    const { data: existByName } = await supabase
+      .from('crm_contacts').select('id, company')
+      .eq('client_id', clientId).limit(100)
+    const isDupByName = (existByName || []).some(c => (c.company || '').toLowerCase().replace(/[^a-z0-9]/g, '') === normalizedName)
 
-    if (existing && existing.length > 0) {
-      inserted.push({ name: lead.name, crm_status: 'duplicate', crm_id: existing[0].id })
+    const leadEmail = ai.ceo_email || ai.company_emails?.[0] || lead.email || ''
+    let isDupByEmail = false
+    if (leadEmail) {
+      const { data: existByEmail } = await supabase
+        .from('crm_contacts').select('id')
+        .eq('client_id', clientId).eq('email', leadEmail).limit(1)
+      isDupByEmail = existByEmail && existByEmail.length > 0
+    }
+
+    if (isDupByName || isDupByEmail) {
+      inserted.push({ name: lead.name, crm_status: 'duplicate', crm_id: null })
       continue
     }
 
@@ -532,25 +543,56 @@ async function handleProspector(req, res) {
         const runId = await createRun(clientId, { query, countries, maxPerCountry })
         let allLeads = [], allEnrichments = []
 
+        // Pre-load existing company names for fast dedup
+        const { data: existingContacts } = await supabase.from('crm_contacts').select('company, email').eq('client_id', clientId)
+        const existingNames = new Set((existingContacts || []).map(c => (c.company || '').toLowerCase().replace(/[^a-z0-9]/g, '')).filter(Boolean))
+        const existingEmails = new Set((existingContacts || []).map(c => (c.email || '').toLowerCase()).filter(Boolean))
+
         for (let ci = 0; ci < countries.length; ci++) {
           const country = countries[ci]
           if (ci > 0) await new Promise(r => setTimeout(r, 2000))
 
-          await appendLog(runId, { type: 'info', msg: `[${ci + 1}/${countries.length}] Buscando en ${country} (OpenCorporates + Europages + OSM + Nominatim)...` })
-          try {
-            const places = await searchBusinesses(country, maxPerCountry)
-            await appendLog(runId, { type: 'success', msg: `${places.length} empresas encontradas en ${country}` })
+          let attempt = 0
+          let newFromCountry = 0
+          const maxAttempts = 3 // Try up to 3 rounds per country to fill quota
 
-            if (places.length > 0) {
-              await appendLog(runId, { type: 'info', msg: `Enriqueciendo ${places.length} empresas con IA (CEO, LinkedIn, emails, telefono, facturacion)...` })
-              const enrichments = await enrichWithAI(places)
-              await appendLog(runId, { type: 'success', msg: `IA completada para ${country}` })
-              allLeads.push(...places)
-              allEnrichments.push(...enrichments)
+          while (newFromCountry < maxPerCountry && attempt < maxAttempts) {
+            attempt++
+            const searchSize = Math.max(maxPerCountry * 2, (maxPerCountry - newFromCountry) * 3) // Search more to compensate duplicates
+
+            await appendLog(runId, { type: 'info', msg: `[${ci + 1}/${countries.length}] ${country} — ronda ${attempt}: buscando ${searchSize} empresas...` })
+            try {
+              const places = await searchBusinesses(country, searchSize)
+
+              // Pre-filter duplicates before AI enrichment (save API calls)
+              const newPlaces = places.filter(p => {
+                const norm = p.name.toLowerCase().replace(/[^a-z0-9]/g, '')
+                if (existingNames.has(norm)) return false
+                if (p.email && existingEmails.has(p.email.toLowerCase())) return false
+                return true
+              })
+
+              await appendLog(runId, { type: 'success', msg: `${places.length} encontradas, ${newPlaces.length} nuevas (${places.length - newPlaces.length} duplicados filtrados)` })
+
+              if (newPlaces.length > 0) {
+                const batch = newPlaces.slice(0, maxPerCountry - newFromCountry)
+                await appendLog(runId, { type: 'info', msg: `Enriqueciendo ${batch.length} empresas nuevas con IA...` })
+                const enrichments = await enrichWithAI(batch)
+                await appendLog(runId, { type: 'success', msg: `IA completada para ${country} (ronda ${attempt})` })
+                allLeads.push(...batch)
+                allEnrichments.push(...enrichments)
+                newFromCountry += batch.length
+                // Track new names to avoid within same run
+                for (const p of batch) existingNames.add(p.name.toLowerCase().replace(/[^a-z0-9]/g, ''))
+              }
+
+              if (newPlaces.length === 0) break // No new results, stop
+            } catch (err) {
+              await appendLog(runId, { type: 'error', msg: `Error en ${country} ronda ${attempt}: ${err.message}` })
+              break
             }
-          } catch (err) {
-            await appendLog(runId, { type: 'error', msg: `Error en ${country}: ${err.message}` })
           }
+          await appendLog(runId, { type: 'info', msg: `${country}: ${newFromCountry} leads nuevos encontrados en ${attempt} rondas` })
         }
 
         await appendLog(runId, { type: 'info', msg: `Insertando ${allLeads.length} leads en CRM BlackWolf...` })

@@ -59,6 +59,13 @@ export default function AIAgentsPage() {
   const [selectedCountries, setSelectedCountries] = useState(['Espana', 'Portugal', 'Italia'])
   const [maxPerCountry, setMaxPerCountry] = useState(10)
 
+  // Market Research state
+  const [mrSector, setMrSector] = useState('textile manufacturing')
+  const [mrCountries, setMrCountries] = useState('Spain, Bulgaria, Germany, France, Netherlands')
+  const [mrGoal, setMrGoal] = useState('Find and convert textile factories >100k annual revenue with ERP + Cybersecurity services for €10,000')
+  const [mrLoading, setMrLoading] = useState(false)
+  const [mrReport, setMrReport] = useState(null)
+
   const [currentRunId, setCurrentRunId] = useState(null)
   const [logs, setLogs] = useState([])
   const [results, setResults] = useState(null)
@@ -562,29 +569,7 @@ export default function AIAgentsPage() {
           )}
 
           {/* MARKET RESEARCH */}
-          {activeTab === 'market' && (() => {
-            const [mrSector, setMrSector] = useState('textile manufacturing')
-            const [mrCountries, setMrCountries] = useState('Spain, Bulgaria, Germany, France, Netherlands')
-            const [mrGoal, setMrGoal] = useState('Find and convert textile factories >100k annual revenue with ERP + Cybersecurity services for €10,000')
-            const [mrLoading, setMrLoading] = useState(false)
-            const [mrReport, setMrReport] = useState(null)
-
-            const runResearch = async () => {
-              setMrLoading(true)
-              setMrReport(null)
-              try {
-                const r = await fetch(`${API}/api/agent`, {
-                  method: 'POST', headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ action: 'market-research', clientSlug: selectedClient, sector: mrSector, countries: mrCountries.split(',').map(c => c.trim()), goal: mrGoal })
-                })
-                const data = await r.json()
-                if (r.ok) setMrReport(data.report)
-                else alert('Error: ' + (data.error || 'Unknown'))
-              } catch (e) { alert('Error: ' + e.message) }
-              setMrLoading(false)
-            }
-
-            return (
+          {activeTab === 'market' && (
               <div>
                 <h3 style={{ color: '#FF6B00', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16 }}>Investigacion de Mercado + Estrategia de Ventas</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
@@ -601,7 +586,15 @@ export default function AIAgentsPage() {
                     <textarea value={mrGoal} onChange={e => setMrGoal(e.target.value)} rows={2} style={{ width: '100%', padding: '10px 14px', background: '#0A0A0A', border: '1px solid #222', borderRadius: 8, color: '#fff', fontSize: 14, resize: 'vertical' }} />
                   </div>
                 </div>
-                <button onClick={runResearch} disabled={mrLoading} style={{ padding: '12px 24px', borderRadius: 8, border: 'none', background: mrLoading ? '#333' : '#FF6B00', color: '#fff', cursor: mrLoading ? 'wait' : 'pointer', fontSize: 14, fontWeight: 700, marginBottom: 20 }}>
+                <button onClick={async () => {
+                  setMrLoading(true); setMrReport(null)
+                  try {
+                    const r = await fetch(`${API}/api/agent`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'market-research', clientSlug: selectedClient, sector: mrSector, countries: mrCountries.split(',').map(c => c.trim()), goal: mrGoal }) })
+                    const data = await r.json()
+                    if (r.ok) setMrReport(data.report); else alert('Error: ' + (data.error || 'Unknown'))
+                  } catch (e) { alert('Error: ' + e.message) }
+                  setMrLoading(false)
+                }} disabled={mrLoading} style={{ padding: '12px 24px', borderRadius: 8, border: 'none', background: mrLoading ? '#333' : '#FF6B00', color: '#fff', cursor: mrLoading ? 'wait' : 'pointer', fontSize: 14, fontWeight: 700, marginBottom: 20 }}>
                   {mrLoading ? '🔍 Analizando mercado... (puede tardar 30-60s)' : '🚀 Lanzar Investigacion de Mercado'}
                 </button>
 
@@ -740,8 +733,7 @@ export default function AIAgentsPage() {
                   </div>
                 )}
               </div>
-            )
-          })()}
+          )}
 
           {/* LOGS — live feed */}
           {activeTab === 'logs' && (
