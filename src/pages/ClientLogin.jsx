@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
-export default function ClientLogin({ clientConfig, onLogin, authenticateUser }) {
+export default function ClientLogin({ clientConfig, onLogin, authenticateUser, authenticateStoreClient }) {
+  const [loginTab, setLoginTab] = useState('team')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -14,13 +15,35 @@ export default function ClientLogin({ clientConfig, onLogin, authenticateUser })
       return
     }
     setLoading(true)
-    const user = await authenticateUser(email, password)
-    if (user) {
-      onLogin(user.email)
-    } else {
-      setError('Credenciales incorrectas')
+    try {
+      if (loginTab === 'store_client') {
+        const sc = await authenticateStoreClient(email, password)
+        if (sc) {
+          onLogin(sc.email, 'store_client', sc)
+        } else {
+          setError('Credenciales incorrectas')
+          setLoading(false)
+        }
+      } else {
+        const user = await authenticateUser(email, password)
+        if (user) {
+          onLogin(user.email, 'team')
+        } else {
+          setError('Credenciales incorrectas')
+          setLoading(false)
+        }
+      }
+    } catch {
+      setError('Error al iniciar sesión')
       setLoading(false)
     }
+  }
+
+  function switchTab(tab) {
+    setLoginTab(tab)
+    setError('')
+    setEmail('')
+    setPassword('')
   }
 
   return (
@@ -32,6 +55,24 @@ export default function ClientLogin({ clientConfig, onLogin, authenticateUser })
         )}
         <h1 className="login-title">{clientConfig?.name || 'Dashboard'}</h1>
         <p className="login-subtitle">Accede al panel de control</p>
+
+        <div className="login-tabs">
+          <button
+            type="button"
+            className={`login-tab${loginTab === 'team' ? ' login-tab--active' : ''}`}
+            onClick={() => switchTab('team')}
+          >
+            Equipo
+          </button>
+          <button
+            type="button"
+            className={`login-tab${loginTab === 'store_client' ? ' login-tab--active' : ''}`}
+            onClick={() => switchTab('store_client')}
+          >
+            Mi Tienda
+          </button>
+        </div>
+
         <form onSubmit={handleSubmit} className="login-form">
           <div className="input-group">
             <label>Email</label>

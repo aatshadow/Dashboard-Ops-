@@ -14,7 +14,7 @@ function getInstallmentOptions(paymentType) {
 }
 
 export default function NewSale() {
-  const { addSale, getPaymentFees, getTeam, getProducts } = useClientData()
+  const { addSale, getPaymentFees, getTeam, getProducts, createInstallmentPlanWithPayments } = useClientData()
   const navigate = useNavigate()
   const [paymentFees, feesLoading] = useAsync(getPaymentFees, [])
   const [team, teamLoading] = useAsync(getTeam, [])
@@ -83,6 +83,29 @@ export default function NewSale() {
       cashCollected: +(form.cashCollected || form.revenue),
       source: 'manual',
     })
+    // Auto-create installment plan for multi-installment sales (first installment only)
+    if (form.paymentType !== 'Pago único' && form.installmentNumber?.startsWith('1/')) {
+      const totalMatch = form.paymentType.match(/^(\d+)/)
+      if (totalMatch) {
+        const totalInst = parseInt(totalMatch[1])
+        const totalAmount = +form.revenue
+        try {
+          await createInstallmentPlanWithPayments({
+            clientName: form.clientName,
+            clientEmail: form.clientEmail || '',
+            clientPhone: form.clientPhone || '',
+            product: form.product || '',
+            closer: form.closer,
+            totalInstallments: totalInst,
+            amountPerInstallment: Math.round(totalAmount / totalInst * 100) / 100,
+            totalAmount,
+            startDate: form.date,
+          })
+        } catch (err) {
+          console.error('Error creating installment plan:', err)
+        }
+      }
+    }
     setSaved(true)
     setTimeout(() => navigate('/ventas'), 1200)
   }

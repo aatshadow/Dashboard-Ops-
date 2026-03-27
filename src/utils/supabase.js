@@ -48,6 +48,11 @@ const TEAM_MAP = {
   setterCommissionRate: 'setter_commission_rate',
   commissionStartDate: 'commission_start_date',
   mgmtCommissionStartDate: 'mgmt_commission_start_date',
+  isGestor: 'is_gestor',
+  gestorCommissionRate: 'gestor_commission_rate',
+  gestorStartDate: 'gestor_start_date',
+  gestorCapacity: 'gestor_capacity',
+  calendarUrl: 'calendar_url',
 }
 
 const PROJECTIONS_MAP = {
@@ -326,10 +331,133 @@ const CHAT_BROADCASTS_MAP = {
   totalRead: 'total_read',
 }
 
+const INSTALLMENT_PLANS_MAP = {
+  clientId: 'client_id',
+  saleId: 'sale_id',
+  clientName: 'client_name',
+  clientEmail: 'client_email',
+  clientPhone: 'client_phone',
+  totalInstallments: 'total_installments',
+  amountPerInstallment: 'amount_per_installment',
+  totalAmount: 'total_amount',
+  startDate: 'start_date',
+  updatedAt: 'updated_at',
+}
+
+const INSTALLMENT_PAYMENTS_MAP = {
+  planId: 'plan_id',
+  installmentNumber: 'installment_number',
+  paidDate: 'paid_date',
+  markedBy: 'marked_by',
+}
+
+const AGENT_CONVERSATIONS_MAP = {
+  clientId: 'client_id',
+  userEmail: 'user_email',
+  updatedAt: 'updated_at',
+}
+
+const AGENT_MESSAGES_MAP = {
+  conversationId: 'conversation_id',
+  clientId: 'client_id',
+}
+
 const COLD_CALL_REPORTS_MAP = {
   clientId: 'client_id',
   pickUps: 'pick_ups',
   scheduleCalls: 'schedule_calls',
+}
+
+const STORES_MAP = {
+  clientId: 'client_id',
+  ownerName: 'owner_name',
+  ownerEmail: 'owner_email',
+  ownerPhone: 'owner_phone',
+  ownerInstagram: 'owner_instagram',
+  brandName: 'brand_name',
+  amazonMarketplace: 'amazon_marketplace',
+  capitalDisponible: 'capital_disponible',
+  gestorId: 'gestor_id',
+  gestorName: 'gestor_name',
+  serviceType: 'service_type',
+  followupDays: 'followup_days',
+  startDate: 'start_date',
+  endDate: 'end_date',
+  currentStep: 'current_step',
+  totalSteps: 'total_steps',
+  productName: 'product_name',
+  productAsin: 'product_asin',
+  agentName: 'agent_name',
+  upsellOffered: 'upsell_offered',
+  upsellResult: 'upsell_result',
+  crmContactId: 'crm_contact_id',
+  storeClientId: 'store_client_id',
+  updatedAt: 'updated_at',
+}
+
+const STORE_STEPS_MAP = {
+  storeId: 'store_id',
+  stepNumber: 'step_number',
+  stepType: 'step_type',
+  videoUrl: 'video_url',
+  actionUrl: 'action_url',
+  inputField: 'input_field',
+  inputValue: 'input_value',
+  completedAt: 'completed_at',
+  requiresTeamAction: 'requires_team_action',
+  teamActionDone: 'team_action_done',
+}
+
+const STORE_ALERTS_MAP = {
+  storeId: 'store_id',
+  clientId: 'client_id',
+  alertType: 'alert_type',
+  resolvedAt: 'resolved_at',
+  resolvedBy: 'resolved_by',
+  resolutionNote: 'resolution_note',
+}
+
+const STORE_DAILY_TRACKING_MAP = {
+  storeId: 'store_id',
+  trackingDate: 'tracking_date',
+  dayNumber: 'day_number',
+  dailySales: 'daily_sales',
+  dailyUnits: 'daily_units',
+  ppcSpend: 'ppc_spend',
+  organicPosition: 'organic_position',
+  conversionRate: 'conversion_rate',
+}
+
+const STORE_HISTORY_MAP = {
+  storeId: 'store_id',
+  monthlyRevenue: 'monthly_revenue',
+  monthlyUnits: 'monthly_units',
+  monthlyPpc: 'monthly_ppc',
+  profitMargin: 'profit_margin',
+  healthStatus: 'health_status',
+}
+
+const STORE_CLIENTS_MAP = {
+  clientId: 'client_id',
+  storeId: 'store_id',
+  lastLogin: 'last_login',
+}
+
+const STORE_TICKETS_MAP = {
+  storeId: 'store_id',
+  clientId: 'client_id',
+  openedBy: 'opened_by',
+  openedByName: 'opened_by_name',
+  assignedGestorId: 'assigned_gestor_id',
+  scheduledCallAt: 'scheduled_call_at',
+  resolvedAt: 'resolved_at',
+  updatedAt: 'updated_at',
+}
+
+const STORE_TICKET_MESSAGES_MAP = {
+  ticketId: 'ticket_id',
+  senderType: 'sender_type',
+  senderName: 'sender_name',
 }
 
 const TABLE_MAPS = {
@@ -370,13 +498,25 @@ const TABLE_MAPS = {
   chat_conversations: CHAT_CONVERSATIONS_MAP,
   chat_messages: CHAT_MESSAGES_MAP,
   chat_broadcasts: CHAT_BROADCASTS_MAP,
+  installment_plans: INSTALLMENT_PLANS_MAP,
+  installment_payments: INSTALLMENT_PAYMENTS_MAP,
+  stores: STORES_MAP,
+  store_steps: STORE_STEPS_MAP,
+  store_alerts: STORE_ALERTS_MAP,
+  store_daily_tracking: STORE_DAILY_TRACKING_MAP,
+  store_history: STORE_HISTORY_MAP,
+  store_clients: STORE_CLIENTS_MAP,
+  store_tickets: STORE_TICKETS_MAP,
+  store_ticket_messages: STORE_TICKET_MESSAGES_MAP,
+  agent_conversations: AGENT_CONVERSATIONS_MAP,
+  agent_messages: AGENT_MESSAGES_MAP,
 }
 
 // Valid DB columns per table (prevents unknown fields from causing insert errors)
 const VALID_COLUMNS = {
   sales: new Set(['client_id', 'date', 'client_name', 'client_email', 'client_phone', 'instagram', 'product', 'producto_interes', 'payment_type', 'installment_number', 'payment_method', 'revenue', 'cash_collected', 'closer', 'setter', 'triager', 'gestor_asignado', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'pais', 'capital_disponible', 'situacion_actual', 'exp_amazon', 'decisor_confirmado', 'fecha_llamada', 'status', 'notes', 'source', 'close_activity_id']),
   reports: new Set(['client_id', 'date', 'role', 'name', 'conversations_opened', 'follow_ups', 'offers_launched', 'appointments_booked', 'scheduled_calls', 'calls_made', 'deposits', 'closes', 'deals', 'pick_ups', 'offers', 'schedule_calls']),
-  team: new Set(['client_id', 'name', 'email', 'password', 'role', 'active', 'commission_rate', 'closer_commission_rate', 'setter_commission_rate', 'commission_start_date', 'mgmt_commission_start_date']),
+  team: new Set(['client_id', 'name', 'email', 'password', 'role', 'active', 'commission_rate', 'closer_commission_rate', 'setter_commission_rate', 'commission_start_date', 'mgmt_commission_start_date', 'is_gestor', 'gestor_commission_rate', 'gestor_start_date', 'gestor_capacity', 'calendar_url']),
   projections: new Set(['client_id', 'period', 'period_type', 'type', 'member_id', 'name', 'cash_target', 'revenue_target', 'appointment_target']),
   payment_fees: new Set(['client_id', 'method', 'fee_rate']),
   products: new Set(['client_id', 'name', 'price', 'active']),
@@ -408,6 +548,18 @@ const VALID_COLUMNS = {
   chat_conversations: new Set(['client_id', 'contact_id', 'flow_id', 'channel', 'status', 'assigned_to', 'last_message', 'last_message_at', 'unread_count']),
   chat_messages: new Set(['client_id', 'conversation_id', 'sender_type', 'content', 'message_type', 'media_url', 'metadata']),
   chat_broadcasts: new Set(['client_id', 'name', 'channel', 'message_content', 'message_type', 'media_url', 'target_tags', 'status', 'scheduled_at', 'sent_at', 'total_sent', 'total_delivered', 'total_read']),
+  installment_plans: new Set(['client_id', 'sale_id', 'client_name', 'client_email', 'client_phone', 'product', 'closer', 'total_installments', 'amount_per_installment', 'total_amount', 'start_date', 'status', 'notes', 'updated_at']),
+  installment_payments: new Set(['plan_id', 'installment_number', 'amount', 'paid', 'paid_date', 'marked_by', 'notes']),
+  stores: new Set(['client_id', 'owner_name', 'owner_email', 'owner_phone', 'owner_instagram', 'brand_name', 'amazon_marketplace', 'capital_disponible', 'status', 'gestor_id', 'gestor_name', 'service_type', 'followup_days', 'start_date', 'end_date', 'current_step', 'total_steps', 'product_name', 'product_asin', 'agent_name', 'upsell_offered', 'upsell_result', 'crm_contact_id', 'store_client_id', 'notes', 'updated_at']),
+  store_steps: new Set(['store_id', 'step_number', 'title', 'description', 'step_type', 'video_url', 'action_url', 'input_field', 'input_value', 'deliverables', 'completed', 'completed_at', 'requires_team_action', 'team_action_done']),
+  store_alerts: new Set(['store_id', 'client_id', 'alert_type', 'title', 'message', 'priority', 'resolved', 'resolved_at', 'resolved_by', 'resolution_note']),
+  store_daily_tracking: new Set(['store_id', 'tracking_date', 'day_number', 'daily_sales', 'daily_units', 'ppc_spend', 'organic_position', 'sessions', 'conversion_rate', 'notes']),
+  store_history: new Set(['store_id', 'month', 'monthly_revenue', 'monthly_units', 'monthly_ppc', 'profit_margin', 'health_status', 'notes']),
+  store_clients: new Set(['client_id', 'store_id', 'email', 'password', 'name', 'phone', 'instagram', 'active', 'last_login']),
+  store_tickets: new Set(['store_id', 'client_id', 'opened_by', 'opened_by_name', 'assigned_gestor_id', 'subject', 'status', 'priority', 'category', 'scheduled_call_at', 'resolved_at', 'updated_at']),
+  store_ticket_messages: new Set(['ticket_id', 'sender_type', 'sender_name', 'content']),
+  agent_conversations: new Set(['client_id', 'user_email', 'title', 'context', 'updated_at']),
+  agent_messages: new Set(['conversation_id', 'client_id', 'role', 'content']),
 }
 
 function buildReverse(map) {

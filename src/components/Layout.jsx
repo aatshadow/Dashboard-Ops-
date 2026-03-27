@@ -1,25 +1,11 @@
-import { NavLink, useLocation } from 'react-router-dom'
-import { useState, useMemo, useEffect } from 'react'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { getPrimaryRole, hasRole } from '../utils/roles'
-import AgentChat from './AgentChat'
+// AgentChat now wraps from ClientApp.jsx level
 
 function buildNavItems(prefix, slug) {
   const en = slug === 'black-wolf'
   return [
-    {
-      label: 'CEO Mind',
-      icon: '🧠',
-      children: [
-        { to: `${prefix}/ceo`, label: 'Overview', icon: '🧠' },
-        { to: `${prefix}/ceo/equipo`, label: en ? 'Team' : 'Equipo', icon: '👥' },
-        { to: `${prefix}/ceo/meetings`, label: 'Meetings', icon: '🎙️' },
-        { to: `${prefix}/ceo/proyectos`, label: en ? 'Projects' : 'Proyectos', icon: '📁' },
-        { to: `${prefix}/ceo/ideas`, label: 'Ideas', icon: '💡' },
-        { to: `${prefix}/ceo/pulso`, label: en ? 'Weekly Pulse' : 'Pulso Semanal', icon: '📊' },
-        { to: `${prefix}/ceo/roadmap`, label: 'Roadmap', icon: '🗺️' },
-        { to: `${prefix}/ceo/finanzas`, label: en ? 'Finance' : 'Finanzas', icon: '💰' },
-      ]
-    },
     {
       label: en ? 'Sales' : 'Ventas',
       icon: '💰',
@@ -39,34 +25,6 @@ function buildNavItems(prefix, slug) {
       ]
     },
     {
-      label: 'Marketing',
-      icon: '📣',
-      children: [
-        { to: `${prefix}/marketing`, label: 'Dashboard', icon: '📊' },
-      ]
-    },
-    {
-      label: en ? 'Content' : 'Contenido',
-      icon: '🎬',
-      children: [
-        { to: `${prefix}/contenido`, label: 'Dashboard', icon: '📊' },
-      ]
-    },
-    {
-      label: 'Email Marketing',
-      icon: '📧',
-      children: [
-        { to: `${prefix}/email-marketing`, label: en ? 'Campaigns' : 'Campanas', icon: '📧' },
-      ]
-    },
-    {
-      label: 'ChatBot',
-      icon: '🤖',
-      children: [
-        { to: `${prefix}/chatbot`, label: en ? 'Automation' : 'Automatizacion', icon: '🤖' },
-      ]
-    },
-    {
       label: 'CRM',
       icon: '📇',
       children: [
@@ -75,32 +33,131 @@ function buildNavItems(prefix, slug) {
       ]
     },
     {
-      label: 'Task Management',
-      icon: '📋',
+      label: en ? 'Installments' : 'Pagos a Plazos',
+      icon: '💳',
       children: [
-        { to: `${prefix}/task-management`, label: en ? 'Task Board' : 'Gestión de Tareas', icon: '📋' },
-        { to: `${prefix}/planning`, label: 'Planning', icon: '📅' },
+        { to: `${prefix}/pagos-plazos`, label: en ? 'Installment Plans' : 'Planes de Pago', icon: '💳' },
       ]
     },
     {
-      label: 'Management',
-      icon: '⚙️',
+      label: 'Email Marketing',
+      icon: '📧',
       children: [
-        { to: `${prefix}/equipo`, label: en ? 'Team' : 'Equipo', icon: '👥' },
-        { to: `${prefix}/proyecciones`, label: en ? 'Projections' : 'Proyecciones', icon: '🎯' },
-        { to: `${prefix}/comisiones`, label: en ? 'Commissions' : 'Comisiones', icon: '💸' },
-        { to: `${prefix}/productos`, label: en ? 'Products' : 'Productos', icon: '📦' },
-        { to: `${prefix}/metodos-pago`, label: en ? 'Payment Methods' : 'Métodos de Pago', icon: '💳' },
-        { to: `${prefix}/settings`, label: 'Settings', icon: '⚙️' },
+        { to: `${prefix}/email-marketing`, label: en ? 'Campaigns' : 'Campañas', icon: '📧' },
       ]
     },
   ]
 }
 
+function DropdownMenu({ group, isActive }) {
+  const [open, setOpen] = useState(false)
+  const timerRef = useRef(null)
+
+  function handleEnter() {
+    clearTimeout(timerRef.current)
+    setOpen(true)
+  }
+
+  function handleLeave() {
+    timerRef.current = setTimeout(() => setOpen(false), 150)
+  }
+
+  useEffect(() => () => clearTimeout(timerRef.current), [])
+
+  // Single-child groups: just link directly
+  if (group.children.length === 1) {
+    return (
+      <NavLink
+        to={group.children[0].to}
+        className={({ isActive: a }) => `topnav__item ${a ? 'topnav__item--active' : ''}`}
+      >
+        <span className="topnav__icon">{group.icon}</span>
+        <span className="topnav__label">{group.label}</span>
+      </NavLink>
+    )
+  }
+
+  return (
+    <div
+      className={`topnav__dropdown ${isActive ? 'topnav__dropdown--active' : ''}`}
+      onMouseEnter={handleEnter}
+      onMouseLeave={handleLeave}
+    >
+      <button className={`topnav__item ${isActive ? 'topnav__item--active' : ''}`}>
+        <span className="topnav__icon">{group.icon}</span>
+        <span className="topnav__label">{group.label}</span>
+        <span className={`topnav__chevron ${open ? 'topnav__chevron--open' : ''}`}>▾</span>
+      </button>
+
+      {open && (
+        <div className="topnav__menu" onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
+          {group.children.map(item => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive: a }) => `topnav__menu-item ${a ? 'topnav__menu-item--active' : ''}`}
+              onClick={() => setOpen(false)}
+            >
+              <span className="topnav__menu-icon">{item.icon}</span>
+              <span>{item.label}</span>
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MobileGroup({ group, location, onNavigate }) {
+  const isActive = group.children.some(c => location.pathname === c.to || location.pathname.startsWith(c.to + '/'))
+  const [open, setOpen] = useState(isActive)
+
+  // Single-child groups: just show the link directly
+  if (group.children.length === 1) {
+    return (
+      <NavLink
+        to={group.children[0].to}
+        className={({ isActive: a }) => `topnav__mobile-item ${a ? 'topnav__mobile-item--active' : ''}`}
+        onClick={onNavigate}
+      >
+        <span>{group.icon}</span> {group.label}
+      </NavLink>
+    )
+  }
+
+  return (
+    <div className="topnav__mobile-group">
+      <button
+        className={`topnav__mobile-group-title ${isActive ? 'topnav__mobile-group-title--active' : ''}`}
+        onClick={() => setOpen(!open)}
+      >
+        <span className="topnav__mobile-group-left">
+          <span>{group.icon}</span> {group.label}
+        </span>
+        <span className={`topnav__mobile-chevron ${open ? 'topnav__mobile-chevron--open' : ''}`}>▾</span>
+      </button>
+      {open && (
+        <div className="topnav__mobile-children">
+          {group.children.map(item => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive: a }) => `topnav__mobile-child ${a ? 'topnav__mobile-child--active' : ''}`}
+              onClick={onNavigate}
+            >
+              <span>{item.icon}</span> {item.label}
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Layout({ children, user, onLogout, role, clientConfig, clientSlug, isSuperAdmin }) {
-  const [collapsed, setCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const location = useLocation()
+  const navigate = useNavigate()
 
   const prefix = `/${clientSlug}`
   const navItems = useMemo(() => buildNavItems(prefix, clientSlug), [prefix, clientSlug])
@@ -117,155 +174,93 @@ export default function Layout({ children, user, onLogout, role, clientConfig, c
   const primaryRole = getPrimaryRole(role)
   const isCeo = hasRole(role, 'ceo')
   const visibleNavItems = useMemo(() => {
-    // CEO sees everything
-    if (isCeo) return navItems
-    // Director sees everything except CEO Mind
-    if (primaryRole === 'director') return navItems.filter(g => g.label !== 'CEO Mind')
-
+    if (isCeo || primaryRole === 'director') return navItems
     return navItems.filter(group => {
-      if (group.label === 'CEO Mind') return false
-      if (['Ventas', 'Sales', 'Reportes', 'Reports'].includes(group.label)) return true
-      if (group.label === 'CRM') return true
-      if (group.label === 'Task Management') return true
-      if (['Marketing', 'Contenido', 'Content'].includes(group.label)) return true
-      if (group.label === 'Management') return true
-      return false
-    }).map(group => {
-      if (group.label === 'Management') {
-        return { ...group, children: group.children.filter(c =>
-          c.to === `${prefix}/proyecciones` || c.to === `${prefix}/comisiones` || c.to === `${prefix}/settings`
-        ) }
-      }
-      return group
+      if (group.label === 'Email Marketing') return false
+      return true
     })
-  }, [primaryRole, isCeo, navItems, prefix])
+  }, [primaryRole, isCeo, navItems])
 
-  // Track which groups are open
-  const [openGroups, setOpenGroups] = useState(() => {
-    const open = {}
-    navItems.forEach(g => {
-      if (g.children.some(c => location.pathname === c.to || location.pathname.startsWith(c.to + '/'))) {
-        open[g.label] = true
-      }
-    })
-    return open
-  })
-
-  function toggleGroup(label) {
-    setOpenGroups(prev => ({ ...prev, [label]: !prev[label] }))
+  function isGroupActive(group) {
+    return group.children.some(c => location.pathname === c.to || location.pathname.startsWith(c.to + '/'))
   }
 
-  const pageTitle = (() => {
-    for (const g of navItems) {
-      const match = g.children.find(i => i.to === location.pathname)
-      if (match) return `${g.label} — ${match.label}`
-    }
-    return 'Dashboard'
-  })()
-
-  const sidebarContent = (
-    <>
-      <div className="sidebar-header">
-        {logoUrl ? (
-          <img src={logoUrl} alt={brandName} className="sidebar-logo" />
-        ) : (
-          <div className="sidebar-logo-placeholder">{brandName[0]}</div>
-        )}
-        {!collapsed && <span className="sidebar-brand">{brandName}</span>}
-      </div>
-
-      <nav className="sidebar-nav">
-        {visibleNavItems.map(group => {
-          const isActive = group.children.some(c => location.pathname === c.to)
-          const isOpen = openGroups[group.label]
-
-          return (
-            <div key={group.label} className="nav-group">
-              <button
-                className={`nav-group-btn ${isActive ? 'nav-group-btn--active' : ''}`}
-                onClick={() => toggleGroup(group.label)}
-                title={group.label}
-              >
-                <span className="nav-icon">{group.icon}</span>
-                {!collapsed && (
-                  <>
-                    <span className="nav-label">{group.label}</span>
-                    <span className={`nav-chevron ${isOpen ? 'nav-chevron--open' : ''}`}>›</span>
-                  </>
-                )}
-              </button>
-
-              {isOpen && !collapsed && (
-                <div className="nav-group-children">
-                  {group.children.map(item => (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      className={({ isActive }) => `nav-child ${isActive ? 'nav-child--active' : ''}`}
-                    >
-                      <span className="nav-child-dot" />
-                      <span>{item.label}</span>
-                    </NavLink>
-                  ))}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </nav>
-
-      <div className="sidebar-footer">
-        <button onClick={() => setCollapsed(!collapsed)} className="sidebar-toggle sidebar-toggle--desktop" title="Toggle sidebar">
-          {collapsed ? '→' : '←'}
-        </button>
-        {isSuperAdmin && (
-          <button onClick={() => { window.location.href = '/admin/consola' }} className="sidebar-logout" title="Volver a consola" style={{ marginBottom: '4px', opacity: 0.7 }}>
-            {collapsed ? '🏠' : '← Consola'}
-          </button>
-        )}
-        <button onClick={onLogout} className="sidebar-logout" title="Cerrar sesión">
-          {collapsed ? '⏻' : 'Cerrar sesión'}
-        </button>
-      </div>
-    </>
-  )
-
   return (
-    <div className={`layout ${collapsed ? 'layout--collapsed' : ''}`}>
-      <aside className="sidebar sidebar--desktop">
-        {sidebarContent}
-      </aside>
+    <div className="layout-v2">
+      {/* Top Navigation Bar */}
+      <header className="topnav">
+        <div className="topnav__left">
+          <button className="topnav__home" onClick={() => navigate(prefix)} title="Home">
+            {logoUrl ? (
+              <img src={logoUrl} alt={brandName} className="topnav__logo" />
+            ) : (
+              <span className="topnav__logo-placeholder">{brandName[0]}</span>
+            )}
+            <span className="topnav__brand">{brandName}</span>
+          </button>
 
-      {mobileMenuOpen && (
-        <div className="mobile-overlay" onClick={() => setMobileMenuOpen(false)} />
-      )}
-      <aside className={`sidebar sidebar--mobile ${mobileMenuOpen ? 'sidebar--mobile-open' : ''}`}>
-        {sidebarContent}
-      </aside>
-
-      <main className="main">
-        <header className="topbar">
-          <div className="topbar-left">
-            <button
-              className="mobile-hamburger"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Abrir menú"
-            >
-              {mobileMenuOpen ? '✕' : '☰'}
-            </button>
-            <h1 className="topbar-title">{pageTitle}</h1>
-          </div>
-          <div className="topbar-user">
-            <div className="topbar-avatar">{(user || 'U')[0].toUpperCase()}</div>
-            <span className="topbar-email">{user}</span>
-          </div>
-        </header>
-        <div className="main-content">
-          {children}
+          <nav className="topnav__sections">
+            {visibleNavItems.map(group => (
+              <DropdownMenu key={group.label} group={group} isActive={isGroupActive(group)} />
+            ))}
+          </nav>
         </div>
-      </main>
 
-      <AgentChat />
+        <div className="topnav__right">
+          <div className="topnav__user">
+            <div className="topnav__avatar">{(user || 'U')[0].toUpperCase()}</div>
+            <span className="topnav__email">{user}</span>
+          </div>
+          {isSuperAdmin && (
+            <button onClick={() => { window.location.href = '/admin/consola' }} className="topnav__action" title="Consola">
+              ← Consola
+            </button>
+          )}
+          <button onClick={onLogout} className="topnav__action topnav__action--logout" title="Cerrar sesión">
+            Salir
+          </button>
+        </div>
+
+        {/* Mobile hamburger */}
+        <button className="topnav__hamburger" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+          {mobileMenuOpen ? '✕' : '☰'}
+        </button>
+      </header>
+
+      {/* Mobile dropdown menu */}
+      {mobileMenuOpen && (
+        <>
+          <div className="topnav__mobile-overlay" onClick={() => setMobileMenuOpen(false)} />
+          <div className="topnav__mobile-menu">
+            <NavLink
+              to={prefix}
+              end
+              className={({ isActive }) => `topnav__mobile-item topnav__mobile-home ${isActive ? 'topnav__mobile-item--active' : ''}`}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              🏠 Home
+            </NavLink>
+            {visibleNavItems.map(group => (
+              <MobileGroup key={group.label} group={group} location={location} onNavigate={() => setMobileMenuOpen(false)} />
+            ))}
+            <div className="topnav__mobile-footer">
+              {isSuperAdmin && (
+                <button className="topnav__mobile-item" onClick={() => { window.location.href = '/admin/consola' }}>
+                  ← Consola
+                </button>
+              )}
+              <button className="topnav__mobile-item" onClick={onLogout}>
+                ⏻ Cerrar sesión
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Main content — full width */}
+      <main className="layout-v2__main">
+        {children}
+      </main>
     </div>
   )
 }

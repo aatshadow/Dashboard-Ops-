@@ -29,7 +29,8 @@ export default function AdminConsole() {
   function handleCardClick(slug) {
     // Set superadmin session for this client
     localStorage.setItem(`bw_client_${slug}_user`, localStorage.getItem('bw_superadmin'))
-    navigate(`/${slug}/ventas`)
+    localStorage.setItem(`bw_client_${slug}_usertype`, 'team')
+    navigate(`/${slug}`)
   }
 
   async function handleSaveRate(clientId) {

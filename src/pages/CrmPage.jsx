@@ -4,6 +4,7 @@ import { useClient } from '../contexts/ClientContext'
 import { useClientData } from '../hooks/useClientData'
 import { useAsync } from '../hooks/useAsync'
 import ImportModal from '../components/ImportModal'
+import StoreCreationModal from '../components/StoreCreationModal'
 import {
   Search, Plus, Settings, X, ChevronDown, ChevronLeft, ChevronRight,
   Phone, Mail, Building2, User, Tag, Calendar, DollarSign,
@@ -290,10 +291,12 @@ export default function CrmPage() {
   const [listVisibleFields, setListVisibleFields] = useState(['name', 'email', 'phone', 'status', 'dealValue'])
   const [showListSettings, setShowListSettings] = useState(false)
   const [saleModalContact, setSaleModalContact] = useState(null) // contact to register sale for
+  const [storeCreationContact, setStoreCreationContact] = useState(null) // contact to create store for
   const [showImport, setShowImport] = useState(false)
   const [bulkSelected, setBulkSelected] = useState(new Set()) // selected contact IDs for bulk ops
   const [showBulkEdit, setShowBulkEdit] = useState(false)
   const [bulkForm, setBulkForm] = useState({})
+  const [showViews, setShowViews] = useState(window.innerWidth > 768)
 
   // ─── All Tasks (for tasks view) ────────────────────────────────────────────
   const [allTasks, , refreshAllTasks] = useAsync(getCrmTasks, [])
@@ -453,18 +456,29 @@ export default function CrmPage() {
     if (bulkSelected.size === sortedContacts.length) setBulkSelected(new Set())
     else setBulkSelected(new Set(sortedContacts.map(c => c.id)))
   }
+  const [bulkSaving, setBulkSaving] = useState(false)
   const handleBulkEdit = async () => {
-    if (bulkSelected.size === 0) return
+    if (bulkSelected.size === 0 || bulkSaving) return
     const updates = {}
-    Object.entries(bulkForm).forEach(([k, v]) => { if (v !== '') updates[k] = v })
+    Object.entries(bulkForm).forEach(([k, v]) => { if (v !== '' && v !== undefined && v !== null) updates[k] = v })
     if (Object.keys(updates).length === 0) return
+    // Convert tags from comma-separated string to JSONB array
+    if (updates.tags && typeof updates.tags === 'string') {
+      updates.tags = updates.tags.split(',').map(t => t.trim()).filter(Boolean)
+    }
+    setBulkSaving(true)
     try {
       await bulkUpdateCrmContacts([...bulkSelected], updates)
       refreshContacts()
       setBulkSelected(new Set())
       setShowBulkEdit(false)
       setBulkForm({})
-    } catch (err) { console.error('Bulk update error:', err) }
+    } catch (err) {
+      console.error('Bulk update error:', err)
+      alert(L ? L('Error al actualizar: ' + (err.message || err), 'Update error: ' + (err.message || err)) : 'Update error: ' + (err.message || err))
+    } finally {
+      setBulkSaving(false)
+    }
   }
   const handleBulkDelete = async () => {
     if (bulkSelected.size === 0) return
@@ -543,13 +557,29 @@ export default function CrmPage() {
   // RENDER
   // ═════════════════════════════════════════════════════════════════════════════
   return (
-    <div className="dashboard" style={{ position: 'relative', overflow: 'hidden' }}>
+    <div className="crm-page" style={{ position: 'relative', overflow: 'hidden' }}>
 
       {/* ─── Top Bar ──────────────────────────────────────────────────────── */}
-      <div style={{
+      <div className="crm-toolbar" style={{
         display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
         marginBottom: 0, padding: '0 0 16px', borderBottom: '1px solid var(--border)',
       }}>
+        {/* Toggle Views sidebar */}
+        <button
+          onClick={() => setShowViews(!showViews)}
+          className="crm-views-toggle"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px',
+            background: showViews ? 'rgba(255,107,0,.1)' : 'var(--bg-card)',
+            border: '1px solid ' + (showViews ? 'rgba(255,107,0,.3)' : 'var(--border)'),
+            borderRadius: 8, cursor: 'pointer',
+            color: showViews ? 'var(--orange)' : 'var(--text-secondary)',
+            fontSize: 13, fontWeight: 600, transition: 'all .2s',
+          }}
+          title={showViews ? L('Ocultar vistas', 'Hide views') : L('Mostrar vistas', 'Show views')}
+        >
+          <Eye size={14} /> <span className="crm-views-toggle__label">{L('Vistas', 'Views')}</span>
+        </button>
         {/* Pipeline Selector */}
         <div style={{ position: 'relative' }}>
           <button
@@ -639,19 +669,21 @@ export default function CrmPage() {
           {search && <X size={14} style={{ cursor: 'pointer', color: 'var(--text-secondary)' }} onClick={() => setSearch('')} />}
         </div>
 
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+        <div className="crm-toolbar__actions" style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           <button onClick={() => setShowImport(true)}
+            className="crm-toolbar__btn-ghost"
             style={{ ...S.btnGhost, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px' }}
             title={L('Importar CSV/Excel', 'Import CSV/Excel')}>
-            <Upload size={15} /> {L('Importar', 'Import')}
+            <Upload size={15} /> <span className="crm-hide-mobile">{L('Importar', 'Import')}</span>
           </button>
           <button onClick={() => setShowCustomFields(true)}
+            className="crm-toolbar__btn-ghost"
             style={{ ...S.btnGhost, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px' }}
             title={L('Campos Personalizados', 'Custom Fields')}>
             <Settings size={15} />
           </button>
-          <button className="btn-action" onClick={() => setShowNewContact(true)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={15} /> {L('Nuevo Contacto', 'New Contact')}
+          <button className="btn-action crm-toolbar__add" onClick={() => setShowNewContact(true)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Plus size={15} /> <span className="crm-hide-mobile">{L('Nuevo Contacto', 'New Contact')}</span>
           </button>
         </div>
       </div>
@@ -762,8 +794,8 @@ export default function CrmPage() {
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
                 <button onClick={() => setShowBulkEdit(false)} style={{ ...S.btnGhost, padding: '9px 20px', fontSize: 13 }}>{L('Cancelar', 'Cancel')}</button>
-                <button onClick={handleBulkEdit} className="btn-action" style={{ padding: '9px 20px', fontSize: 13 }}>
-                  {L('Aplicar cambios', 'Apply Changes')}
+                <button onClick={handleBulkEdit} className="btn-action" disabled={bulkSaving} style={{ padding: '9px 20px', fontSize: 13, opacity: bulkSaving ? 0.6 : 1 }}>
+                  {bulkSaving ? L('Guardando...', 'Saving...') : L('Aplicar cambios', 'Apply Changes')}
                 </button>
               </div>
             </div>
@@ -772,10 +804,12 @@ export default function CrmPage() {
       )}
 
       {/* ─── Main Layout: Sidebar + Content ──────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 0, marginTop: 0 }}>
+      <div className="crm-body" style={{ display: 'flex', gap: 0, marginTop: 0 }}>
 
         {/* ─── Smart Views Left Sidebar ──────────────────────────────────── */}
-        <div style={{
+        {showViews && <div className="crm-sidebar-overlay" onClick={() => setShowViews(false)} />}
+        {showViews && (
+        <div className="crm-sidebar" style={{
           width: 220, minWidth: 220, flexShrink: 0, borderRight: '1px solid var(--border)',
           display: 'flex', flexDirection: 'column', height: 'calc(100vh - 160px)', overflowY: 'auto',
           background: 'rgba(255,255,255,.01)',
@@ -832,9 +866,10 @@ export default function CrmPage() {
             </button>
           )}
         </div>
+        )}
 
         {/* ─── Right Content Area ────────────────────────────────────────── */}
-        <div style={{ flex: 1, minWidth: 0, paddingLeft: 16, paddingTop: 16 }}>
+        <div className="crm-content" style={{ flex: 1, minWidth: 0, paddingLeft: showViews ? 16 : 0, paddingTop: 16 }}>
 
           {/* Pipeline Summary Strip */}
           <div style={{ display: 'flex', gap: 6, marginBottom: 12, overflowX: 'auto', paddingBottom: 4, alignItems: 'center' }}>
@@ -1175,11 +1210,22 @@ export default function CrmPage() {
           onSave={async (saleData) => {
             try {
               await addSale(saleData)
+              const contactForStore = saleModalContact
               setSaleModalContact(null)
               refreshContacts()
+              // Offer store creation after sale
+              setStoreCreationContact(contactForStore)
             } catch (err) { console.error('Error registering sale:', err); alert(L('Error al registrar venta.', 'Error registering sale.')) }
           }}
           en={en}
+        />
+      )}
+
+      {storeCreationContact && (
+        <StoreCreationModal
+          contact={storeCreationContact}
+          onClose={() => setStoreCreationContact(null)}
+          onCreated={() => setStoreCreationContact(null)}
         />
       )}
 

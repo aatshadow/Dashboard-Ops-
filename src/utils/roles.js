@@ -18,3 +18,9 @@ export function getPrimaryRole(roleStr) {
   }
   return 'closer'
 }
+
+export function isGestorManager(member) {
+  if (!member?.isGestor) return false
+  const roles = getRoles(member.role)
+  return roles.some(r => ['manager', 'director', 'ceo'].includes(r))
+}

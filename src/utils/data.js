@@ -379,6 +379,79 @@ export async function deletePaymentFee(id, clientId) {
   if (error) throw error
 }
 
+// ---- INSTALLMENT PLANS ----
+export async function getInstallmentPlans(clientId) {
+  const { data, error } = await supabase
+    .from('installment_plans')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return (data || []).map(r => toApp(r, 'installment_plans'))
+}
+
+export async function addInstallmentPlan(plan, clientId) {
+  const dbPlan = toDb(plan, 'installment_plans')
+  dbPlan.client_id = clientId
+  const { data, error } = await supabase.from('installment_plans').insert(dbPlan).select().single()
+  if (error) throw error
+  return toApp(data, 'installment_plans')
+}
+
+export async function updateInstallmentPlan(id, updates, clientId) {
+  const dbUpdates = toDb(updates, 'installment_plans')
+  delete dbUpdates.id
+  delete dbUpdates.client_id
+  let query = supabase.from('installment_plans').update(dbUpdates).eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
+  const { error } = await query
+  if (error) throw error
+}
+
+export async function deleteInstallmentPlan(id, clientId) {
+  let query = supabase.from('installment_plans').delete().eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
+  const { error } = await query
+  if (error) throw error
+}
+
+export async function getInstallmentPayments(planId) {
+  const { data, error } = await supabase
+    .from('installment_payments')
+    .select('*')
+    .eq('plan_id', planId)
+    .order('installment_number', { ascending: true })
+  if (error) throw error
+  return (data || []).map(r => toApp(r, 'installment_payments'))
+}
+
+export async function updateInstallmentPayment(id, updates) {
+  const dbUpdates = toDb(updates, 'installment_payments')
+  delete dbUpdates.id
+  const { error } = await supabase.from('installment_payments').update(dbUpdates).eq('id', id)
+  if (error) throw error
+}
+
+export async function createInstallmentPlanWithPayments(plan, clientId) {
+  // Create plan
+  const created = await addInstallmentPlan(plan, clientId)
+  // Create all installment payment rows
+  const rows = []
+  for (let i = 1; i <= plan.totalInstallments; i++) {
+    rows.push({
+      plan_id: created.id,
+      installment_number: i,
+      amount: plan.amountPerInstallment,
+      paid: false,
+    })
+  }
+  if (rows.length > 0) {
+    const { error } = await supabase.from('installment_payments').insert(rows)
+    if (error) throw error
+  }
+  return created
+}
+
 // ---- N8N CONFIG ----
 export async function getN8nConfig(clientId) {
   const { data, error } = await supabase
@@ -1540,6 +1613,417 @@ export async function updateChatBroadcast(id, updates) {
 export async function deleteChatBroadcast(id) {
   const { error } = await supabase.from('chat_broadcasts').delete().eq('id', id)
   if (error) throw error
+}
+
+// ---- AI AGENT CHAT ----
+export async function getAgentConversations(clientId) {
+  const { data, error } = await supabase
+    .from('agent_conversations').select('*')
+    .eq('client_id', clientId)
+    .order('updated_at', { ascending: false })
+  if (error) return []
+  return data.map(r => toApp(r, 'agent_conversations'))
+}
+
+export async function addAgentConversation(conv, clientId) {
+  const dbConv = toDb({ ...conv, clientId }, 'agent_conversations')
+  const { data, error } = await supabase
+    .from('agent_conversations').insert(dbConv).select().single()
+  if (error) throw error
+  return toApp(data, 'agent_conversations')
+}
+
+export async function updateAgentConversation(id, updates, clientId) {
+  const dbUpdates = toDb(updates, 'agent_conversations')
+  let q = supabase.from('agent_conversations').update(dbUpdates).eq('id', id)
+  if (clientId) q = q.eq('client_id', clientId)
+  const { data, error } = await q.select().single()
+  if (error) throw error
+  return toApp(data, 'agent_conversations')
+}
+
+export async function deleteAgentConversation(id, clientId) {
+  let q = supabase.from('agent_conversations').delete().eq('id', id)
+  if (clientId) q = q.eq('client_id', clientId)
+  const { error } = await q
+  if (error) throw error
+}
+
+export async function getAgentMessages(conversationId) {
+  const { data, error } = await supabase
+    .from('agent_messages').select('*')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: true })
+  if (error) return []
+  return data.map(r => toApp(r, 'agent_messages'))
+}
+
+export async function addAgentMessage(msg, clientId) {
+  const dbMsg = toDb({ ...msg, clientId }, 'agent_messages')
+  const { data, error } = await supabase
+    .from('agent_messages').insert(dbMsg).select().single()
+  if (error) throw error
+  return toApp(data, 'agent_messages')
+}
+
+// ---- STORES (Gestión de Tiendas) ----
+export async function getStores(clientId) {
+  const { data, error } = await supabase
+    .from('stores')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data.map(row => toApp(row, 'stores'))
+}
+
+export async function addStore(store, clientId) {
+  const db = toDb(store, 'stores'); delete db.id; db.client_id = clientId
+  const { data, error } = await supabase.from('stores').insert(db).select().single()
+  if (error) throw error
+  return toApp(data, 'stores')
+}
+
+export async function updateStore(id, updates, clientId) {
+  const db = toDb(updates, 'stores'); delete db.id; delete db.client_id
+  db.updated_at = new Date().toISOString()
+  let query = supabase.from('stores').update(db).eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
+  const { error } = await query
+  if (error) throw error
+}
+
+export async function deleteStore(id, clientId) {
+  let query = supabase.from('stores').delete().eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
+  const { error } = await query
+  if (error) throw error
+}
+
+// ---- STORE STEPS ----
+export async function getStoreSteps(storeId) {
+  const { data, error } = await supabase
+    .from('store_steps')
+    .select('*')
+    .eq('store_id', storeId)
+    .order('step_number', { ascending: true })
+  if (error) throw error
+  return data.map(row => toApp(row, 'store_steps'))
+}
+
+export async function updateStoreStep(id, updates) {
+  const db = toDb(updates, 'store_steps'); delete db.id; delete db.store_id
+  const { error } = await supabase.from('store_steps').update(db).eq('id', id)
+  if (error) throw error
+}
+
+// ---- STORE ALERTS ----
+export async function getStoreAlerts(clientId, resolved = false) {
+  let query = supabase
+    .from('store_alerts')
+    .select('*')
+    .eq('client_id', clientId)
+    .eq('resolved', resolved)
+    .order('created_at', { ascending: false })
+  const { data, error } = await query
+  if (error) throw error
+  return data.map(row => toApp(row, 'store_alerts'))
+}
+
+export async function addStoreAlert(alert, clientId) {
+  const db = toDb(alert, 'store_alerts'); delete db.id; db.client_id = clientId
+  const { data, error } = await supabase.from('store_alerts').insert(db).select().single()
+  if (error) throw error
+  return toApp(data, 'store_alerts')
+}
+
+export async function resolveStoreAlert(id, resolvedBy, note) {
+  const { error } = await supabase.from('store_alerts').update({
+    resolved: true,
+    resolved_at: new Date().toISOString(),
+    resolved_by: resolvedBy,
+    resolution_note: note || null,
+  }).eq('id', id)
+  if (error) throw error
+}
+
+// ---- STORE DAILY TRACKING ----
+export async function getStoreDailyTracking(storeId) {
+  const { data, error } = await supabase
+    .from('store_daily_tracking')
+    .select('*')
+    .eq('store_id', storeId)
+    .order('tracking_date', { ascending: true })
+  if (error) throw error
+  return data.map(row => toApp(row, 'store_daily_tracking'))
+}
+
+export async function addStoreDailyTracking(entry) {
+  const db = toDb(entry, 'store_daily_tracking'); delete db.id
+  const { data, error } = await supabase.from('store_daily_tracking').insert(db).select().single()
+  if (error) throw error
+  return toApp(data, 'store_daily_tracking')
+}
+
+// ---- STORE HISTORY ----
+export async function getStoreHistory(storeId) {
+  const { data, error } = await supabase
+    .from('store_history')
+    .select('*')
+    .eq('store_id', storeId)
+    .order('month', { ascending: false })
+  if (error) throw error
+  return data.map(row => toApp(row, 'store_history'))
+}
+
+export async function addStoreHistory(entry) {
+  const db = toDb(entry, 'store_history'); delete db.id
+  const { data, error } = await supabase.from('store_history').insert(db).select().single()
+  if (error) throw error
+  return toApp(data, 'store_history')
+}
+
+// ---- STORE CLIENTS (Portal Users) ----
+export async function authenticateStoreClient(email, password, clientId) {
+  const { data, error } = await supabase
+    .from('store_clients')
+    .select('*')
+    .eq('client_id', clientId)
+    .eq('email', email)
+    .eq('password', password)
+    .eq('active', true)
+    .maybeSingle()
+  if (error || !data) return null
+  return toApp(data, 'store_clients')
+}
+
+export async function getStoreClients(clientId) {
+  const { data, error } = await supabase
+    .from('store_clients')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data.map(row => toApp(row, 'store_clients'))
+}
+
+export async function addStoreClient(client, clientId) {
+  const db = toDb(client, 'store_clients'); delete db.id; db.client_id = clientId
+  const { data, error } = await supabase.from('store_clients').insert(db).select().single()
+  if (error) throw error
+  return toApp(data, 'store_clients')
+}
+
+export async function updateStoreClient(id, updates, clientId) {
+  const db = toDb(updates, 'store_clients'); delete db.id; delete db.client_id
+  let query = supabase.from('store_clients').update(db).eq('id', id)
+  if (clientId) query = query.eq('client_id', clientId)
+  const { error } = await query
+  if (error) throw error
+}
+
+// ---- STORE TICKETS ----
+export async function getStoreTickets(clientId, filters = {}) {
+  let query = supabase
+    .from('store_tickets')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('updated_at', { ascending: false })
+  if (filters.gestorId) query = query.eq('assigned_gestor_id', filters.gestorId)
+  if (filters.storeId) query = query.eq('store_id', filters.storeId)
+  if (filters.status) query = query.eq('status', filters.status)
+  const { data, error } = await query
+  if (error) throw error
+  return data.map(row => toApp(row, 'store_tickets'))
+}
+
+export async function addStoreTicket(ticket, clientId) {
+  const db = toDb(ticket, 'store_tickets'); delete db.id; db.client_id = clientId
+  const { data, error } = await supabase.from('store_tickets').insert(db).select().single()
+  if (error) throw error
+  return toApp(data, 'store_tickets')
+}
+
+export async function updateStoreTicket(id, updates) {
+  const db = toDb(updates, 'store_tickets'); delete db.id; delete db.client_id
+  db.updated_at = new Date().toISOString()
+  const { error } = await supabase.from('store_tickets').update(db).eq('id', id)
+  if (error) throw error
+}
+
+// ---- TICKET MESSAGES ----
+export async function getTicketMessages(ticketId) {
+  const { data, error } = await supabase
+    .from('store_ticket_messages')
+    .select('*')
+    .eq('ticket_id', ticketId)
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return data.map(row => toApp(row, 'store_ticket_messages'))
+}
+
+export async function addTicketMessage(message) {
+  const db = toDb(message, 'store_ticket_messages'); delete db.id
+  const { data, error } = await supabase.from('store_ticket_messages').insert(db).select().single()
+  if (error) throw error
+  return toApp(data, 'store_ticket_messages')
+}
+
+// ---- STORE CREATION ORCHESTRATOR ----
+export async function createStoreWithClient({ storeData, clientPassword, gestorId, gestorName }, clientId) {
+  // 1. Create store client (portal user)
+  const storeClient = await addStoreClient({
+    email: storeData.ownerEmail,
+    password: clientPassword,
+    name: storeData.ownerName,
+    phone: storeData.ownerPhone || null,
+    instagram: storeData.ownerInstagram || null,
+  }, clientId)
+
+  // 2. Create store
+  const store = await addStore({
+    ...storeData,
+    gestorId: gestorId || null,
+    gestorName: gestorName || null,
+    storeClientId: storeClient.id,
+    status: 'onboarding',
+    currentStep: 1,
+  }, clientId)
+
+  // 3. Link store to client
+  await updateStoreClient(storeClient.id, { storeId: store.id }, clientId)
+
+  // 4. Create default onboarding steps based on service type
+  const steps = getDefaultSteps(storeData.serviceType)
+  for (const step of steps) {
+    const db = toDb({ ...step, storeId: store.id }, 'store_steps')
+    delete db.id
+    await supabase.from('store_steps').insert(db)
+  }
+
+  return { store, storeClient }
+}
+
+export async function initStoreSteps(storeId, serviceType) {
+  // Check if steps already exist
+  const { data: existing } = await supabase
+    .from('store_steps')
+    .select('id')
+    .eq('store_id', storeId)
+    .limit(1)
+  if (existing && existing.length > 0) return false // already has steps
+
+  const steps = getDefaultSteps(serviceType || 'dwy')
+  for (const step of steps) {
+    const db = toDb({ ...step, storeId }, 'store_steps')
+    delete db.id
+    await supabase.from('store_steps').insert(db)
+  }
+  return true
+}
+
+function getDefaultSteps(serviceType) {
+  const base = [
+    {
+      stepNumber: 1,
+      title: 'Crear Cuenta Amazon Seller',
+      description: 'Crea tu cuenta de vendedor en Amazon Seller Central. Sigue el vídeo paso a paso para completar el registro y la verificación de identidad.',
+      stepType: 'video',
+      videoUrl: 'https://www.youtube.com/embed/placeholder-crear-cuenta',
+      requiresTeamAction: false,
+      deliverables: [],
+    },
+    {
+      stepNumber: 2,
+      title: 'Creación de Marca',
+      description: 'Define el nombre de tu marca en Amazon. Este nombre aparecerá en todos tus productos y listing.',
+      stepType: 'input',
+      videoUrl: 'https://www.youtube.com/embed/placeholder-marca',
+      requiresTeamAction: false,
+      deliverables: [
+        { key: 'brand_name', label: 'Nombre de marca', type: 'text', required: true, value: '' },
+      ],
+    },
+    {
+      stepNumber: 3,
+      title: 'Capital Disponible',
+      description: 'Indica el capital que tienes disponible para invertir en inventario y publicidad. Esto nos ayuda a dimensionar tu primera compra.',
+      stepType: 'input',
+      requiresTeamAction: false,
+      deliverables: [
+        { key: 'capital', label: 'Capital disponible (€)', type: 'number', required: true, value: '' },
+      ],
+    },
+    {
+      stepNumber: 4,
+      title: 'Brand Registry',
+      description: 'Registra tu marca en Amazon Brand Registry para protegerla y acceder a herramientas avanzadas como A+ Content.',
+      stepType: 'input',
+      videoUrl: 'https://www.youtube.com/embed/placeholder-brand-registry',
+      requiresTeamAction: false,
+      deliverables: [
+        { key: 'brand_registry_name', label: 'Marca registrada', type: 'text', required: true, value: '' },
+      ],
+    },
+    {
+      stepNumber: 5,
+      title: 'Búsqueda de Producto',
+      description: 'Tu gestor te asignará un producto basándose en tu capital y el análisis de mercado. Este paso se desbloquea cuando el equipo haya seleccionado tu producto.',
+      stepType: 'blocked',
+      videoUrl: 'https://www.youtube.com/embed/placeholder-producto',
+      requiresTeamAction: true,
+      deliverables: [],
+    },
+    {
+      stepNumber: 6,
+      title: 'Agente de Compras',
+      description: 'El equipo te asignará un agente de compras para contactar proveedores y gestionar la fabricación. Este paso se desbloquea cuando se haya asignado un agente.',
+      stepType: 'blocked',
+      videoUrl: 'https://www.youtube.com/embed/placeholder-agente',
+      requiresTeamAction: true,
+      deliverables: [],
+    },
+    {
+      stepNumber: 7,
+      title: 'Generar Etiquetas',
+      description: 'Genera las etiquetas FNSKU de Amazon para tus productos. Sigue el vídeo para descargarlas desde Seller Central.',
+      stepType: 'video',
+      videoUrl: 'https://www.youtube.com/embed/placeholder-etiquetas',
+      requiresTeamAction: false,
+      deliverables: [],
+    },
+    {
+      stepNumber: 8,
+      title: 'Envío a FBA',
+      description: 'Prepara y envía tu inventario a los almacenes de Amazon FBA. El vídeo te guía paso a paso por el proceso de envío.',
+      stepType: 'video',
+      videoUrl: 'https://www.youtube.com/embed/placeholder-envio',
+      requiresTeamAction: false,
+      deliverables: [],
+    },
+    {
+      stepNumber: 9,
+      title: 'Vídeo de Feedback',
+      description: 'Graba un breve vídeo contándonos tu experiencia hasta ahora. Esto nos ayuda a mejorar el proceso para futuros clientes.',
+      stepType: 'input',
+      requiresTeamAction: false,
+      deliverables: [
+        { key: 'feedback_video_url', label: 'URL del vídeo de feedback', type: 'url', required: true, value: '' },
+      ],
+    },
+    {
+      stepNumber: 10,
+      title: 'Seguimiento Diario',
+      description: 'Tu tienda ya está activa. A partir de ahora puedes registrar tus ventas diarias, gasto PPC y posición orgánica desde el panel de seguimiento.',
+      stepType: 'tracking',
+      requiresTeamAction: false,
+      deliverables: [],
+    },
+  ]
+  if (serviceType === 'diy') return base.slice(0, 7).map((s, i) => ({ ...s, stepNumber: i + 1 }))
+  if (serviceType === 'dwy') return base.slice(0, 9).map((s, i) => ({ ...s, stepNumber: i + 1 }))
+  // DFY gets all steps
+  return base
 }
 
 export async function getAdminDashboardData() {

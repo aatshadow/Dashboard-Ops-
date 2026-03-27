@@ -1210,7 +1210,7 @@ export default async function handler(req, res) {
   }
 
   // Otherwise: analytics agent
-  const { question, history, clientSlug } = req.body
+  const { question, history, clientSlug, conversationId } = req.body
   if (!question) {
     return res.status(400).json({ error: 'question is required' })
   }
@@ -1239,6 +1239,19 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Error fetching dashboard data: ' + err.message })
   }
 
+  // Fetch conversation context if provided (e.g. constraint analysis)
+  let constraintContext = ''
+  if (conversationId) {
+    try {
+      const { data: conv } = await supabase
+        .from('agent_conversations')
+        .select('context')
+        .eq('id', conversationId)
+        .single()
+      if (conv?.context) constraintContext = conv.context
+    } catch {}
+  }
+
   const systemPrompt = buildSystemPrompt(clientName, dashboardData.products || [])
 
   const messages = []
@@ -1248,9 +1261,13 @@ export default async function handler(req, res) {
     }
   }
 
+  const contextPrefix = constraintContext
+    ? `CONTEXTO PREVIO (análisis de restricciones de la semana):\n${constraintContext}\n\n`
+    : ''
+
   messages.push({
     role: 'user',
-    content: `DATOS COMPLETOS DEL DASHBOARD (consulta: ${dashboardData.fechaConsulta}):\n\`\`\`json\n${JSON.stringify(dashboardData, null, 2)}\n\`\`\`\n\nPREGUNTA: ${question}`,
+    content: `${contextPrefix}DATOS COMPLETOS DEL DASHBOARD (consulta: ${dashboardData.fechaConsulta}):\n\`\`\`json\n${JSON.stringify(dashboardData, null, 2)}\n\`\`\`\n\nPREGUNTA: ${question}`,
   })
 
   try {

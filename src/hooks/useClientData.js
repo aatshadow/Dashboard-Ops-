@@ -155,6 +155,53 @@ export function useClientData() {
     syncManychatSubscribers: useCallback(() => data.syncManychatSubscribers(clientId), [clientId]),
     syncManychatToCrm: useCallback((contactIds) => data.syncManychatToCrm(contactIds, clientId), [clientId]),
 
+    // Installment Plans (Pagos a Plazos)
+    getInstallmentPlans: useCallback(() => data.getInstallmentPlans(clientId), [clientId]),
+    addInstallmentPlan: useCallback((plan) => data.addInstallmentPlan(plan, clientId), [clientId]),
+    updateInstallmentPlan: useCallback((id, updates) => data.updateInstallmentPlan(id, updates, clientId), [clientId]),
+    deleteInstallmentPlan: useCallback((id) => data.deleteInstallmentPlan(id, clientId), [clientId]),
+    getInstallmentPayments: useCallback((planId) => data.getInstallmentPayments(planId), [clientId]),
+    updateInstallmentPayment: useCallback((id, updates) => data.updateInstallmentPayment(id, updates), [clientId]),
+    createInstallmentPlanWithPayments: useCallback((plan) => data.createInstallmentPlanWithPayments(plan, clientId), [clientId]),
+
+    // Stores (Gestión de Tiendas)
+    getStores: useCallback(() => data.getStores(clientId), [clientId]),
+    addStore: useCallback((store) => data.addStore(store, clientId), [clientId]),
+    updateStore: useCallback((id, updates) => data.updateStore(id, updates, clientId), [clientId]),
+    deleteStore: useCallback((id) => data.deleteStore(id, clientId), [clientId]),
+
+    getStoreSteps: useCallback((storeId) => data.getStoreSteps(storeId), [clientId]),
+    updateStoreStep: useCallback((id, updates) => data.updateStoreStep(id, updates), [clientId]),
+    initStoreSteps: useCallback((storeId, serviceType) => data.initStoreSteps(storeId, serviceType), [clientId]),
+
+    getStoreAlerts: useCallback((resolved) => data.getStoreAlerts(clientId, resolved), [clientId]),
+    addStoreAlert: useCallback((alert) => data.addStoreAlert(alert, clientId), [clientId]),
+    resolveStoreAlert: useCallback((id, resolvedBy, note) => data.resolveStoreAlert(id, resolvedBy, note), [clientId]),
+
+    getStoreDailyTracking: useCallback((storeId) => data.getStoreDailyTracking(storeId), [clientId]),
+    addStoreDailyTracking: useCallback((entry) => data.addStoreDailyTracking(entry), [clientId]),
+
+    getStoreHistory: useCallback((storeId) => data.getStoreHistory(storeId), [clientId]),
+    addStoreHistory: useCallback((entry) => data.addStoreHistory(entry), [clientId]),
+
+    // Store Clients (portal users)
+    authenticateStoreClient: useCallback((email, password) => data.authenticateStoreClient(email, password, clientId), [clientId]),
+    getStoreClients: useCallback(() => data.getStoreClients(clientId), [clientId]),
+    addStoreClient: useCallback((client) => data.addStoreClient(client, clientId), [clientId]),
+    updateStoreClient: useCallback((id, updates) => data.updateStoreClient(id, updates, clientId), [clientId]),
+
+    // Store Tickets
+    getStoreTickets: useCallback((filters) => data.getStoreTickets(clientId, filters), [clientId]),
+    addStoreTicket: useCallback((ticket) => data.addStoreTicket(ticket, clientId), [clientId]),
+    updateStoreTicket: useCallback((id, updates) => data.updateStoreTicket(id, updates), [clientId]),
+
+    // Ticket Messages
+    getTicketMessages: useCallback((ticketId) => data.getTicketMessages(ticketId), [clientId]),
+    addTicketMessage: useCallback((message) => data.addTicketMessage(message), [clientId]),
+
+    // Store Creation Orchestrator
+    createStoreWithClient: useCallback((params) => data.createStoreWithClient(params, clientId), [clientId]),
+
     // Chatbot / ManyChat
     getChatFlows: useCallback(() => data.getChatFlows(clientId), [clientId]),
     addChatFlow: useCallback((flow) => data.addChatFlow(flow, clientId), [clientId]),
@@ -177,5 +224,13 @@ export function useClientData() {
     addChatBroadcast: useCallback((broadcast) => data.addChatBroadcast(broadcast, clientId), [clientId]),
     updateChatBroadcast: useCallback((id, updates) => data.updateChatBroadcast(id, updates), [clientId]),
     deleteChatBroadcast: useCallback((id) => data.deleteChatBroadcast(id), [clientId]),
+
+    // AI Agent Chat
+    getAgentConversations: useCallback(() => data.getAgentConversations(clientId), [clientId]),
+    addAgentConversation: useCallback((conv) => data.addAgentConversation(conv, clientId), [clientId]),
+    updateAgentConversation: useCallback((id, updates) => data.updateAgentConversation(id, updates, clientId), [clientId]),
+    deleteAgentConversation: useCallback((id) => data.deleteAgentConversation(id, clientId), [clientId]),
+    getAgentMessages: useCallback((convId) => data.getAgentMessages(convId), [clientId]),
+    addAgentMessage: useCallback((msg) => data.addAgentMessage(msg, clientId), [clientId]),
   }
 }
