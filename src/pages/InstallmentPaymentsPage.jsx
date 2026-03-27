@@ -9,31 +9,40 @@ const STATUS_COLORS = { active: '#3b82f6', completed: '#22c55e', defaulted: '#ef
 
 function NewPlanModal({ team, paymentFees, onClose, onSave, en }) {
   const closers = team.filter(m => m.role === 'closer' && m.active !== false)
+  const [mode, setMode] = useState('total') // 'total' = importe total, 'monthly' = cuota mensual
   const [form, setForm] = useState({
     clientName: '', clientEmail: '', clientPhone: '', product: '',
     closer: closers[0]?.name || '',
     paymentMethod: paymentFees[0]?.method || '',
-    totalInstallments: 3, totalAmount: '', startDate: new Date().toISOString().split('T')[0],
+    totalInstallments: 3, totalAmount: '', monthlyAmount: '', startDate: new Date().toISOString().split('T')[0],
     notes: '',
   })
   const [saving, setSaving] = useState(false)
 
-  const amountPerInstallment = form.totalAmount && form.totalInstallments
+  const computedMonthly = form.totalAmount && form.totalInstallments
     ? Math.round(parseFloat(form.totalAmount) / form.totalInstallments * 100) / 100
     : 0
+  const computedTotal = form.monthlyAmount && form.totalInstallments
+    ? Math.round(parseFloat(form.monthlyAmount) * form.totalInstallments * 100) / 100
+    : 0
+
+  const finalTotal = mode === 'total' ? parseFloat(form.totalAmount) || 0 : computedTotal
+  const finalMonthly = mode === 'total' ? computedMonthly : parseFloat(form.monthlyAmount) || 0
 
   const currentFee = paymentFees.find(f => f.method === form.paymentMethod)
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (!form.clientName || !form.totalAmount || !form.totalInstallments) return
+    if (!form.clientName || !form.totalInstallments) return
+    if (mode === 'total' && !form.totalAmount) return
+    if (mode === 'monthly' && !form.monthlyAmount) return
     setSaving(true)
     try {
       await onSave({
         ...form,
-        totalAmount: parseFloat(form.totalAmount),
+        totalAmount: finalTotal,
         totalInstallments: parseInt(form.totalInstallments),
-        amountPerInstallment,
+        amountPerInstallment: finalMonthly,
       })
       onClose()
     } catch (err) {
@@ -91,23 +100,56 @@ function NewPlanModal({ team, paymentFees, onClose, onSave, en }) {
             </div>
           </div>
 
+          {/* Mode toggle */}
+          <div style={{ display: 'flex', gap: 0, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
+            <button type="button" onClick={() => setMode('total')} style={{ flex: 1, padding: '8px 12px', fontSize: '0.82rem', fontWeight: 600, border: 'none', cursor: 'pointer', background: mode === 'total' ? 'var(--orange)' : 'var(--bg-card)', color: mode === 'total' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.2s' }}>
+              {en ? 'Total Amount' : 'Importe Total'}
+            </button>
+            <button type="button" onClick={() => setMode('monthly')} style={{ flex: 1, padding: '8px 12px', fontSize: '0.82rem', fontWeight: 600, border: 'none', borderLeft: '1px solid var(--border)', cursor: 'pointer', background: mode === 'monthly' ? 'var(--orange)' : 'var(--bg-card)', color: mode === 'monthly' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.2s' }}>
+              {en ? 'Monthly Payment' : 'Por Cuota Mensual'}
+            </button>
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10 }}>
-            <div>
-              <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>{en ? 'Total Amount' : 'Importe total'} *</label>
-              <input type="number" step="0.01" min="0" style={inputStyle} value={form.totalAmount} onChange={e => setForm(p => ({ ...p, totalAmount: e.target.value }))} required />
-            </div>
-            <div>
-              <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>{en ? 'Installments' : 'Num. cuotas'} *</label>
-              <select style={inputStyle} value={form.totalInstallments} onChange={e => setForm(p => ({ ...p, totalInstallments: e.target.value }))}>
-                {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => <option key={n} value={n}>{n} {en ? 'payments' : 'cuotas'}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>{en ? 'Monthly Payment' : 'Cuota mensual'}</label>
-              <div style={{ ...inputStyle, background: 'var(--bg-card)', fontWeight: 600, color: 'var(--orange)' }}>
-                {amountPerInstallment > 0 ? `${amountPerInstallment.toFixed(2)}€` : '—'}
-              </div>
-            </div>
+            {mode === 'total' ? (
+              <>
+                <div>
+                  <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>{en ? 'Total Amount' : 'Importe total'} *</label>
+                  <input type="number" step="0.01" min="0" style={inputStyle} value={form.totalAmount} onChange={e => setForm(p => ({ ...p, totalAmount: e.target.value }))} required />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>{en ? 'Installments' : 'Num. cuotas'} *</label>
+                  <select style={inputStyle} value={form.totalInstallments} onChange={e => setForm(p => ({ ...p, totalInstallments: e.target.value }))}>
+                    {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => <option key={n} value={n}>{n} {en ? 'payments' : 'cuotas'}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>{en ? 'Monthly Payment' : 'Cuota mensual'}</label>
+                  <div style={{ ...inputStyle, background: 'var(--bg-card)', fontWeight: 600, color: 'var(--orange)' }}>
+                    {computedMonthly > 0 ? `${computedMonthly.toFixed(2)}€` : '—'}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>{en ? 'Monthly Payment' : 'Cuota mensual'} *</label>
+                  <input type="number" step="0.01" min="0" style={inputStyle} value={form.monthlyAmount} onChange={e => setForm(p => ({ ...p, monthlyAmount: e.target.value }))} required />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>{en ? 'Installments' : 'Num. cuotas'} *</label>
+                  <select style={inputStyle} value={form.totalInstallments} onChange={e => setForm(p => ({ ...p, totalInstallments: e.target.value }))}>
+                    {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => <option key={n} value={n}>{n} {en ? 'payments' : 'cuotas'}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>{en ? 'Total Amount' : 'Importe total'}</label>
+                  <div style={{ ...inputStyle, background: 'var(--bg-card)', fontWeight: 600, color: 'var(--orange)' }}>
+                    {computedTotal > 0 ? `${computedTotal.toFixed(2)}€` : '—'}
+                  </div>
+                </div>
+              </>
+            )}
             <div>
               <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>{en ? 'Start Date' : 'Fecha inicio'}</label>
               <input type="date" style={inputStyle} value={form.startDate} onChange={e => setForm(p => ({ ...p, startDate: e.target.value }))} />
