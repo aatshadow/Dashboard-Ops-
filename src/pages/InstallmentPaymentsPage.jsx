@@ -245,24 +245,24 @@ function PlanCard({ plan, payments, onMarkPaid, onUpdatePlan, onEdit, onDelete, 
           {plan.notes && <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: 8, fontStyle: 'italic' }}>{plan.notes}</p>}
 
           <div className="installment-card__actions">
-            <button className="btn-sm btn-sm--edit" onClick={() => onEdit(plan)}>
+            <button className="installment-action-btn installment-action-btn--edit" onClick={() => onEdit(plan)}>
               {en ? 'Edit' : 'Editar'}
             </button>
-            <button className="btn-sm btn-sm--danger" onClick={() => onDelete(plan.id)} style={{ marginRight: 'auto' }}>
+            <button className="installment-action-btn installment-action-btn--danger" onClick={() => onDelete(plan.id)} style={{ marginRight: 'auto' }}>
               {en ? 'Delete' : 'Eliminar'}
             </button>
             {plan.status === 'active' && paidCount === plan.totalInstallments && (
-              <button className="btn-sm btn-sm--success" onClick={() => onUpdatePlan(plan.id, { status: 'completed' })}>
+              <button className="installment-action-btn installment-action-btn--success" onClick={() => onUpdatePlan(plan.id, { status: 'completed' })}>
                 {en ? 'Mark as completed' : 'Marcar como completado'}
               </button>
             )}
             {plan.status === 'active' && (
-              <button className="btn-sm btn-sm--danger" onClick={() => onUpdatePlan(plan.id, { status: 'defaulted' })}>
+              <button className="installment-action-btn installment-action-btn--danger" onClick={() => onUpdatePlan(plan.id, { status: 'defaulted' })}>
                 {en ? 'Mark as defaulted' : 'Marcar como impago'}
               </button>
             )}
             {plan.status !== 'active' && (
-              <button className="btn-sm" onClick={() => onUpdatePlan(plan.id, { status: 'active' })}>
+              <button className="installment-action-btn installment-action-btn--ghost" onClick={() => onUpdatePlan(plan.id, { status: 'active' })}>
                 {en ? 'Reactivate' : 'Reactivar'}
               </button>
             )}
