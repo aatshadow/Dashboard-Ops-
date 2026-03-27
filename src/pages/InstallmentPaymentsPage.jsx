@@ -7,10 +7,18 @@ const STATUS_LABELS_ES = { active: 'Activo', completed: 'Completado', defaulted:
 const STATUS_LABELS_EN = { active: 'Active', completed: 'Completed', defaulted: 'Defaulted' }
 const STATUS_COLORS = { active: '#3b82f6', completed: '#22c55e', defaulted: '#ef4444' }
 
-function NewPlanModal({ team, paymentFees, onClose, onSave, en }) {
+function PlanModal({ team, paymentFees, onClose, onSave, en, editPlan }) {
   const closers = team.filter(m => m.role === 'closer' && m.active !== false)
-  const [mode, setMode] = useState('total') // 'total' = importe total, 'monthly' = cuota mensual
-  const [form, setForm] = useState({
+  const isEdit = !!editPlan
+  const [mode, setMode] = useState(isEdit ? 'total' : 'total')
+  const [form, setForm] = useState(isEdit ? {
+    clientName: editPlan.clientName || '', clientEmail: editPlan.clientEmail || '', clientPhone: editPlan.clientPhone || '', product: editPlan.product || '',
+    closer: editPlan.closer || '',
+    paymentMethod: editPlan.paymentMethod || paymentFees[0]?.method || '',
+    totalInstallments: editPlan.totalInstallments || 3, totalAmount: editPlan.totalAmount || '', monthlyAmount: editPlan.amountPerInstallment || '',
+    startDate: editPlan.startDate || new Date().toISOString().split('T')[0],
+    notes: editPlan.notes || '',
+  } : {
     clientName: '', clientEmail: '', clientPhone: '', product: '',
     closer: closers[0]?.name || '',
     paymentMethod: paymentFees[0]?.method || '',
@@ -58,7 +66,7 @@ function NewPlanModal({ team, paymentFees, onClose, onSave, en }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
         <div className="modal-header">
-          <h3>{en ? 'New Installment Plan' : 'Nuevo Plan de Pagos a Plazos'}</h3>
+          <h3>{isEdit ? (en ? 'Edit Installment Plan' : 'Editar Plan de Pagos') : (en ? 'New Installment Plan' : 'Nuevo Plan de Pagos a Plazos')}</h3>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
         <form onSubmit={handleSubmit} className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -162,7 +170,7 @@ function NewPlanModal({ team, paymentFees, onClose, onSave, en }) {
           </div>
 
           <button type="submit" className="btn-action" disabled={saving} style={{ marginTop: 4 }}>
-            {saving ? (en ? 'Creating...' : 'Creando...') : (en ? 'Create Installment Plan' : 'Crear Plan de Pagos')}
+            {saving ? (en ? 'Saving...' : 'Guardando...') : isEdit ? (en ? 'Save Changes' : 'Guardar Cambios') : (en ? 'Create Installment Plan' : 'Crear Plan de Pagos')}
           </button>
         </form>
       </div>
@@ -170,7 +178,7 @@ function NewPlanModal({ team, paymentFees, onClose, onSave, en }) {
   )
 }
 
-function PlanCard({ plan, payments, onMarkPaid, onUpdatePlan, expanded, onToggle, user, en }) {
+function PlanCard({ plan, payments, onMarkPaid, onUpdatePlan, onEdit, onDelete, expanded, onToggle, user, en }) {
   const STATUS_LABELS = en ? STATUS_LABELS_EN : STATUS_LABELS_ES
   const paidCount = payments.filter(p => p.paid).length
   const paidAmount = payments.filter(p => p.paid).reduce((s, p) => s + (p.amount || 0), 0)
@@ -237,6 +245,12 @@ function PlanCard({ plan, payments, onMarkPaid, onUpdatePlan, expanded, onToggle
           {plan.notes && <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: 8, fontStyle: 'italic' }}>{plan.notes}</p>}
 
           <div className="installment-card__actions">
+            <button className="btn-sm btn-sm--edit" onClick={() => onEdit(plan)}>
+              {en ? 'Edit' : 'Editar'}
+            </button>
+            <button className="btn-sm btn-sm--danger" onClick={() => onDelete(plan.id)} style={{ marginRight: 'auto' }}>
+              {en ? 'Delete' : 'Eliminar'}
+            </button>
             {plan.status === 'active' && paidCount === plan.totalInstallments && (
               <button className="btn-sm btn-sm--success" onClick={() => onUpdatePlan(plan.id, { status: 'completed' })}>
                 {en ? 'Mark as completed' : 'Marcar como completado'}
@@ -265,13 +279,14 @@ export default function InstallmentPaymentsPage({ user }) {
   const STATUS_LABELS = en ? STATUS_LABELS_EN : STATUS_LABELS_ES
   const {
     getInstallmentPlans, createInstallmentPlanWithPayments, updateInstallmentPlan,
-    getInstallmentPayments, updateInstallmentPayment, getTeam, getPaymentFees,
+    deleteInstallmentPlan, getInstallmentPayments, updateInstallmentPayment, getTeam, getPaymentFees,
   } = useClientData()
 
   const [plans, plansLoading, refreshPlans] = useAsync(getInstallmentPlans, [])
   const [team] = useAsync(getTeam, [])
   const [paymentFees] = useAsync(getPaymentFees, [])
-  const [showCreate, setShowCreate] = useState(false)
+  const [showModal, setShowModal] = useState(false)
+  const [editingPlan, setEditingPlan] = useState(null)
   const [expandedId, setExpandedId] = useState(null)
   const [paymentsMap, setPaymentsMap] = useState({})
   const [filter, setFilter] = useState('all')
@@ -331,8 +346,25 @@ export default function InstallmentPaymentsPage({ user }) {
     refreshPlans()
   }
 
-  async function handleCreate(planData) {
-    await createInstallmentPlanWithPayments(planData)
+  async function handleSave(planData) {
+    if (editingPlan) {
+      await updateInstallmentPlan(editingPlan.id, planData)
+    } else {
+      await createInstallmentPlanWithPayments(planData)
+    }
+    refreshPlans()
+  }
+
+  function handleEdit(plan) {
+    setEditingPlan(plan)
+    setShowModal(true)
+  }
+
+  async function handleDelete(planId) {
+    if (!confirm(en ? 'Delete this installment plan? This cannot be undone.' : 'Eliminar este plan de pagos? No se puede deshacer.')) return
+    await deleteInstallmentPlan(planId)
+    setPaymentsMap(prev => { const next = { ...prev }; delete next[planId]; return next })
+    if (expandedId === planId) setExpandedId(null)
     refreshPlans()
   }
 
@@ -386,7 +418,7 @@ export default function InstallmentPaymentsPage({ user }) {
             onChange={e => setSearch(e.target.value)}
             className="installments-search"
           />
-          <button className="btn-action" onClick={() => setShowCreate(true)}>+ {en ? 'New Plan' : 'Nuevo Plan'}</button>
+          <button className="btn-action" onClick={() => { setEditingPlan(null); setShowModal(true) }}>+ {en ? 'New Plan' : 'Nuevo Plan'}</button>
         </div>
       </div>
 
@@ -408,6 +440,8 @@ export default function InstallmentPaymentsPage({ user }) {
               onToggle={() => setExpandedId(expandedId === plan.id ? null : plan.id)}
               onMarkPaid={handleMarkPaid}
               onUpdatePlan={handleUpdatePlan}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
               user={user}
               en={en}
             />
@@ -415,13 +449,14 @@ export default function InstallmentPaymentsPage({ user }) {
         </div>
       )}
 
-      {showCreate && (
-        <NewPlanModal
+      {showModal && (
+        <PlanModal
           team={team}
           paymentFees={paymentFees}
-          onClose={() => setShowCreate(false)}
-          onSave={handleCreate}
+          onClose={() => { setShowModal(false); setEditingPlan(null) }}
+          onSave={handleSave}
           en={en}
+          editPlan={editingPlan}
         />
       )}
     </div>
