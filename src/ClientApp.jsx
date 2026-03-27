@@ -69,6 +69,11 @@ export default function ClientApp() {
   const isSuperAdmin = !!localStorage.getItem('bw_superadmin')
   const location = useLocation()
 
+  // Scroll to top on route change
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [location.pathname])
+
   // Load client config
   useEffect(() => {
     setClientLoading(true)

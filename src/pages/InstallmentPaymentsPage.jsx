@@ -1,15 +1,18 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useClientData } from '../hooks/useClientData'
+import { useClient } from '../contexts/ClientContext'
 import { useAsync } from '../hooks/useAsync'
 
-const STATUS_LABELS = { active: 'Activo', completed: 'Completado', defaulted: 'Impago' }
+const STATUS_LABELS_ES = { active: 'Activo', completed: 'Completado', defaulted: 'Impago' }
+const STATUS_LABELS_EN = { active: 'Active', completed: 'Completed', defaulted: 'Defaulted' }
 const STATUS_COLORS = { active: '#3b82f6', completed: '#22c55e', defaulted: '#ef4444' }
 
-function NewPlanModal({ team, onClose, onSave }) {
+function NewPlanModal({ team, paymentFees, onClose, onSave, en }) {
   const closers = team.filter(m => m.role === 'closer' && m.active !== false)
   const [form, setForm] = useState({
     clientName: '', clientEmail: '', clientPhone: '', product: '',
     closer: closers[0]?.name || '',
+    paymentMethod: paymentFees[0]?.method || '',
     totalInstallments: 3, totalAmount: '', startDate: new Date().toISOString().split('T')[0],
     notes: '',
   })
@@ -18,6 +21,8 @@ function NewPlanModal({ team, onClose, onSave }) {
   const amountPerInstallment = form.totalAmount && form.totalInstallments
     ? Math.round(parseFloat(form.totalAmount) / form.totalInstallments * 100) / 100
     : 0
+
+  const currentFee = paymentFees.find(f => f.method === form.paymentMethod)
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -44,13 +49,13 @@ function NewPlanModal({ team, onClose, onSave }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
         <div className="modal-header">
-          <h3>Nuevo Plan de Pagos a Plazos</h3>
+          <h3>{en ? 'New Installment Plan' : 'Nuevo Plan de Pagos a Plazos'}</h3>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
         <form onSubmit={handleSubmit} className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div>
-              <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Cliente *</label>
+              <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>{en ? 'Client' : 'Cliente'} *</label>
               <input style={inputStyle} value={form.clientName} onChange={e => setForm(p => ({ ...p, clientName: e.target.value }))} required />
             </div>
             <div>
@@ -58,52 +63,64 @@ function NewPlanModal({ team, onClose, onSave }) {
               <input type="email" style={inputStyle} value={form.clientEmail} onChange={e => setForm(p => ({ ...p, clientEmail: e.target.value }))} />
             </div>
             <div>
-              <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Teléfono</label>
+              <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>{en ? 'Phone' : 'Teléfono'}</label>
               <input style={inputStyle} value={form.clientPhone} onChange={e => setForm(p => ({ ...p, clientPhone: e.target.value }))} />
             </div>
             <div>
-              <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Producto</label>
+              <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>{en ? 'Product' : 'Producto'}</label>
               <input style={inputStyle} value={form.product} onChange={e => setForm(p => ({ ...p, product: e.target.value }))} />
             </div>
             <div>
-              <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Closer asignado</label>
+              <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>{en ? 'Assigned Closer' : 'Closer asignado'}</label>
               <select style={inputStyle} value={form.closer} onChange={e => setForm(p => ({ ...p, closer: e.target.value }))}>
                 <option value="">—</option>
                 {closers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
             </div>
             <div>
-              <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Fecha inicio</label>
-              <input type="date" style={inputStyle} value={form.startDate} onChange={e => setForm(p => ({ ...p, startDate: e.target.value }))} />
+              <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>{en ? 'Payment Method' : 'Método de Pago'} *</label>
+              <select style={inputStyle} value={form.paymentMethod} onChange={e => setForm(p => ({ ...p, paymentMethod: e.target.value }))} required>
+                <option value="">—</option>
+                {paymentFees.map(f => <option key={f.method} value={f.method}>{f.method} ({((f.feeRate || 0) * 100).toFixed(1)}%)</option>)}
+              </select>
+              {currentFee && currentFee.feeRate > 0 && (
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                  {en ? `${((currentFee.feeRate || 0) * 100).toFixed(1)}% fee deducted from commissions` : `${((currentFee.feeRate || 0) * 100).toFixed(1)}% comisión descontada`}
+                </span>
+              )}
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10 }}>
             <div>
-              <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Importe total *</label>
+              <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>{en ? 'Total Amount' : 'Importe total'} *</label>
               <input type="number" step="0.01" min="0" style={inputStyle} value={form.totalAmount} onChange={e => setForm(p => ({ ...p, totalAmount: e.target.value }))} required />
             </div>
             <div>
-              <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Num. cuotas *</label>
+              <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>{en ? 'Installments' : 'Num. cuotas'} *</label>
               <select style={inputStyle} value={form.totalInstallments} onChange={e => setForm(p => ({ ...p, totalInstallments: e.target.value }))}>
-                {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => <option key={n} value={n}>{n} cuotas</option>)}
+                {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => <option key={n} value={n}>{n} {en ? 'payments' : 'cuotas'}</option>)}
               </select>
             </div>
             <div>
-              <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Cuota mensual</label>
+              <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>{en ? 'Monthly Payment' : 'Cuota mensual'}</label>
               <div style={{ ...inputStyle, background: 'var(--bg-card)', fontWeight: 600, color: 'var(--orange)' }}>
                 {amountPerInstallment > 0 ? `${amountPerInstallment.toFixed(2)}€` : '—'}
               </div>
             </div>
+            <div>
+              <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>{en ? 'Start Date' : 'Fecha inicio'}</label>
+              <input type="date" style={inputStyle} value={form.startDate} onChange={e => setForm(p => ({ ...p, startDate: e.target.value }))} />
+            </div>
           </div>
 
           <div>
-            <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Notas</label>
+            <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>{en ? 'Notes' : 'Notas'}</label>
             <textarea style={{ ...inputStyle, minHeight: 60 }} value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} />
           </div>
 
           <button type="submit" className="btn-action" disabled={saving} style={{ marginTop: 4 }}>
-            {saving ? 'Creando...' : 'Crear Plan de Pagos'}
+            {saving ? (en ? 'Creating...' : 'Creando...') : (en ? 'Create Installment Plan' : 'Crear Plan de Pagos')}
           </button>
         </form>
       </div>
@@ -111,7 +128,8 @@ function NewPlanModal({ team, onClose, onSave }) {
   )
 }
 
-function PlanCard({ plan, payments, onMarkPaid, onUpdatePlan, expanded, onToggle, user }) {
+function PlanCard({ plan, payments, onMarkPaid, onUpdatePlan, expanded, onToggle, user, en }) {
+  const STATUS_LABELS = en ? STATUS_LABELS_EN : STATUS_LABELS_ES
   const paidCount = payments.filter(p => p.paid).length
   const paidAmount = payments.filter(p => p.paid).reduce((s, p) => s + (p.amount || 0), 0)
   const remaining = plan.totalAmount - paidAmount
@@ -124,20 +142,20 @@ function PlanCard({ plan, payments, onMarkPaid, onUpdatePlan, expanded, onToggle
         <div className="installment-card__avatar">{plan.clientName.charAt(0).toUpperCase()}</div>
         <div className="installment-card__info">
           <h4 className="installment-card__name">{plan.clientName}</h4>
-          <span className="installment-card__product">{plan.product || '—'} · {plan.closer || '—'}</span>
+          <span className="installment-card__product">{plan.product || '—'} · {plan.closer || '—'}{plan.paymentMethod ? ` · ${plan.paymentMethod}` : ''}</span>
         </div>
         <div className="installment-card__progress-wrap">
           <div className="installment-card__progress-bar">
             <div className="installment-card__progress-fill" style={{ width: `${pct}%`, background: barColor }} />
           </div>
           <span className="installment-card__progress-text" style={{ color: barColor }}>
-            {paidCount}/{plan.totalInstallments} cuotas
+            {paidCount}/{plan.totalInstallments} {en ? 'payments' : 'cuotas'}
           </span>
         </div>
         <div className="installment-card__amount">
           <span className="installment-card__amount-value">{plan.totalAmount?.toFixed(0)}€</span>
           <span className="installment-card__amount-label">
-            Pendiente: <strong style={{ color: remaining > 0 ? '#f97316' : '#22c55e' }}>{remaining.toFixed(0)}€</strong>
+            {en ? 'Remaining' : 'Pendiente'}: <strong style={{ color: remaining > 0 ? '#f97316' : '#22c55e' }}>{remaining.toFixed(0)}€</strong>
           </span>
         </div>
         <span className="store-status-badge" style={{ background: `${STATUS_COLORS[plan.status]}20`, color: STATUS_COLORS[plan.status], borderColor: `${STATUS_COLORS[plan.status]}40` }}>
@@ -149,16 +167,17 @@ function PlanCard({ plan, payments, onMarkPaid, onUpdatePlan, expanded, onToggle
       {expanded && (
         <div className="installment-card__body">
           {plan.clientEmail && <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4 }}>Email: {plan.clientEmail} {plan.clientPhone ? `· Tel: ${plan.clientPhone}` : ''}</p>}
-          {plan.startDate && <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 8 }}>Inicio: {plan.startDate}</p>}
+          {plan.startDate && <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 4 }}>{en ? 'Start' : 'Inicio'}: {plan.startDate}</p>}
+          {plan.paymentMethod && <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 8 }}>{en ? 'Payment Method' : 'Método de Pago'}: <strong>{plan.paymentMethod}</strong></p>}
 
           <div className="installment-card__payments">
             {payments.map(p => (
               <div key={p.id} className={`installment-payment ${p.paid ? 'installment-payment--paid' : ''}`}>
-                <span className="installment-payment__number">Cuota {p.installmentNumber}</span>
+                <span className="installment-payment__number">{en ? 'Payment' : 'Cuota'} {p.installmentNumber}</span>
                 <span className="installment-payment__amount">{(p.amount || 0).toFixed(2)}€</span>
                 {p.paid ? (
                   <span className="installment-payment__status installment-payment__status--paid">
-                    Pagado {p.paidDate ? new Date(p.paidDate).toLocaleDateString('es-ES') : ''}
+                    {en ? 'Paid' : 'Pagado'} {p.paidDate ? new Date(p.paidDate).toLocaleDateString(en ? 'en-US' : 'es-ES') : ''}
                     {p.markedBy ? ` · ${p.markedBy}` : ''}
                   </span>
                 ) : (
@@ -166,7 +185,7 @@ function PlanCard({ plan, payments, onMarkPaid, onUpdatePlan, expanded, onToggle
                     className="installment-payment__btn"
                     onClick={() => onMarkPaid(p.id, user)}
                   >
-                    Marcar como pagado
+                    {en ? 'Mark as paid' : 'Marcar como pagado'}
                   </button>
                 )}
               </div>
@@ -178,17 +197,17 @@ function PlanCard({ plan, payments, onMarkPaid, onUpdatePlan, expanded, onToggle
           <div className="installment-card__actions">
             {plan.status === 'active' && paidCount === plan.totalInstallments && (
               <button className="btn-sm btn-sm--success" onClick={() => onUpdatePlan(plan.id, { status: 'completed' })}>
-                Marcar como completado
+                {en ? 'Mark as completed' : 'Marcar como completado'}
               </button>
             )}
             {plan.status === 'active' && (
               <button className="btn-sm btn-sm--danger" onClick={() => onUpdatePlan(plan.id, { status: 'defaulted' })}>
-                Marcar como impago
+                {en ? 'Mark as defaulted' : 'Marcar como impago'}
               </button>
             )}
             {plan.status !== 'active' && (
               <button className="btn-sm" onClick={() => onUpdatePlan(plan.id, { status: 'active' })}>
-                Reactivar
+                {en ? 'Reactivate' : 'Reactivar'}
               </button>
             )}
           </div>
@@ -199,13 +218,17 @@ function PlanCard({ plan, payments, onMarkPaid, onUpdatePlan, expanded, onToggle
 }
 
 export default function InstallmentPaymentsPage({ user }) {
+  const { clientSlug } = useClient()
+  const en = clientSlug === 'black-wolf'
+  const STATUS_LABELS = en ? STATUS_LABELS_EN : STATUS_LABELS_ES
   const {
     getInstallmentPlans, createInstallmentPlanWithPayments, updateInstallmentPlan,
-    getInstallmentPayments, updateInstallmentPayment, getTeam,
+    getInstallmentPayments, updateInstallmentPayment, getTeam, getPaymentFees,
   } = useClientData()
 
   const [plans, plansLoading, refreshPlans] = useAsync(getInstallmentPlans, [])
   const [team] = useAsync(getTeam, [])
+  const [paymentFees] = useAsync(getPaymentFees, [])
   const [showCreate, setShowCreate] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
   const [paymentsMap, setPaymentsMap] = useState({})
@@ -272,10 +295,10 @@ export default function InstallmentPaymentsPage({ user }) {
   }
 
   const filters = [
-    { key: 'all', label: 'Todos', count: plans.length },
-    { key: 'active', label: 'Activos', count: activePlans.length },
-    { key: 'completed', label: 'Completados', count: plans.filter(p => p.status === 'completed').length },
-    { key: 'defaulted', label: 'Impagos', count: defaultedCount },
+    { key: 'all', label: en ? 'All' : 'Todos', count: plans.length },
+    { key: 'active', label: en ? 'Active' : 'Activos', count: activePlans.length },
+    { key: 'completed', label: en ? 'Completed' : 'Completados', count: plans.filter(p => p.status === 'completed').length },
+    { key: 'defaulted', label: en ? 'Defaulted' : 'Impagos', count: defaultedCount },
   ]
 
   return (
@@ -284,19 +307,19 @@ export default function InstallmentPaymentsPage({ user }) {
       <div className="installments-summary">
         <div className="installments-summary__stat">
           <span className="installments-summary__value">{plansLoading ? '...' : activePlans.length}</span>
-          <span className="installments-summary__label">Planes activos</span>
+          <span className="installments-summary__label">{en ? 'Active Plans' : 'Planes activos'}</span>
         </div>
         <div className="installments-summary__stat">
           <span className="installments-summary__value" style={{ color: '#f97316' }}>{plansLoading ? '...' : `${totalPending.toFixed(0)}€`}</span>
-          <span className="installments-summary__label">Pendiente cobro</span>
+          <span className="installments-summary__label">{en ? 'Pending Collection' : 'Pendiente cobro'}</span>
         </div>
         <div className="installments-summary__stat">
           <span className="installments-summary__value" style={{ color: defaultedCount > 0 ? '#ef4444' : '#22c55e' }}>{plansLoading ? '...' : defaultedCount}</span>
-          <span className="installments-summary__label">Impagos</span>
+          <span className="installments-summary__label">{en ? 'Defaulted' : 'Impagos'}</span>
         </div>
         <div className="installments-summary__stat">
           <span className="installments-summary__value">{plansLoading ? '...' : plans.length}</span>
-          <span className="installments-summary__label">Total planes</span>
+          <span className="installments-summary__label">{en ? 'Total Plans' : 'Total planes'}</span>
         </div>
       </div>
 
@@ -316,21 +339,21 @@ export default function InstallmentPaymentsPage({ user }) {
         <div className="installments-toolbar__right">
           <input
             type="text"
-            placeholder="Buscar cliente, producto..."
+            placeholder={en ? 'Search client, product...' : 'Buscar cliente, producto...'}
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="installments-search"
           />
-          <button className="btn-action" onClick={() => setShowCreate(true)}>+ Nuevo Plan</button>
+          <button className="btn-action" onClick={() => setShowCreate(true)}>+ {en ? 'New Plan' : 'Nuevo Plan'}</button>
         </div>
       </div>
 
       {/* Plans list */}
       {plansLoading ? (
-        <div className="stores-loading">Cargando planes de pago...</div>
+        <div className="stores-loading">{en ? 'Loading installment plans...' : 'Cargando planes de pago...'}</div>
       ) : filteredPlans.length === 0 ? (
         <div className="stores-empty">
-          {plans.length === 0 ? 'No hay planes de pago. Crea uno o registra una venta con pago a plazos.' : 'Sin resultados para el filtro actual.'}
+          {plans.length === 0 ? (en ? 'No installment plans. Create one or register a sale with installment payments.' : 'No hay planes de pago. Crea uno o registra una venta con pago a plazos.') : (en ? 'No results for current filter.' : 'Sin resultados para el filtro actual.')}
         </div>
       ) : (
         <div className="installments-list">
@@ -344,6 +367,7 @@ export default function InstallmentPaymentsPage({ user }) {
               onMarkPaid={handleMarkPaid}
               onUpdatePlan={handleUpdatePlan}
               user={user}
+              en={en}
             />
           ))}
         </div>
@@ -352,8 +376,10 @@ export default function InstallmentPaymentsPage({ user }) {
       {showCreate && (
         <NewPlanModal
           team={team}
+          paymentFees={paymentFees}
           onClose={() => setShowCreate(false)}
           onSave={handleCreate}
+          en={en}
         />
       )}
     </div>
