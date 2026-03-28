@@ -602,13 +602,72 @@ async function handleProspector(req, res) {
         const duplicates = results.filter(r => r.crm_status === 'duplicate').length
         const errors = results.filter(r => r.crm_status === 'error').length
 
-        await appendLog(runId, { type: 'success', msg: `Completado: ${created} nuevos, ${duplicates} duplicados, ${errors} errores` })
+        await appendLog(runId, { type: 'success', msg: `Scraping completado: ${created} nuevos, ${duplicates} duplicados, ${errors} errores` })
+
+        // ── AUTO-PERSONALIZE: create emails + lists for new leads ──
+        const newLeads = results.filter(r => r.crm_status === 'created' && r.crm_id)
+        if (newLeads.length > 0) {
+          await appendLog(runId, { type: 'info', msg: `Personalizando ${newLeads.length} emails y creando listas...` })
+
+          for (const lead of newLeads) {
+            try {
+              const { data: contact } = await supabase.from('crm_contacts').select('*').eq('id', lead.crm_id).single()
+              if (!contact) continue
+
+              const enrichData = typeof contact.enrichment_data === 'string' ? JSON.parse(contact.enrichment_data || '{}') : (contact.enrichment_data || {})
+
+              // Generate personalized email
+              const emailResult = await personalizeEmail(contact, enrichData)
+
+              // Create template
+              const templateName = `Prospector - ${contact.company || contact.name}`
+              const { data: template } = await supabase.from('email_templates').insert({
+                client_id: clientId, name: templateName, subject: emailResult.subject,
+                html_content: emailResult.html, category: 'prospector-outreach'
+              }).select().single()
+
+              // Find/create list by country + sector
+              const sector = enrichData.sector || enrichData.sector_specific || 'manufactura'
+              const listName = `Prospector - ${contact.country || 'Internacional'} - ${sector}`
+              let { data: lists } = await supabase.from('email_lists').select('*').eq('client_id', clientId).eq('name', listName)
+              let list = lists && lists[0]
+              if (!list) {
+                const { data: newList } = await supabase.from('email_lists').insert({
+                  client_id: clientId, name: listName,
+                  description: `Leads del prospector - ${contact.country} - ${sector}`
+                }).select().single()
+                list = newList
+              }
+
+              // Add as subscriber
+              const subEmail = contact.owner_email || contact.email || enrichData.ownerEmail || enrichData.companyEmail
+              if (subEmail && list) {
+                const { data: existingSub } = await supabase.from('email_subscribers').select('id').eq('email', subEmail).eq('list_id', list.id).limit(1)
+                if (!existingSub || existingSub.length === 0) {
+                  await supabase.from('email_subscribers').insert({
+                    client_id: clientId, list_id: list.id, email: subEmail,
+                    name: contact.owner_name || enrichData.ownerName || contact.name || '', status: 'subscribed'
+                  })
+                }
+              }
+
+              // Update contact status
+              await supabase.from('crm_contacts').update({ status: 'ready' }).eq('id', lead.crm_id)
+
+              await appendLog(runId, { type: 'success', msg: `Email creado para ${contact.company || contact.name} → plantilla "${templateName}" → lista "${listName}"` })
+            } catch (e) {
+              await appendLog(runId, { type: 'warning', msg: `Error personalizando ${lead.name}: ${e.message}` })
+            }
+          }
+          await appendLog(runId, { type: 'success', msg: `Personalizacion completada: ${newLeads.length} plantillas y listas creadas en Email Marketing` })
+        }
+
         await updateRun(runId, {
           status: 'completed',
-          results_summary: JSON.stringify({ total_found: allLeads.length, created, duplicates, errors, countries_searched: countries }),
+          results_summary: JSON.stringify({ total_found: allLeads.length, created, duplicates, errors, personalized: newLeads.length, countries_searched: countries }),
           completed_at: new Date().toISOString(),
         })
-        return res.status(200).json({ runId, total: allLeads.length, created, duplicates, errors, leads: results })
+        return res.status(200).json({ runId, total: allLeads.length, created, duplicates, errors, personalized: newLeads.length, leads: results })
       }
 
       case 'enrich': {
@@ -1433,13 +1492,16 @@ async function personalizeEmail(contact, enrichData) {
   const country = contact.country || ''
   const sector = enrichData.sector || 'manufactura'
 
-  // Determine language
-  const lang = /bulgar|българия/i.test(country) ? 'bg' :
-               /deutsch|german|austria|schweiz/i.test(country) ? 'de' :
-               /france|français/i.test(country) ? 'fr' :
-               /nederland|dutch/i.test(country) ? 'nl' :
+  // Determine language — detect Cyrillic as Bulgarian
+  const hasCyrillic = country && [...country].some(ch => ch.charCodeAt(0) >= 0x400 && ch.charCodeAt(0) <= 0x4FF)
+  const lang = hasCyrillic || /bulgar|българия/i.test(country) ? 'bg' :
+               /deutsch|german|austria|schweiz|alemania/i.test(country) ? 'de' :
+               /france|français|francia/i.test(country) ? 'fr' :
+               /nederland|dutch|paises.bajos|holanda/i.test(country) ? 'nl' :
                /portug/i.test(country) ? 'pt' :
-               /spain|españa|español/i.test(country) ? 'es' : 'en'
+               /spain|españa|español|espana/i.test(country) ? 'es' :
+               /italia/i.test(country) ? 'it' :
+               /belgi/i.test(country) ? 'fr' : 'en'
 
   try {
     const prompt = `Write a personalized cold email in ${lang === 'bg' ? 'Bulgarian' : lang === 'de' ? 'German' : lang === 'fr' ? 'French' : lang === 'nl' ? 'Dutch' : lang === 'pt' ? 'Portuguese' : lang === 'es' ? 'Spanish' : 'English'} for:
@@ -1463,15 +1525,19 @@ OFFER: €10,000 package includes:
 - AI-powered automation of repetitive tasks
 - 3 months support
 
+OUR WEBSITE: web.blackwolfsec.io
+
 The email should:
 - Be 150-200 words max
 - Reference something specific about their company/industry
-- Create urgency (EU digitalization grants available)
-- End with a clear CTA (15-min call)
-- Sound human, not salesy
-- Include a subject line
+- Mention we already work with factories in their region
+- Create urgency (EU digitalization grants available in 2026)
+- End with a clear CTA (15-min discovery call)
+- Sound human and consultative, not salesy
+- Include a link to web.blackwolfsec.io
+- Include a subject line that creates curiosity
 
-Return ONLY valid JSON: {"subject":"...", "html":"<html email with inline styles, professional design>"}`
+Return ONLY valid JSON: {"subject":"...", "html":"<html email with inline styles, professional dark design matching brand colors #FF6B00 orange and #0A0A0A dark background, include BlackWolf logo placeholder and web.blackwolfsec.io link>"}`
 
     const aiRes = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514', max_tokens: 1500,
