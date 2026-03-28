@@ -662,12 +662,14 @@ The email must:
 - Mention we work with ${group.sector} companies in ${group.country}
 - Reference EU digitalization grants 2026
 - Include link to web.blackwolfsec.io
-- CTA: 15-min discovery call
+- CTA: a visible button "Agendar llamada" / "Schedule a call" / "Запазете обаждане" (in their language) that links to https://web.blackwolfsec.io
+- ALL links and buttons in the email MUST point to https://web.blackwolfsec.io
 - Professional HTML with inline styles, dark design (#0A0A0A bg, #FF6B00 accent)
+- The CTA button must be styled: background #FF6B00, color white, padding 14px 32px, border-radius 8px, font-weight bold, text-decoration none
 
 Return ONLY JSON: {"subject":"...","html":"..."}`
 
-              let emailTemplate = { subject: `Transformación digital para ${group.sector} en ${group.country}`, html: `<p>Estimado/a {{name}},</p><p>Desde BlackWolf Security ayudamos a empresas como {{company}} con su digitalización. Visite web.blackwolfsec.io</p>` }
+              let emailTemplate = { subject: `Transformación digital para ${group.sector} en ${group.country}`, html: `<p>Estimado/a {{name}},</p><p>Desde BlackWolf Security ayudamos a empresas como {{company}} con su digitalización.</p><p><a href="https://web.blackwolfsec.io" style="background:#FF6B00;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">Agendar llamada</a></p>` }
               try {
                 const aiRes = await anthropic.messages.create({ model: 'claude-sonnet-4-20250514', max_tokens: 1500, messages: [{ role: 'user', content: templatePrompt }] })
                 const text = aiRes.content[0]?.text || ''
@@ -1631,12 +1633,13 @@ The email should:
 - Reference something specific about their company/industry
 - Mention we already work with factories in their region
 - Create urgency (EU digitalization grants available in 2026)
-- End with a clear CTA (15-min discovery call)
+- End with a CTA button "Agendar llamada" / "Schedule a call" (in their language) linking to https://web.blackwolfsec.io
+- ALL links and buttons MUST point to https://web.blackwolfsec.io
 - Sound human and consultative, not salesy
-- Include a link to web.blackwolfsec.io
 - Include a subject line that creates curiosity
+- CTA button style: background #FF6B00, color white, padding 14px 32px, border-radius 8px, font-weight bold
 
-Return ONLY valid JSON: {"subject":"...", "html":"<html email with inline styles, professional dark design matching brand colors #FF6B00 orange and #0A0A0A dark background, include BlackWolf logo placeholder and web.blackwolfsec.io link>"}`
+Return ONLY valid JSON: {"subject":"...", "html":"<html email with inline styles, professional dark design #0A0A0A bg, #FF6B00 accent, CTA button linking to https://web.blackwolfsec.io>"}`
 
     const aiRes = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514', max_tokens: 1500,
