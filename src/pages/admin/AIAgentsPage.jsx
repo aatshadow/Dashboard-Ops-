@@ -41,12 +41,12 @@ function detectPhase(logs) {
   if (!logs || logs.length === 0) return null
   const lastMsg = [...logs].reverse().find(l => l.msg)?.msg || ''
   if (/market.*research|analisis.*mercado|estrategia/i.test(lastMsg)) return 'research'
-  if (/lista.*creada|plantilla.*email|email.*marketing/i.test(lastMsg)) return 'lists'
-  if (/personali|email.*generado|claude.*email/i.test(lastMsg)) return 'personalize'
-  if (/deep.*scrap|scrapeando|owner.*encontrad/i.test(lastMsg)) return 'deep'
-  if (/completado|insertando.*leads/i.test(lastMsg)) return 'crm'
+  if (/personalizacion completada|listas creadas|plantillas.*creadas/i.test(lastMsg)) return 'lists'
+  if (/personalizando|email creado para|plantilla.*lista/i.test(lastMsg)) return 'personalize'
+  if (/deep.*scrap|scrapeando web|owner.*encontrad/i.test(lastMsg)) return 'deep'
+  if (/scraping completado|insertando.*leads|nuevos.*duplicados/i.test(lastMsg)) return 'crm'
   if (/enriqueciendo|IA complet/i.test(lastMsg)) return 'enrich'
-  if (/buscando|empresas encontrad/i.test(lastMsg)) return 'search'
+  if (/buscando|empresas encontrad|ronda/i.test(lastMsg)) return 'search'
   return 'search'
 }
 
@@ -272,9 +272,10 @@ export default function AIAgentsPage() {
   // Pipeline step state
   const getStepState = (stepKey) => {
     if (!pipelinePhase) return 'idle'
-    const order = ['search', 'enrich', 'crm', 'done']
+    const order = ['search', 'enrich', 'crm', 'deep', 'personalize', 'lists', 'research']
     const currentIdx = order.indexOf(pipelinePhase)
     const stepIdx = order.indexOf(stepKey)
+    if (stepIdx < 0 || currentIdx < 0) return 'idle'
     if (stepIdx < currentIdx) return 'completed'
     if (stepIdx === currentIdx) return agentStatus === 'completed' ? 'completed' : 'active'
     return 'pending'
