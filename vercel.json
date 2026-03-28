@@ -1,4 +1,12 @@
 {
+  "functions": {
+    "api/agent.js": {
+      "maxDuration": 300
+    },
+    "api/send-email.js": {
+      "maxDuration": 120
+    }
+  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
