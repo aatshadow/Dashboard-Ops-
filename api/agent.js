@@ -604,62 +604,146 @@ async function handleProspector(req, res) {
 
         await appendLog(runId, { type: 'success', msg: `Scraping completado: ${created} nuevos, ${duplicates} duplicados, ${errors} errores` })
 
-        // ── AUTO-PERSONALIZE: create emails + lists for new leads ──
+        // ── AUTO-PERSONALIZE + GROUP + SEND ──
         const newLeads = results.filter(r => r.crm_status === 'created' && r.crm_id)
         if (newLeads.length > 0) {
-          await appendLog(runId, { type: 'info', msg: `Personalizando ${newLeads.length} emails y creando listas...` })
+          await appendLog(runId, { type: 'info', msg: `Agrupando ${newLeads.length} leads por país/sector, creando emails y enviando...` })
 
+          // Step 1: Load all new contacts and group by country+sector
+          const groups = {}
           for (const lead of newLeads) {
+            const { data: contact } = await supabase.from('crm_contacts').select('*').eq('id', lead.crm_id).single()
+            if (!contact) continue
+            const enrichData = typeof contact.enrichment_data === 'string' ? JSON.parse(contact.enrichment_data || '{}') : (contact.enrichment_data || {})
+            const sector = (enrichData.sector || enrichData.sector_specific || 'manufactura').replace(/[/\\]/g, '-')
+            const country = contact.country || 'Internacional'
+            const groupKey = `${country}___${sector}`
+            if (!groups[groupKey]) groups[groupKey] = { country, sector, contacts: [] }
+            groups[groupKey].contacts.push({ contact, enrichData, leadName: lead.name })
+          }
+
+          await appendLog(runId, { type: 'info', msg: `${Object.keys(groups).length} grupos detectados (por país + sector)` })
+
+          // Step 2: For each group, create ONE template + list, add all contacts, send emails
+          const { data: emailConfig } = await supabase.from('email_config').select('*').eq('client_id', clientId).limit(1).single()
+          let totalSent = 0, totalFailed = 0
+
+          for (const [groupKey, group] of Object.entries(groups)) {
             try {
-              const { data: contact } = await supabase.from('crm_contacts').select('*').eq('id', lead.crm_id).single()
-              if (!contact) continue
-
-              const enrichData = typeof contact.enrichment_data === 'string' ? JSON.parse(contact.enrichment_data || '{}') : (contact.enrichment_data || {})
-
-              // Generate personalized email
-              const emailResult = await personalizeEmail(contact, enrichData)
-
-              // Create template
-              const templateName = `Prospector - ${contact.company || contact.name}`
-              const { data: template } = await supabase.from('email_templates').insert({
-                client_id: clientId, name: templateName, subject: emailResult.subject,
-                html_content: emailResult.html, category: 'prospector-outreach'
-              }).select().single()
-
-              // Find/create list by country + sector
-              const sector = enrichData.sector || enrichData.sector_specific || 'manufactura'
-              const listName = `Prospector - ${contact.country || 'Internacional'} - ${sector}`
-              let { data: lists } = await supabase.from('email_lists').select('*').eq('client_id', clientId).eq('name', listName)
-              let list = lists && lists[0]
+              // Find/create list
+              const listName = `Prospector - ${group.country} - ${group.sector}`
+              let { data: existingLists } = await supabase.from('email_lists').select('*').eq('client_id', clientId).eq('name', listName)
+              let list = existingLists && existingLists[0]
               if (!list) {
                 const { data: newList } = await supabase.from('email_lists').insert({
                   client_id: clientId, name: listName,
-                  description: `Leads del prospector - ${contact.country} - ${sector}`
+                  description: `Leads del prospector - ${group.country} - ${group.sector} (${group.contacts.length} empresas)`
                 }).select().single()
                 list = newList
               }
 
-              // Add as subscriber
-              const subEmail = contact.owner_email || contact.email || enrichData.ownerEmail || enrichData.companyEmail
-              if (subEmail && list) {
-                const { data: existingSub } = await supabase.from('email_subscribers').select('id').eq('email', subEmail).eq('list_id', list.id).limit(1)
-                if (!existingSub || existingSub.length === 0) {
+              // Generate ONE template for this group using Claude
+              const companyNames = group.contacts.map(c => c.contact.company || c.contact.name).slice(0, 5).join(', ')
+              const templatePrompt = `Write a cold email template in ${detectLang(group.country)} for a GROUP of ${group.contacts.length} companies in the ${group.sector} sector in ${group.country}.
+
+Example companies in this group: ${companyNames}
+
+WE ARE BlackWolf Security (web.blackwolfsec.io) offering:
+1. Custom ERP system built for their industry
+2. Cybersecurity (SOC, pentesting, compliance)
+3. Process automation (AI agents, workflow optimization)
+4. Complete digital transformation
+
+OFFER: €10,000 package — process mapping, ERP, cybersecurity audit, automation, 3 months support.
+
+The email must:
+- Use {{name}} for the recipient name and {{company}} for company name (these will be replaced per recipient)
+- Be 150-200 words, consultative tone
+- Mention we work with ${group.sector} companies in ${group.country}
+- Reference EU digitalization grants 2026
+- Include link to web.blackwolfsec.io
+- CTA: 15-min discovery call
+- Professional HTML with inline styles, dark design (#0A0A0A bg, #FF6B00 accent)
+
+Return ONLY JSON: {"subject":"...","html":"..."}`
+
+              let emailTemplate = { subject: `Transformación digital para ${group.sector} en ${group.country}`, html: `<p>Estimado/a {{name}},</p><p>Desde BlackWolf Security ayudamos a empresas como {{company}} con su digitalización. Visite web.blackwolfsec.io</p>` }
+              try {
+                const aiRes = await anthropic.messages.create({ model: 'claude-sonnet-4-20250514', max_tokens: 1500, messages: [{ role: 'user', content: templatePrompt }] })
+                const text = aiRes.content[0]?.text || ''
+                const jsonMatch = text.match(/\{[\s\S]*\}/)
+                if (jsonMatch) emailTemplate = JSON.parse(jsonMatch[0])
+              } catch (e) { /* use fallback */ }
+
+              // Save template
+              const templateName = `Prospector - ${group.country} - ${group.sector}`
+              const { data: tpl } = await supabase.from('email_templates').insert({
+                client_id: clientId, name: templateName, subject: emailTemplate.subject,
+                html_content: emailTemplate.html, category: 'prospector-outreach'
+              }).select().single()
+
+              await appendLog(runId, { type: 'success', msg: `Plantilla creada: "${templateName}" → lista "${listName}" (${group.contacts.length} empresas)` })
+
+              // Step 3: Add subscribers + send individual emails
+              for (const { contact, enrichData } of group.contacts) {
+                const subEmail = contact.owner_email || contact.email || enrichData.ownerEmail || enrichData.companyEmail
+                if (!subEmail) { await supabase.from('crm_contacts').update({ status: 'ready' }).eq('id', contact.id); continue }
+
+                // Add to list
+                const { data: existSub } = await supabase.from('email_subscribers').select('id').eq('email', subEmail).eq('list_id', list.id).limit(1)
+                if (!existSub || existSub.length === 0) {
                   await supabase.from('email_subscribers').insert({
                     client_id: clientId, list_id: list.id, email: subEmail,
-                    name: contact.owner_name || enrichData.ownerName || contact.name || '', status: 'subscribed'
+                    name: enrichData.ownerName || contact.owner_name || contact.name || '', status: 'subscribed'
                   })
+                }
+
+                // Send email via Resend if config exists
+                if (emailConfig && emailConfig.api_key) {
+                  const ownerName = enrichData.ownerName || contact.owner_name || contact.name || 'Director/a'
+                  const companyName = contact.company || contact.name || ''
+                  const personalizedHtml = (emailTemplate.html || '')
+                    .replace(/\{\{name\}\}/g, ownerName)
+                    .replace(/\{\{company\}\}/g, companyName)
+                  const personalizedSubject = (emailTemplate.subject || '')
+                    .replace(/\{\{name\}\}/g, ownerName)
+                    .replace(/\{\{company\}\}/g, companyName)
+
+                  try {
+                    const fromEmail = emailConfig.from_email || 'onboarding@resend.dev'
+                    const fromName = emailConfig.from_name || 'BlackWolf Security'
+                    const sendRes = await fetch('https://api.resend.com/emails', {
+                      method: 'POST',
+                      headers: { 'Authorization': `Bearer ${emailConfig.api_key}`, 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ from: `${fromName} <${fromEmail}>`, to: [subEmail], subject: personalizedSubject, html: personalizedHtml })
+                    })
+                    if (sendRes.ok) {
+                      totalSent++
+                      await supabase.from('crm_contacts').update({ status: 'sent', pipeline_id: SCRAP_PIPELINE_ID }).eq('id', contact.id)
+                    } else {
+                      totalFailed++
+                      const err = await sendRes.json()
+                      await supabase.from('crm_contacts').update({ status: 'ready' }).eq('id', contact.id)
+                      if (totalFailed === 1) await appendLog(runId, { type: 'warning', msg: `Error enviando a ${subEmail}: ${err.message || JSON.stringify(err)}` })
+                    }
+                  } catch (e) {
+                    totalFailed++
+                    await supabase.from('crm_contacts').update({ status: 'ready' }).eq('id', contact.id)
+                  }
+                } else {
+                  // No email config — just mark as ready
+                  await supabase.from('crm_contacts').update({ status: 'ready' }).eq('id', contact.id)
                 }
               }
 
-              // Update contact status
-              await supabase.from('crm_contacts').update({ status: 'ready' }).eq('id', lead.crm_id)
-
-              await appendLog(runId, { type: 'success', msg: `Email creado para ${contact.company || contact.name} → plantilla "${templateName}" → lista "${listName}"` })
+              await appendLog(runId, { type: 'success', msg: `Lista "${listName}": ${group.contacts.length} leads añadidos` })
             } catch (e) {
-              await appendLog(runId, { type: 'warning', msg: `Error personalizando ${lead.name}: ${e.message}` })
+              await appendLog(runId, { type: 'warning', msg: `Error en grupo ${group.country}/${group.sector}: ${e.message}` })
             }
           }
-          await appendLog(runId, { type: 'success', msg: `Personalizacion completada: ${newLeads.length} plantillas y listas creadas en Email Marketing` })
+
+          const emailStatus = emailConfig?.api_key ? `${totalSent} emails enviados, ${totalFailed} fallidos` : 'Sin config Resend — emails no enviados'
+          await appendLog(runId, { type: 'success', msg: `Personalizacion completada: ${Object.keys(groups).length} listas, ${newLeads.length} leads procesados. ${emailStatus}` })
         }
 
         await updateRun(runId, {
@@ -1368,6 +1452,21 @@ export default async function handler(req, res) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const SCRAP_PIPELINE_ID = 'd922fa5f-ce79-4787-aa22-09f17f4979a7'
+
+function detectLang(country) {
+  const c = (country || '').toLowerCase()
+  const hasCyrillic = [...c].some(ch => ch.charCodeAt(0) >= 0x400 && ch.charCodeAt(0) <= 0x4FF)
+  if (hasCyrillic || /bulgar|българия/.test(c)) return 'Bulgarian'
+  if (/deutsch|german|austria|schweiz|alemania/.test(c)) return 'German'
+  if (/france|français|francia/.test(c)) return 'French'
+  if (/nederland|dutch|paises.bajos|holanda/.test(c)) return 'Dutch'
+  if (/portug/.test(c)) return 'Portuguese'
+  if (/spain|españa|español|espana/.test(c)) return 'Spanish'
+  if (/italia/.test(c)) return 'Italian'
+  if (/belgi/.test(c)) return 'French'
+  if (/reino.unido|uk|united.kingdom|england/.test(c)) return 'English'
+  return 'English'
+}
 
 async function deepEnrichContact(contact) {
   const company = contact.company || contact.name || ''
